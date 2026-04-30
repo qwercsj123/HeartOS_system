@@ -1,0 +1,4682 @@
+﻿<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECG Digitizer — Hand ECG</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface2: #ffffff;
+  --surface3: #ffffff;
+  --border: #eaecf0;
+  --border2: #d0d5dd;
+  --accent: #2563eb;
+  --accent2: #1d4ed8;
+  --accent-dim: rgba(37,99,235,0.12);
+  --accent-dim2: rgba(37,99,235,0.06);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.15);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251,191,36,0.12);
+  --blue: #60a5fa;
+  --text: #101828;
+  --text2: #475467;
+  --text3: #94a3b8;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.08);
+  --ring: 0 0 0 3px rgba(37,99,235,0.12);
+  --ui: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --serif: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  --panel: 268px;
+  --header: 56px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--ui);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+/* ── HEADER ── */
+header {
+  height: var(--header);
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 20px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.logo {
+  font-family: var(--ui);
+  font-size: 18px;
+  font-weight: 700;
+  color: #2563eb;
+  white-space: nowrap;
+}
+.logo span {
+  color: var(--text3);
+  font-family: var(--ui);
+  font-size: 12px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.header-sep { width: 1px; height: 20px; background: var(--border); }
+.header-actions { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+
+/* Step indicator */
+.steps { display: flex; gap: 0; }
+.step {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  font-size: 14px;
+  color: var(--text3);
+  border-bottom: 2px solid transparent;
+  cursor: default;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.step .step-num {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--border2);
+  color: var(--text3);
+  font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.step.active { color: var(--accent); border-bottom-color: var(--accent); }
+.step.active .step-num { background: var(--accent); color: #ffffff; }
+.step.done { color: var(--text2); }
+.step.done .step-num { background: var(--accent-dim); color: var(--accent); }
+.step-arrow { color: var(--text3); font-size: 10px; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 13px;
+  border-radius: 10px; border: 1px solid var(--border2);
+  background: #ffffff; color: var(--text2);
+  font-family: var(--ui); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim2); transform: translateY(-1px); }
+.btn.primary { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
+.btn.primary:hover { background: var(--accent2); }
+.btn.secondary { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
+.btn.secondary:hover { background: rgba(251,191,36,0.2); }
+.btn.danger { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { border-color: var(--border2); background: var(--surface2); }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.btn-icon { padding: 5px 8px; }
+
+/* ── LAYOUT ── */
+.workspace { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: var(--panel);
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden; flex-shrink: 0;
+}
+.sidebar-section { border-bottom: 1px solid var(--border); padding: 12px 14px; }
+.sidebar-section.grow { flex: 0 0 auto; overflow: visible; }
+.section-title {
+  font-size: 11px; color: var(--text3);
+  letter-spacing: 1.5px; text-transform: uppercase;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+}
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── UPLOAD ZONE ── */
+.upload-zone {
+  border: 1px dashed #bcd2f9; border-radius: 12px;
+  padding: 14px; text-align: center; cursor: pointer;
+  transition: all 0.2s; background: var(--accent-dim2);
+}
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--accent-dim); }
+.upload-zone .icon { font-size: 22px; margin-bottom: 4px; }
+.upload-zone p { color: var(--text2); font-size: 10px; line-height: 1.5; }
+.upload-zone strong { color: var(--accent); }
+#fileInput { display: none; }
+
+/* ── PARAMS ── */
+.param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.param-item label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+.param-item input, .param-item select {
+  width: 100%; background: #ffffff;
+  border: 1px solid var(--border2); border-radius: 8px;
+  color: var(--text); font-family: var(--ui); font-size: 14px;
+  padding: 8px 10px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.param-item input:focus, .param-item select:focus { border-color: var(--accent); box-shadow: var(--ring); }
+
+/* ── ROTATION ── */
+.rotation-wrap { display: flex; align-items: center; gap: 8px; }
+.rotation-wrap input[type=range] { flex: 1; accent-color: var(--accent); height: 3px; }
+.rot-val { width: 38px; text-align: right; color: var(--accent); font-size: 10px; }
+
+/* ── TABS ── */
+.tabs { display: flex; gap: 1px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 7px; }
+.tab { flex: 1; padding: 5px 4px; text-align: center; font-size: 10px; cursor: pointer; color: var(--text3); background: var(--surface2); transition: all 0.15s; }
+.tab.active { background: #ffffff; color: var(--accent); font-weight: 600; }
+
+/* ── LEAD LIST ── */
+.lead-list { display: flex; flex-direction: column; gap: 2px; }
+.lead-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 8px; border-radius: 8px;
+  border: 1px solid transparent; cursor: pointer;
+  transition: all 0.15s; background: var(--surface2);
+}
+.lead-item:hover { border-color: var(--border2); }
+.lead-item.active { border-color: var(--accent); background: var(--accent-dim); }
+.lead-item.active .lead-name { color: var(--accent); }
+.lead-name { font-size: 12px; font-weight: 600; color: var(--text2); width: 34px; flex-shrink: 0; }
+.lead-status { font-size: 10px; color: var(--text3); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lead-del { opacity: 0; color: var(--red); cursor: pointer; font-size: 11px; padding: 0 2px; transition: opacity 0.15s; }
+.lead-item:hover .lead-del { opacity: 1; }
+.badge { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
+.badge.set { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
+.badge.extracted { background: var(--red); box-shadow: 0 0 4px var(--red); }
+
+/* ── CANVAS AREA ── */
+.main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Tab bar between canvas and preview */
+.view-tabs {
+  display: flex; background: #ffffff; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.view-tab {
+  padding: 10px 18px; font-size: 13px; cursor: pointer;
+  color: var(--text3); border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.view-tab:hover { color: var(--text2); }
+
+.canvas-wrap {
+  flex: 1; overflow: auto; position: relative;
+  background: #ffffff;
+  display: flex; align-items: flex-start; justify-content: flex-start;
+  padding: 18px;
+}
+.canvas-container {
+  position: relative; display: inline-block;
+  line-height: 0; user-select: none; flex-shrink: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid #dbe5f3;
+  background: #ffffff;
+}
+#ecgCanvas { display: block; image-rendering: crisp-edges; }
+#overlayCanvas {
+  position: absolute; top: 0; left: 0;
+  pointer-events: auto; cursor: crosshair;
+}
+
+/* ── PREVIEW PANEL ── */
+.preview-wrap {
+  flex: 1; overflow: auto; background: var(--bg);
+  display: none; flex-direction: column; padding: 12px;
+  gap: 8px;
+}
+.preview-wrap.visible { display: flex; }
+
+.preview-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface); border-radius: 6px;
+  border: 1px solid var(--border); flex-shrink: 0;
+}
+.preview-header-title { font-size: 11px; color: var(--text2); flex: 1; }
+.preview-header .quality-badge {
+  font-size: 10px; padding: 3px 8px; border-radius: 3px;
+  border: 1px solid var(--border2); color: var(--text3);
+}
+.preview-header .quality-badge.good { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.preview-header .quality-badge.warn { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.preview-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.preview-card:hover { border-color: var(--border2); }
+.preview-card.selected { border-color: var(--accent); }
+
+.preview-card-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.preview-card-lead { font-size: 10px; font-weight: 700; color: var(--accent); width: 32px; }
+.preview-card-info { font-size: 9px; color: var(--text3); flex: 1; }
+.preview-card-status { font-size: 9px; }
+.preview-card-status.ok { color: var(--accent); }
+.preview-card-status.warn { color: var(--amber); }
+
+.preview-canvas-wrap { position: relative; background: #fdf6f0; }
+.preview-canvas-wrap canvas { display: block; width: 100%; }
+
+/* ── EXTRACT CONTROLS ── */
+.extract-controls {
+  background: var(--surface); border-radius: 6px;
+  border: 1px solid var(--border); padding: 10px 12px;
+  flex-shrink: 0;
+}
+.extract-controls-title { font-size: 9px; color: var(--text3); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+.extract-params { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.extract-param { display: flex; flex-direction: column; gap: 3px; }
+.extract-param label { font-size: 9px; color: var(--text3); }
+.extract-param input, .extract-param select {
+  background: var(--surface3); border: 1px solid var(--border2);
+  border-radius: 3px; color: var(--text); font-family: var(--mono);
+  font-size: 11px; padding: 4px 8px; outline: none; width: 90px;
+}
+.extract-param input:focus { border-color: var(--accent); }
+
+/* ── ZOOM ── */
+.zoom-controls {
+  position: absolute; bottom: 12px; right: 12px;
+  display: flex; flex-direction: column; gap: 3px; z-index: 10;
+}
+.zoom-btn {
+  width: 34px; height: 34px; background: #ffffff;
+  border: 1px solid var(--border2); border-radius: 10px;
+  color: var(--text2); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+.zoom-label { text-align: center; font-size: 9px; color: var(--text3); }
+
+/* ── STATUS BAR ── */
+.statusbar {
+  height: 28px; background: #ffffff;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 12px; gap: 14px; font-size: 11px;
+  color: var(--text3); flex-shrink: 0;
+}
+.statusbar .sep { color: var(--border2); }
+.statusbar .hl { color: var(--accent); }
+.hint { margin-left: auto; font-size: 9px; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 36px; left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--surface2); border: 1px solid var(--accent);
+  color: var(--accent); padding: 7px 14px;
+  border-radius: 4px; font-size: 11px; opacity: 0;
+  transition: all 0.25s; z-index: 9999; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { border-color: var(--red); color: var(--red); }
+.toast.warn  { border-color: var(--amber); color: var(--amber); }
+
+/* ── INFO BOX ── */
+.info-box {
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 4px; padding: 7px; font-size: 10px;
+  color: var(--text2); line-height: 1.6; margin-top: 6px;
+}
+.info-box .kv { display: flex; justify-content: space-between; }
+.info-box .v { color: var(--accent); }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  position: absolute; inset: 0; display: flex;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; color: var(--text3); pointer-events: none;
+}
+.empty-state .big-icon { font-size: 44px; opacity: 0.25; }
+.empty-state h2 { font-family: var(--serif); font-style: italic; font-size: 18px; color: var(--text2); opacity: 0.4; }
+.empty-state p { font-size: 10px; opacity: 0.4; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.divider { height: 1px; background: var(--border); margin: 6px 0; }
+
+/* ── REPAIR MODAL ── */
+.rmodal-overlay {
+  display:none; position:fixed; inset:0; z-index:3000;
+  background:rgba(0,0,0,0.82); align-items:center; justify-content:center;
+}
+.rmodal-overlay.open { display:flex; }
+.rmodal-box {
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:8px; width:min(96vw,1040px); height:min(90vh,680px);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.rmodal-header {
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  border-bottom:1px solid var(--border); background:var(--surface2); flex-shrink:0;
+}
+.rmodal-title { font-size:12px; color:var(--text); flex:1; }
+.rmodal-body { flex:1; display:flex; overflow:hidden; }
+.rmodal-tools {
+  width:160px; flex-shrink:0; border-right:1px solid var(--border);
+  background:var(--surface2); padding:8px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;
+}
+.tool-section-label { font-size:9px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin:6px 0 3px; }
+.rmodal-canvas-area {
+  flex:1; overflow:auto; background:#ffffff;
+  display:flex; align-items:flex-start; justify-content:flex-start;
+  padding:12px;
+}
+#repairCanvas { display:block; cursor:crosshair; image-rendering:crisp-edges; }
+.rmodal-footer {
+  display:flex; align-items:center; gap:8px; padding:7px 12px;
+  border-top:1px solid var(--border); background:var(--surface2); flex-shrink:0;
+  font-size:10px; color:var(--text3);
+}
+.rtool-btn {
+  display:flex; align-items:center; gap:5px; padding:5px 8px;
+  border:1px solid var(--border2); border-radius:4px; background:var(--surface3);
+  color:var(--text2); font-family:var(--mono); font-size:10px; cursor:pointer; width:100%;
+  transition:all 0.15s;
+}
+.rtool-btn:hover { border-color:var(--accent); color:var(--accent); }
+.rtool-btn.active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.rtool-btn.amber.active { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
+.rtool-btn.red.active { border-color:var(--red); color:var(--red); background:var(--red-dim); }
+.brush-size-wrap { display:flex; flex-direction:column; gap:3px; }
+.brush-size-wrap label { font-size:9px; color:var(--text3); }
+.brush-size-wrap input { accent-color:var(--accent); width:100%; }
+.anchor-legend { font-size:9px; color:var(--text3); line-height:1.7; }
+.anchor-legend span { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+
+/* Vertical crop handles in repair canvas */
+.vcrop-active #repairCanvas { cursor: ns-resize; }
+.vcrop-hint { font-size:9px; color:#818cf8; line-height:1.6; margin-top:4px; }
+
+/* ── BATCH MODE ── */
+.batch-queue {
+  display:flex; flex-direction:column; gap:2px; max-height:220px; overflow-y:auto;
+}
+.batch-item {
+  display:flex; align-items:center; gap:6px; padding:4px 7px;
+  border-radius:4px; border:1px solid transparent;
+  font-size:10px; cursor:pointer; transition:all 0.15s;
+  background:var(--surface2);
+}
+.batch-item:hover { border-color:var(--border2); }
+.batch-item.active { border-color:var(--accent); background:var(--accent-dim); }
+.batch-item.done { border-color:var(--border); opacity:0.6; }
+.batch-item.done .bi-name { text-decoration:line-through; color:var(--text3); }
+.batch-item .bi-idx { font-size:9px; color:var(--text3); min-width:18px; }
+.batch-item .bi-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text2); }
+.batch-item .bi-status { font-size:9px; flex-shrink:0; }
+.batch-item.active .bi-name { color:var(--accent); }
+.batch-progress {
+  font-size:10px; color:var(--text2); padding:4px 0;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.batch-bar { height:3px; background:var(--border); border-radius:2px; margin:4px 0; }
+.batch-bar-fill { height:100%; background:var(--accent); border-radius:2px; transition:width 0.3s; }
+.preview-card-edit {
+  font-size:9px; padding:2px 7px; border-radius:3px;
+  border:1px solid var(--border2); background:transparent;
+  color:var(--text3); cursor:pointer; font-family:var(--mono);
+  transition:all 0.15s; margin-left:auto; flex-shrink:0;
+}
+.preview-card-edit:hover { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
+.preview-card-edit.edited { border-color:var(--accent); color:var(--accent); }
+
+/* Progress */
+.progress-bar {
+  height: 2px; background: var(--border); border-radius: 1px;
+  overflow: hidden; margin-top: 4px;
+}
+.progress-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 1px; transition: width 0.3s;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Hand ECG <span>v3.0</span></div>
+  <div class="header-sep"></div>
+
+  <!-- Step indicators -->
+  <div class="steps">
+    <div class="step active" id="step1">
+      <span class="step-num">1</span> 打开图像
+    </div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step2">
+      <span class="step-num">2</span> 标注区域
+    </div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step3">
+      <span class="step-num">3</span> 提取预览
+    </div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step4">
+      <span class="step-num">4</span> 保存 CSV
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn" onclick="document.getElementById('fileInput').click()">⊕ 打开</button>
+    <button class="btn" id="btnPreset" onclick="applyPreset()" disabled>⊞ 应用预设</button>
+    <button class="btn" id="btnClear" onclick="clearAllBoxes()" disabled>⊘ 清空</button>
+    <button class="btn secondary" id="btnExtract" onclick="runExtraction()" disabled>▶ 提取预览</button>
+    <button class="btn primary" id="btnSave" onclick="saveCSV()" disabled>↓ 保存 CSV</button>
+    <button class="btn" id="btnNextImage" onclick="batchNext()" disabled
+      style="display:none;border-color:var(--accent);color:var(--accent)">
+      ✓ 完成，下一张 ›
+    </button>
+  </div>
+</header>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="section-title">图像 / 参数</div>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">🫀</div>
+        <p><strong>点击或拖拽</strong>上传图像<br>支持多选批量处理</p>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+
+    <!-- BATCH QUEUE (shown when >1 file loaded) -->
+    <div class="sidebar-section" id="batchSection" style="display:none">
+      <div class="section-title">批量队列</div>
+      <div class="batch-progress">
+        <span id="batchProgressText">0 / 0 完成</span>
+        <button class="btn" id="btnDownloadAll" onclick="downloadAllCSV()" disabled
+          style="font-size:9px;padding:3px 8px;border-color:var(--accent);color:var(--accent)">
+          ↓ 打包下载 ZIP
+        </button>
+      </div>
+      <div class="batch-bar"><div class="batch-bar-fill" id="batchBarFill" style="width:0%"></div></div>
+      <div class="batch-queue" id="batchQueue"></div>
+    </div>
+<div class="sidebar-section">
+      <div class="section-title">旋转校正</div>
+      <div class="rotation-wrap" style="display:none">
+        <input type="range" id="rotSlider" min="-15" max="15" step="0.1" value="0" oninput="onRotate(this.value)">
+        <div class="rot-val" id="rotVal">0.0°</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn" id="btnPerspectiveMode" onclick="startPerspectiveSelection()" disabled style="font-size:10px">▣ 四点矫正</button>
+        <button class="btn" id="btnAutoCorners" onclick="autoDetectPerspectiveCorners()" disabled style="font-size:10px">⌁ 自动找角</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button class="btn secondary" id="btnApplyPerspective" onclick="applyPerspectiveCorrection()" disabled style="font-size:10px">▶ 应用矫正</button>
+        <button class="btn" id="btnResetPerspective" onclick="resetPerspectiveCorrection()" disabled style="font-size:10px">↺ 恢复原图</button>
+      </div>
+      <div id="perspectiveStatus" style="font-size:9px;color:var(--text3);line-height:1.6;margin-top:6px">
+        上传图片后可手动点选四个角点，先完成手机拍照透视拉正。
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">心电图参数</div>
+      <div class="param-grid">
+        <div class="param-item">
+          <label>纸速 mm/s</label>
+          <input type="number" id="paramSpeed" value="25" min="1" max="200">
+        </div>
+        <div class="param-item">
+          <label>增益 mm/mV</label>
+          <input type="number" id="paramGain" value="10" min="1" max="40">
+        </div>
+        <div class="param-item">
+          <label>图像 DPI</label>
+          <input type="number" id="paramDPI" value="96" min="72" max="600">
+        </div>
+        <div class="param-item">
+          <label>输出 Hz</label>
+          <input type="number" id="paramFS" value="500" min="100" max="2000">
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-title">网格标定</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn" id="btnGridAuto" onclick="autoDetectGridCalibration()" disabled
+          style="font-size:10px;border-color:var(--blue);color:var(--blue)">自动识别网格</button>
+        <button class="btn" id="btnGridManualX" onclick="startManualCalibration('x')" disabled style="font-size:10px">手动横向两点</button>
+        <button class="btn" id="btnGridManualY" onclick="startManualCalibration('y')" disabled style="font-size:10px">手动纵向两点</button>
+        <button class="btn" id="btnGridClear" onclick="clearGridCalibration()" disabled style="font-size:10px">清除标定</button>
+      </div>
+      <div class="param-grid" style="margin-top:8px">
+        <div class="param-item">
+          <label>横向距离 mm</label>
+          <select id="calibDistX">
+            <option value="1">1 个大格</option>
+            <option value="2">2 个大格</option>
+            <option value="5" selected>5 个大格</option>
+          </select>
+        </div>
+        <div class="param-item">
+          <label>纵向距离 mm</label>
+          <select id="calibDistY">
+            <option value="1">1 个大格</option>
+            <option value="2" selected>2 个大格</option>
+            <option value="5">5 个大格</option>
+          </select>
+        </div>
+      </div>
+      <div id="calibSummary" style="font-size:9px;color:var(--text3);line-height:1.7;margin-top:6px">
+        未标定，当前按 DPI 参数换算时间和振幅。
+      </div>
+      <div id="calibStatus" style="font-size:9px;color:var(--text3);line-height:1.6;margin-top:4px">
+        可先自动识别；如果失败，在主图上点两点完成横向/纵向标定。建议沿小格或 5 mm 大格取点。
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">版面预设</div>
+      <div class="tabs" id="layoutTabs">
+        <div class="tab active" id="tab-4col" onclick="selectLayout('4col')">4列×3行</div>
+        <div class="tab" id="tab-2col" onclick="selectLayout('2col')">2列×6行</div>
+        <div class="tab" id="tab-custom" onclick="selectLayout('custom')">自定义</div>
+      </div>
+      <div style="font-size:9px;color:var(--text3);line-height:1.7" id="layoutDesc">
+        GE / Philips 标准格式<br>I·aVR·V1·V4 / II·aVL·V2·V5 / III·aVF·V3·V6
+      </div>
+      <button class="btn" id="btnAutoDetect" onclick="autoDetectLeads()" disabled
+        style="width:100%;margin-top:6px;font-size:10px;border-color:var(--blue);color:var(--blue)">
+        ⚡ 自动检测导联区域
+      </button>
+      <div id="autoDetectStatus" style="font-size:9px;color:var(--text3);margin-top:4px;display:none"></div>
+    </div>
+
+    <div class="sidebar-section grow">
+      <div class="section-title">导联区域
+        <span id="leadCount" style="color:var(--accent);font-size:9px;margin-left:2px">0/12</span>
+      </div>
+      <div class="lead-list" id="leadList"></div>
+      <div id="selectedLeadInfo" style="display:none" class="info-box" style="margin-top:6px"></div>
+    </div>
+
+  </div>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+
+    <!-- View tabs -->
+    <div class="view-tabs">
+      <div class="view-tab active" id="vtab-edit" onclick="switchView('edit')">✏️ 标注视图</div>
+      <div class="view-tab" id="vtab-preview" onclick="switchView('preview')">👁 提取预览</div>
+    </div>
+
+    <!-- EDIT VIEW -->
+    <div class="canvas-wrap" id="editView">
+      <div class="empty-state" id="emptyState" style="cursor:pointer" onclick="document.getElementById('fileInput').click()">
+        <div class="big-icon">⚡</div>
+        <h2>打开心电图</h2>
+        <p>支持 JPG · PNG · TIFF · BMP</p>
+      </div>
+      <div class="canvas-container" id="canvasContainer" style="display:none">
+        <canvas id="ecgCanvas"></canvas>
+        <canvas id="overlayCanvas"
+          onmousedown="onMouseDown(event)"
+          onmousemove="onMouseMove(event)"
+          onmouseup="onMouseUp(event)"
+          onmouseleave="onMouseLeave(event)">
+        </canvas>
+      </div>
+      <div class="zoom-controls">
+        <div class="zoom-btn" onclick="zoom(1.2)">+</div>
+        <div class="zoom-label" id="zoomLabel">100%</div>
+        <div class="zoom-btn" onclick="zoom(1/1.2)">−</div>
+        <div class="zoom-btn" onclick="resetZoom()" style="font-size:10px">⊡</div>
+      </div>
+    </div>
+
+    <!-- PREVIEW VIEW -->
+    <div class="preview-wrap" id="previewView">
+
+      <div class="extract-controls">
+        <div class="extract-controls-title">提取参数调整</div>
+        <div class="extract-params">
+          <div class="extract-param">
+            <label>暗度阈值 (0~255)</label>
+            <input type="number" id="epThreshold" value="150" min="50" max="255">
+          </div>
+          <div class="extract-param">
+            <label>基线窗口 (%)</label>
+            <input type="number" id="epBaseline" value="10" min="2" max="50">
+          </div>
+          <div class="extract-param">
+            <label>平滑核 (px)</label>
+            <input type="number" id="epSmooth" value="0" min="0" max="15">
+          </div>
+          <div class="extract-param">
+            <label>提取方法</label>
+            <select id="epMethod">
+              <option value="centroid">重心法</option>
+              <option value="darkest">最暗点法</option>
+              <option value="topmost">最高点法</option>
+              <option value="track" selected>连续性追踪（推荐）</option>
+            </select>
+          </div>
+          <button class="btn secondary" onclick="runExtraction()" style="align-self:flex-end">↻ 重新提取</button>
+          <button class="btn primary" onclick="saveCSV()" id="btnSave2" style="align-self:flex-end" disabled>↓ 保存 CSV</button>
+        </div>
+      <div id="extractProgress" style="display:none">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        </div>
+        <div style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:10px;color:var(--text2)">CSV 保存</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="saveFileName" placeholder="ecg.csv" style="flex:1;min-width:180px;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none">
+            <button class="btn" onclick="chooseSaveDirectory()" style="font-size:10px">选择保存位置</button>
+            <button class="btn" onclick="renderCurrentCSVPreview()" style="font-size:10px">回绘 CSV 预览</button>
+          </div>
+          <div id="saveLocationLabel" style="font-size:9px;color:var(--text3)">当前保存位置：浏览器默认下载目录</div>
+        </div>
+      </div>
+
+      <div class="preview-header" id="previewHeader" style="display:none">
+        <div class="preview-header-title" id="previewHeaderTitle">—</div>
+        <div class="quality-badge" id="qualityBadge">—</div>
+        <button class="btn ghost btn-icon" onclick="switchView('edit')" title="返回编辑">✏️</button>
+      </div>
+
+      <div class="preview-grid" id="previewGrid"></div>
+      <div id="csvRenderPanel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--text2)">CSV 回绘预览</div>
+          <div id="csvRenderInfo" style="font-size:9px;color:var(--text3)"></div>
+        </div>
+        <div class="preview-canvas-wrap" id="csvRenderWrap"></div>
+      </div>
+
+      <div id="previewEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;flex-direction:column;gap:8px">
+        <div style="font-size:36px;opacity:0.2">👁</div>
+        <div>点击「▶ 提取预览」查看效果</div>
+        <div style="font-size:10px;opacity:0.6">可多次调整参数重新提取，满意后保存 CSV</div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <span id="statusImg">未加载图像</span>
+  <span class="sep">|</span>
+  <span id="statusLeads">0 / 12 导联</span>
+  <span class="sep">|</span>
+  <span id="statusCursor">x:—  y:—</span>
+  <span class="sep">|</span>
+  <span id="statusZoom">100%</span>
+  <span class="sep">|</span>
+  <span id="statusExtract" style="color:var(--text3)">未提取</span>
+  <span class="hint">拖拽绘制 · 滚轮缩放 · 空格拖动画布 · Tab切换导联 · Del删除</span>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- ══ REPAIR MODAL ══ -->
+<div class="rmodal-overlay" id="repairModal">
+  <div class="rmodal-box">
+    <div class="rmodal-header">
+      <span id="repairLeadBadge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:3px;border:1px solid;margin-right:2px">I</span>
+      <span class="rmodal-title">导联修复工具</span>
+      <span id="repairModeLabel" style="font-size:10px;color:var(--amber);margin-right:8px"></span>
+      <button class="btn btn-icon ghost" onclick="closeRepairModal()">✕</button>
+    </div>
+    <div class="rmodal-body">
+      <!-- Left tool panel -->
+      <div class="rmodal-tools">
+        <div class="tool-section-label">工具模式</div>
+        <button class="rtool-btn red active" id="rtool-erase" onclick="setRepairTool('erase')">
+          ◌ 画笔擦除
+        </button>
+        <button class="rtool-btn amber" id="rtool-anchor" onclick="setRepairTool('anchor')">
+          ◉ 添加锚点
+        </button>
+        <button class="rtool-btn" id="rtool-delanchor" onclick="setRepairTool('delanchor')">
+          ✕ 删除锚点
+        </button>
+        <button class="rtool-btn" id="rtool-pan" onclick="setRepairTool('pan')">
+          ✥ 平移视图
+        </button>
+        <button class="rtool-btn" id="rtool-hint" onclick="setRepairTool('hint')" style="border-color:#818cf8;color:#818cf8">
+          ↔ 指定目标线
+        </button>
+        <button class="rtool-btn" id="rtool-vcrop" onclick="setRepairTool('vcrop')" style="border-color:#2dd4bf;color:#2dd4bf">
+          ⣿ 垂直裁剪
+        </button>
+
+        <div id="vcropControls" style="display:none">
+          <div class="tool-section-label">裁剪范围</div>
+          <div class="vcrop-hint">
+            拖动青色线调整上/下边界<br>
+            边界外的像素会被遮蔽<br>
+            只保留目标线所在区域
+          </div>
+          <button class="rtool-btn" style="margin-top:4px;font-size:9px" onclick="resetVCrop()">↺ 重置裁剪</button>
+        </div>
+
+        <div class="tool-section-label">画笔大小</div>
+        <div class="brush-size-wrap">
+          <input type="range" id="brushSize" min="2" max="40" value="8" step="1"
+            oninput="document.getElementById('brushSizeVal').textContent=this.value">
+          <label>大小: <span id="brushSizeVal">8</span>px</label>
+        </div>
+        <div class="tool-section-label">擦除颜色</div>
+        <button class="rtool-btn" id="eraseWhite" onclick="setEraseColor('white')" style="border-color:var(--accent);color:var(--accent)">● 白色（纸底）</button>
+        <button class="rtool-btn" id="eraseCustom" onclick="setEraseColor('pick')">○ 取色擦除</button>
+
+        <div class="tool-section-label">缩放</div>
+        <div style="display:flex;gap:4px">
+          <button class="rtool-btn" style="flex:1;justify-content:center" onclick="repairZoom(1.3)">+</button>
+          <button class="rtool-btn" style="flex:1;justify-content:center" onclick="repairZoom(0.77)">−</button>
+          <button class="rtool-btn" style="flex:1;justify-content:center;font-size:9px" onclick="repairZoomFit()">⊡</button>
+        </div>
+        <div style="font-size:9px;color:var(--accent);text-align:center" id="repairZoomLabel">100%</div>
+
+        <div class="tool-section-label">锚点说明</div>
+        <div class="anchor-legend">
+          锚点 = 告知提取算法「此处信号应在这个位置」<br>
+          <span style="background:#fbbf24"></span>黄点 = 锚点位置<br>
+          添加后点击「重新提取」生效
+        </div>
+
+        <div style="margin-top:auto;padding-top:8px;display:flex;flex-direction:column;gap:4px">
+          <button class="btn" style="width:100%;font-size:10px" onclick="repairUndo()">↩ 撤销</button>
+          <button class="btn" style="width:100%;font-size:10px" onclick="repairReset()">↺ 重置</button>
+        </div>
+      </div>
+
+      <!-- Canvas area -->
+      <div class="rmodal-canvas-area" id="repairCanvasArea">
+        <canvas id="repairCanvas"></canvas>
+      </div>
+    </div>
+    <div class="rmodal-footer">
+      <span id="repairFooterInfo">锚点: 0</span>
+      <span style="margin-left:auto;font-size:9px;color:var(--text3)">擦除干扰线后「重新提取」；或添加锚点引导算法</span>
+      <button class="btn" style="font-size:10px" onclick="closeRepairModal()">取消</button>
+      <button class="btn secondary" style="font-size:10px" onclick="applyRepairAndReextract()">▶ 重新提取此导联</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════════
+const LEADS_ORDER = ["I","II","III","aVR","aVL","aVF","V1","V2","V3","V4","V5","V6"];
+const COLORS = {
+  I:'#4ade80', II:'#34d399', III:'#2dd4bf',
+  aVR:'#60a5fa', aVL:'#818cf8', aVF:'#a78bfa',
+  V1:'#f472b6', V2:'#fb7185', V3:'#f97316',
+  V4:'#fbbf24', V5:'#a3e635', V6:'#22d3ee',
+};
+const LAYOUT_PRESETS = {
+  '4col': {
+    desc: 'GE / Philips 标准格式<br>I·aVR·V1·V4 / II·aVL·V2·V5 / III·aVF·V3·V6',
+    leads: {
+      'I':[0.000,0.176,0.250,0.378],'aVR':[0.250,0.176,0.500,0.378],
+      'V1':[0.500,0.176,0.750,0.378],'V4':[0.750,0.176,1.000,0.378],
+      'II':[0.000,0.378,0.250,0.498],'aVL':[0.250,0.378,0.500,0.498],
+      'V2':[0.500,0.378,0.750,0.498],'V5':[0.750,0.378,1.000,0.498],
+      'III':[0.000,0.498,0.250,0.652],'aVF':[0.250,0.498,0.500,0.652],
+      'V3':[0.500,0.498,0.750,0.652],'V6':[0.750,0.498,1.000,0.652],
+    }
+  },
+  '2col': {
+    desc: '2列×6行<br>I·II·III·aVR·aVL·aVF（左）/ V1~V6（右）',
+    leads: {
+      'I':[0.000,0.05,0.500,0.22],'II':[0.000,0.22,0.500,0.39],
+      'III':[0.000,0.39,0.500,0.56],'aVR':[0.000,0.56,0.500,0.73],
+      'aVL':[0.000,0.73,0.500,0.88],'aVF':[0.000,0.88,0.500,1.00],
+      'V1':[0.500,0.05,1.000,0.22],'V2':[0.500,0.22,1.000,0.39],
+      'V3':[0.500,0.39,1.000,0.56],'V4':[0.500,0.56,1.000,0.73],
+      'V5':[0.500,0.73,1.000,0.88],'V6':[0.500,0.88,1.000,1.00],
+    }
+  },
+  'custom': { desc: '手动拖拽为每个导联绘制区域', leads: {} }
+};
+
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let state = {
+  image: null, imageW: 0, imageH: 0,
+  originalImage: null, originalImageW: 0, originalImageH: 0,
+  originalImageDataUrl: '', originalImageMime: '', originalImageName: '',
+  rotation: 0, scale: 1.0,
+  boxes: {},           // lead -> {x1,y1,x2,y2} image coords
+  selectedLead: null,
+  drawing: false, drawStart: null,
+  dragState: null,
+  cursorPos: {x:0,y:0},
+  layout: '4col',
+  perspectiveMode: false,
+  perspectiveModeSource: null,
+  perspectivePoints: [],
+  selectedPerspectivePoint: -1,
+  // Extraction results
+  extractedSignals: null,  // lead -> Float32Array (raw y-px per column)
+  extractedMV: null,       // lead -> Float32Array (mV, resampled)
+  offCanvas: null,         // READ-ONLY master canvas — never modified after creation
+  leadCanvases: {},        // lead -> HTMLCanvasElement  每导联独立图像，修复只改这里
+  repairedLeads: new Set(),// 已手动修复的导联集合
+};
+
+// ════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════
+state.calibration = {
+  pxPerMmX: null,
+  pxPerMmY: null,
+  mode: null,
+  pendingPoints: [],
+  manual: { x: null, y: null },
+  auto: null,
+  source: 'dpi',
+};
+state.viewPan = { active: false, originX: 0, originY: 0, scrollLeft: 0, scrollTop: 0 };
+state.spacePan = false;
+state.saveConfig = {
+  dirHandle: null,
+  dirName: '浏览器默认下载目录',
+  fileName: 'ecg.csv',
+  lastSavedLabel: '',
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildLeadList();
+  initCalibrationUI();
+  setupDrop();
+  document.getElementById('fileInput').addEventListener('change', e => {
+    if (e.target.files.length > 0) batchLoadFiles(e.target.files);
+    e.target.value = ''; // reset so same files can be re-selected
+  });
+  document.addEventListener('keydown', onKeyDown);
+  const oc = document.getElementById('overlayCanvas');
+  oc.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('mouseup', e => {
+    if (state.drawing || state.dragState) onMouseUp(e);
+  });
+});
+
+function initCalibrationUI() {
+  const xSelect = document.getElementById('calibDistX');
+  const ySelect = document.getElementById('calibDistY');
+  const autoBtn = document.getElementById('btnGridAuto');
+  const xBtn = document.getElementById('btnGridManualX');
+  const yBtn = document.getElementById('btnGridManualY');
+  const perspectiveTitle = document.querySelectorAll('.section-title')[3];
+  if (xSelect?.previousElementSibling) xSelect.previousElementSibling.textContent = '横向选几个大格';
+  if (ySelect?.previousElementSibling) ySelect.previousElementSibling.textContent = '纵向选几个大格';
+  if (xSelect) {
+    xSelect.innerHTML = '<option value="5" selected>固定 5 个大格</option>';
+    xSelect.disabled = true;
+  }
+  if (ySelect) {
+    ySelect.innerHTML = '<option value="5" selected>固定 5 个大格</option>';
+    ySelect.disabled = true;
+  }
+  if (autoBtn) autoBtn.style.display = 'none';
+  if (perspectiveTitle) perspectiveTitle.textContent = '透视校正';
+  [xBtn, yBtn].forEach(btn => {
+    if (!btn) return;
+    btn.style.borderColor = 'var(--border2)';
+    btn.style.color = 'var(--text2)';
+    btn.style.background = 'var(--surface2)';
+  });
+  const summary = document.getElementById('calibSummary');
+  const status = document.getElementById('calibStatus');
+  const saveName = document.getElementById('saveFileName');
+  const saveLabel = document.getElementById('saveLocationLabel');
+  const fixedHintId = 'fixedGridHint';
+  if (summary) summary.textContent = '必须先完成横向 5 个大格和纵向 5 个大格标定，才能提取和保存。';
+  if (status) status.textContent = '请先放大图片，再分别点击横向 5 个大格、纵向 5 个大格的两端网格线。系统会自动吸附到最近网格线。';
+  const paramGrid = xSelect?.closest('.param-grid');
+  if (paramGrid) {
+    paramGrid.style.display = 'none';
+    if (!document.getElementById(fixedHintId)) {
+      const hint = document.createElement('div');
+      hint.id = fixedHintId;
+      hint.style.cssText = 'margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:10px;color:var(--text2);line-height:1.7';
+      hint.innerHTML = '横向：固定按 5 个大格标定<br>纵向：固定按 5 个大格标定';
+      paramGrid.parentElement.insertBefore(hint, summary);
+    }
+  }
+  if (saveName) {
+    saveName.value = state.saveConfig.fileName;
+    saveName.style.display = 'none';
+    saveName.addEventListener('input', e => {
+      state.saveConfig.fileName = e.target.value.trim() || 'ecg.csv';
+      updateSaveLocationLabel();
+    });
+  }
+  if (saveLabel) saveLabel.style.display = 'none';
+  ['paramDPI', 'calibDistX', 'calibDistY'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      if (id === 'paramDPI' && state.calibration.source === 'dpi') updateCalibrationUI();
+      else if (id !== 'paramDPI') updateCalibrationUI();
+    });
+  });
+  updateSaveLocationLabel();
+  updateCalibrationUI();
+}
+
+function resetCalibrationState(keepStatus=false) {
+  state.calibration = {
+    pxPerMmX: null,
+    pxPerMmY: null,
+    mode: null,
+    pendingPoints: [],
+    manual: { x: null, y: null },
+    auto: null,
+    source: 'dpi',
+  };
+  updateCalibrationUI();
+  if (!keepStatus) setCalibrationStatus('未标定，当前按 DPI 参数换算。', 'var(--text3)');
+}
+
+function setCalibrationStatus(msg, color='var(--text3)') {
+  const el = document.getElementById('calibStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color;
+}
+
+function makeDefaultCSVFileName() {
+  const baseName = batch.files.length > 1 && batch.current >= 0
+    ? batch.files[batch.current].name.replace(/\.[^.]+$/,'')
+    : `ecg_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}`;
+  return baseName + '.csv';
+}
+
+function updateSaveLocationLabel() {
+  const label = document.getElementById('saveLocationLabel');
+  if (!label) return;
+  const fileName = state.saveConfig.fileName || 'ecg.csv';
+  const dirName = state.saveConfig.dirName || '浏览器默认下载目录';
+  const suffix = state.saveConfig.lastSavedLabel ? ` · 上次保存：${state.saveConfig.lastSavedLabel}` : '';
+  label.textContent = `当前保存位置：${dirName}/${fileName}${suffix}`;
+}
+
+function setCSVPreviewMode(show) {
+  const extractControls = document.querySelector('.extract-controls');
+  const header = document.getElementById('previewHeader');
+  const grid = document.getElementById('previewGrid');
+  const empty = document.getElementById('previewEmpty');
+  const panel = document.getElementById('csvRenderPanel');
+  if (extractControls) extractControls.style.display = show ? 'none' : '';
+  if (header && show) header.style.display = 'none';
+  if (grid) grid.style.display = show ? 'none' : '';
+  if (empty && show) empty.style.display = 'none';
+  if (panel) panel.style.display = show ? 'block' : 'none';
+}
+
+async function chooseSaveDirectory() {
+  if (!window.showDirectoryPicker) {
+    toast('当前浏览器不支持直接选目录，将使用默认下载目录', 'warn');
+    return;
+  }
+  try {
+    const dirHandle = await window.showDirectoryPicker();
+    state.saveConfig.dirHandle = dirHandle;
+    state.saveConfig.dirName = dirHandle.name || '已选目录';
+    updateSaveLocationLabel();
+    toast(`已选择保存位置：${state.saveConfig.dirName}`);
+  } catch (err) {
+    if (err?.name !== 'AbortError') toast('选择保存位置失败', 'warn');
+  }
+}
+
+function getScaleMetrics() {
+  const dpi = parseFloat(document.getElementById('paramDPI').value) || 96;
+  const fallback = dpi / 25.4;
+  return {
+    pxPerMmX: state.calibration.pxPerMmX || fallback,
+    pxPerMmY: state.calibration.pxPerMmY || fallback,
+    dpiEquivalentX: (state.calibration.pxPerMmX || fallback) * 25.4,
+    dpiEquivalentY: (state.calibration.pxPerMmY || fallback) * 25.4,
+    source: state.calibration.source || 'dpi',
+  };
+}
+
+function syncDpiFromCalibration() {
+  const vals = [state.calibration.pxPerMmX, state.calibration.pxPerMmY].filter(v => Number.isFinite(v) && v > 0);
+  if (vals.length === 0) return;
+  const avgPxPerMm = vals.reduce((a, b) => a + b, 0) / vals.length;
+  document.getElementById('paramDPI').value = Math.round(avgPxPerMm * 25.4 * 10) / 10;
+}
+
+function isCalibrationReady() {
+  return Number.isFinite(state.calibration.pxPerMmX) && state.calibration.pxPerMmX > 0 &&
+         Number.isFinite(state.calibration.pxPerMmY) && state.calibration.pxPerMmY > 0;
+}
+
+function updateCalibrationUI() {
+  const hasImage = !!state.image;
+  ['btnGridAuto', 'btnGridManualX', 'btnGridManualY', 'btnGridClear'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !hasImage;
+  });
+
+  const summary = document.getElementById('calibSummary');
+  if (!summary) return;
+  const dpi = parseFloat(document.getElementById('paramDPI').value) || 96;
+  const fallback = dpi / 25.4;
+  const sx = state.calibration.pxPerMmX || fallback;
+  const sy = state.calibration.pxPerMmY || fallback;
+  const bits = [];
+  bits.push(`横向 ${sx.toFixed(2)} px/mm`);
+  bits.push(`纵向 ${sy.toFixed(2)} px/mm`);
+  bits.push(`等效 DPI ${Math.round(((sx + sy) / 2) * 25.4)}`);
+  let sourceText = '来源：DPI 参数';
+  if (state.calibration.source === 'auto') sourceText = '来源：自动识别网格';
+  else if (state.calibration.source === 'manual') sourceText = '来源：手动两点标定';
+  else if (state.calibration.source === 'mixed') sourceText = '来源：自动 + 手动混合';
+  const modeText = state.calibration.mode
+    ? `正在${state.calibration.mode === 'x' ? '横向' : '纵向'}取点：${state.calibration.pendingPoints.length}/2`
+    : '可继续重新标定以覆盖当前结果';
+  summary.innerHTML = `${bits.join(' · ')}<br>${sourceText} · ${modeText}`;
+}
+
+function getCalibrationRegion() {
+  const lead = state.selectedLead;
+  if (lead && state.boxes[lead]) return { ...state.boxes[lead], label: `导联 ${lead}` };
+  return { x1: 0, y1: 0, x2: state.imageW, y2: state.imageH, label: '整张图像' };
+}
+
+function startManualCalibration(axis) {
+  if (!state.image) return;
+  state.calibration.mode = axis;
+  state.calibration.pendingPoints = [];
+  updateCalibrationUI();
+  setCalibrationStatus(`请在主图上点击${axis === 'x' ? '横向' : '纵向'}两点，距离建议沿网格线选取。`, 'var(--amber)');
+  renderOverlay();
+}
+
+function clearGridCalibration() {
+  if (!state.image) return;
+  resetCalibrationState(true);
+  setCalibrationStatus('已清除网格标定。当前会退回到按图像参数估算。', 'var(--text3)');
+  renderOverlay();
+}
+
+function commitManualCalibrationPoint(x, y) {
+  const axis = state.calibration.mode;
+  if (!axis) return false;
+  state.calibration.pendingPoints.push({ x, y });
+  if (state.calibration.pendingPoints.length < 2) {
+    updateCalibrationUI();
+    setCalibrationStatus('已记录第 1 个点，请点击第 2 个点。', 'var(--amber)');
+    renderOverlay();
+    return true;
+  }
+
+  const [p1, p2] = state.calibration.pendingPoints;
+  const pxDist = axis === 'x' ? Math.abs(p2.x - p1.x) : Math.abs(p2.y - p1.y);
+  const mm = parseFloat(document.getElementById(axis === 'x' ? 'calibDistX' : 'calibDistY').value) || 5;
+  if (pxDist < 3 || mm <= 0) {
+    state.calibration.pendingPoints = [];
+    setCalibrationStatus('取点距离过小或 mm 参数无效，请重试。', 'var(--red)');
+    updateCalibrationUI();
+    renderOverlay();
+    return true;
+  }
+
+  const pxPerMm = pxDist / mm;
+  if (axis === 'x') state.calibration.pxPerMmX = pxPerMm;
+  else state.calibration.pxPerMmY = pxPerMm;
+  state.calibration.manual[axis] = { points: [p1, p2], pxPerMm, mm };
+  state.calibration.mode = null;
+  state.calibration.pendingPoints = [];
+  state.calibration.source = state.calibration.auto ? 'mixed' : 'manual';
+  syncDpiFromCalibration();
+  updateCalibrationUI();
+  setCalibrationStatus(`${axis === 'x' ? '横向' : '纵向'}标定完成：${pxPerMm.toFixed(2)} px/mm。`, 'var(--accent)');
+  renderOverlay();
+  return true;
+}
+
+function buildAxisProjection(data, W, H, axis) {
+  const len = axis === 'x' ? W : H;
+  const out = new Float32Array(len);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const maxc = Math.max(r, g, b);
+      const minc = Math.min(r, g, b);
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const darkness = Math.max(0, 220 - gray);
+      const chroma = maxc - minc;
+      const score = darkness + chroma * 1.35;
+      out[axis === 'x' ? x : y] += score;
+    }
+  }
+  const norm = axis === 'x' ? H : W;
+  for (let i = 0; i < out.length; i++) out[i] /= norm;
+  return out;
+}
+
+function estimateGridSpacing(proj) {
+  if (!proj || proj.length < 16) return null;
+  const n = proj.length;
+  const mean = proj.reduce((a, b) => a + b, 0) / n;
+  const centered = new Float32Array(n);
+  for (let i = 0; i < n; i++) centered[i] = proj[i] - mean;
+
+  const minLag = Math.max(4, Math.round(n * 0.01));
+  const maxLag = Math.min(Math.round(n * 0.2), 120);
+  let bestLag = 0;
+  let bestCorr = -Infinity;
+  const corr = new Float32Array(maxLag + 1);
+
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0;
+    for (let i = 0; i < n - lag; i++) sum += centered[i] * centered[i + lag];
+    corr[lag] = sum;
+    if (sum > bestCorr) {
+      bestCorr = sum;
+      bestLag = lag;
+    }
+  }
+  if (!Number.isFinite(bestCorr) || bestCorr <= 0 || !bestLag) return null;
+
+  let chosen = bestLag;
+  [5, 4, 2].forEach(divisor => {
+    const candidate = Math.round(bestLag / divisor);
+    if (candidate >= minLag && candidate < corr.length && corr[candidate] > bestCorr * 0.48) chosen = Math.min(chosen, candidate);
+  });
+  return chosen;
+}
+
+function autoDetectGridCalibration() {
+  if (!state.image) return;
+  const off = getOffCanvas();
+  const region = getCalibrationRegion();
+  const x1 = Math.max(0, Math.round(region.x1));
+  const y1 = Math.max(0, Math.round(region.y1));
+  const w = Math.max(24, Math.round(region.x2 - region.x1));
+  const h = Math.max(24, Math.round(region.y2 - region.y1));
+  const img = off.getContext('2d').getImageData(x1, y1, w, h);
+  const projX = buildAxisProjection(img.data, w, h, 'x');
+  const projY = buildAxisProjection(img.data, w, h, 'y');
+  const spacingX = estimateGridSpacing(projX);
+  const spacingY = estimateGridSpacing(projY);
+
+  if (!spacingX && !spacingY) {
+    setCalibrationStatus(`自动识别失败，可切换到手动两点标定。当前检测区域：${region.label}。`, 'var(--red)');
+    return;
+  }
+
+  if (spacingX) state.calibration.pxPerMmX = spacingX;
+  if (spacingY) state.calibration.pxPerMmY = spacingY;
+  state.calibration.auto = { spacingX, spacingY, region };
+  state.calibration.source = (state.calibration.manual.x || state.calibration.manual.y) ? 'mixed' : 'auto';
+  syncDpiFromCalibration();
+  updateCalibrationUI();
+  setCalibrationStatus(`自动识别完成：${spacingX ? `横向 ${spacingX.toFixed(2)} px/mm` : '横向未识别'}，${spacingY ? `纵向 ${spacingY.toFixed(2)} px/mm` : '纵向未识别'}。`, 'var(--accent)');
+  renderOverlay();
+}
+
+// ════════════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════════════
+function getCalibrationSpanMm(axis) {
+  const bigGrids = parseFloat(document.getElementById(axis === 'x' ? 'calibDistX' : 'calibDistY').value) || 1;
+  return bigGrids * 5;
+}
+
+function findNearestGridLine(proj, target, spacingHint) {
+  if (!proj || !proj.length) return Math.round(target);
+  const radius = Math.max(6, Math.round((spacingHint || 12) * 0.6));
+  let bestIdx = Math.round(target);
+  let bestScore = -Infinity;
+  for (let i = Math.max(0, Math.round(target - radius)); i <= Math.min(proj.length - 1, Math.round(target + radius)); i++) {
+    const prev = i > 0 ? proj[i - 1] : proj[i];
+    const next = i < proj.length - 1 ? proj[i + 1] : proj[i];
+    const peakBoost = proj[i] - (prev + next) * 0.5;
+    const distPenalty = Math.abs(i - target) * 0.35;
+    const score = proj[i] + peakBoost * 1.8 - distPenalty;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+function snapCalibrationPointToGrid(x, y, axis) {
+  const off = getOffCanvas();
+  const region = getCalibrationRegion();
+  const x1 = Math.max(0, Math.round(region.x1));
+  const y1 = Math.max(0, Math.round(region.y1));
+  const w = Math.max(24, Math.round(region.x2 - region.x1));
+  const h = Math.max(24, Math.round(region.y2 - region.y1));
+  const img = off.getContext('2d').getImageData(x1, y1, w, h);
+  const proj = buildAxisProjection(img.data, w, h, axis);
+  const spacingHint = axis === 'x'
+    ? (state.calibration.pxPerMmX || estimateGridSpacing(proj) || 12)
+    : (state.calibration.pxPerMmY || estimateGridSpacing(proj) || 12);
+  if (axis === 'x') return { x: x1 + findNearestGridLine(proj, x - x1, spacingHint), y };
+  return { x, y: y1 + findNearestGridLine(proj, y - y1, spacingHint) };
+}
+
+function updateCalibrationUI() {
+  const hasImage = !!state.image;
+  ['btnGridAuto', 'btnGridManualX', 'btnGridManualY', 'btnGridClear'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !hasImage;
+  });
+  const xBtn = document.getElementById('btnGridManualX');
+  const yBtn = document.getElementById('btnGridManualY');
+  if (xBtn) {
+    const active = state.calibration.mode === 'x';
+    xBtn.style.borderColor = active ? 'var(--accent)' : 'var(--border2)';
+    xBtn.style.color = active ? 'var(--accent)' : 'var(--text2)';
+    xBtn.style.background = active ? 'var(--accent-dim)' : 'var(--surface2)';
+  }
+  if (yBtn) {
+    const active = state.calibration.mode === 'y';
+    yBtn.style.borderColor = active ? 'var(--accent)' : 'var(--border2)';
+    yBtn.style.color = active ? 'var(--accent)' : 'var(--text2)';
+    yBtn.style.background = active ? 'var(--accent-dim)' : 'var(--surface2)';
+  }
+
+  const summary = document.getElementById('calibSummary');
+  if (!summary) return;
+  const speed = parseFloat(document.getElementById('paramSpeed').value) || 25;
+  const gain = parseFloat(document.getElementById('paramGain').value) || 10;
+  const hasX = !!state.calibration.pxPerMmX;
+  const hasY = !!state.calibration.pxPerMmY;
+  const speedText = hasX ? `时间刻度已跟随网格标定更新（纸速 ${speed}）` : `时间刻度暂按纸速 ${speed} 和图像参数估算`;
+  const gainText = hasY ? `振幅刻度已跟随网格标定更新（增益 ${gain}）` : `振幅刻度暂按增益 ${gain} 和图像参数估算`;
+  const modeText = state.calibration.mode
+    ? `正在${state.calibration.mode === 'x' ? '横向' : '纵向'}取点：${state.calibration.pendingPoints.length}/2`
+    : (isCalibrationReady() ? '横向和纵向 5 个大格已完成，可以继续提取。' : '横向和纵向都必须完成 5 个大格标定后，才能继续。');
+  summary.innerHTML = `${speedText}<br>${gainText}<br>${modeText}`;
+}
+
+function startManualCalibration(axis) {
+  if (!state.image) return;
+  state.calibration.mode = axis;
+  state.calibration.pendingPoints = [];
+  updateCalibrationUI();
+  setCalibrationStatus(`请放大图片后，选择${axis === 'x' ? '横向' : '纵向'} 5 个大网格线距离。点击两下后会自动吸附到最近网格线。`, 'var(--accent)');
+  renderOverlay();
+}
+
+function commitManualCalibrationPoint(x, y) {
+  const axis = state.calibration.mode;
+  if (!axis) return false;
+  const snapped = snapCalibrationPointToGrid(x, y, axis);
+  state.calibration.pendingPoints.push(snapped);
+  if (state.calibration.pendingPoints.length < 2) {
+    updateCalibrationUI();
+    setCalibrationStatus('已记录第 1 个点，请继续点第 2 个点。', 'var(--amber)');
+    renderOverlay();
+    return true;
+  }
+
+  const [p1, p2] = state.calibration.pendingPoints;
+  const pxDist = axis === 'x' ? Math.abs(p2.x - p1.x) : Math.abs(p2.y - p1.y);
+  const bigGrids = parseFloat(document.getElementById(axis === 'x' ? 'calibDistX' : 'calibDistY').value) || 1;
+  const mm = getCalibrationSpanMm(axis);
+  if (pxDist < 3 || mm <= 0) {
+    state.calibration.pendingPoints = [];
+    setCalibrationStatus('两次取点太近了，请重新点一次，尽量跨几个大格。', 'var(--red)');
+    updateCalibrationUI();
+    renderOverlay();
+    return true;
+  }
+
+  const pxPerMm = pxDist / mm;
+  if (axis === 'x') state.calibration.pxPerMmX = pxPerMm;
+  else state.calibration.pxPerMmY = pxPerMm;
+  state.calibration.manual[axis] = { points: [p1, p2], pxPerMm, mm, bigGrids };
+  state.calibration.mode = null;
+  state.calibration.pendingPoints = [];
+  state.calibration.source = state.calibration.auto ? 'mixed' : 'manual';
+  syncDpiFromCalibration();
+  updateCalibrationUI();
+  setCalibrationStatus(`${axis === 'x' ? '横向' : '纵向'}标定完成，已按你选的 ${bigGrids} 个大格换算。后续提取会自动使用这个结果。`, 'var(--accent)');
+  renderOverlay();
+  return true;
+}
+
+function autoDetectGridCalibration() {
+  if (!state.image) return;
+  const off = getOffCanvas();
+  const region = getCalibrationRegion();
+  const x1 = Math.max(0, Math.round(region.x1));
+  const y1 = Math.max(0, Math.round(region.y1));
+  const w = Math.max(24, Math.round(region.x2 - region.x1));
+  const h = Math.max(24, Math.round(region.y2 - region.y1));
+  const img = off.getContext('2d').getImageData(x1, y1, w, h);
+  const projX = buildAxisProjection(img.data, w, h, 'x');
+  const projY = buildAxisProjection(img.data, w, h, 'y');
+  const spacingX = estimateGridSpacing(projX);
+  const spacingY = estimateGridSpacing(projY);
+
+  if (!spacingX && !spacingY) {
+    setCalibrationStatus(`自动识别失败了。建议切到手动标定，沿网格线点两下，尽量跨 5 个大格。当前检测区域：${region.label}。`, 'var(--red)');
+    return;
+  }
+
+  if (spacingX) state.calibration.pxPerMmX = spacingX;
+  if (spacingY) state.calibration.pxPerMmY = spacingY;
+  state.calibration.auto = { spacingX, spacingY, region };
+  state.calibration.source = (state.calibration.manual.x || state.calibration.manual.y) ? 'mixed' : 'auto';
+  syncDpiFromCalibration();
+  updateCalibrationUI();
+  setCalibrationStatus('自动识别完成。现在已经有网格尺度了；如果你想更稳一点，还可以再手动点一次 5 个大格来覆盖它。', 'var(--accent)');
+  renderOverlay();
+}
+
+function setStep(n) {
+  for (let i=1; i<=4; i++) {
+    const el = document.getElementById('step'+i);
+    el.classList.toggle('active', i === n);
+    el.classList.toggle('done', i < n);
+  }
+}
+
+function switchView(which) {
+  const isEdit = which === 'edit';
+  document.getElementById('editView').style.display = isEdit ? 'flex' : 'none';
+  document.getElementById('previewView').classList.toggle('visible', !isEdit);
+  document.getElementById('vtab-edit').classList.toggle('active', isEdit);
+  document.getElementById('vtab-preview').classList.toggle('active', !isEdit);
+}
+
+function buildLeadList() {
+  const list = document.getElementById('leadList');
+  list.innerHTML = '';
+  LEADS_ORDER.forEach(lead => {
+    const item = document.createElement('div');
+    item.className = 'lead-item' +
+      (state.boxes[lead] ? ' has-box' : '') +
+      (state.selectedLead === lead ? ' active' : '');
+    item.id = `li-${lead}`;
+    item.onclick = () => selectLead(lead);
+    item.innerHTML = `
+      <span class="badge ${state.extractedMV && state.extractedMV[lead] ? 'extracted' : (state.boxes[lead] ? 'set' : '')}" id="badge-${lead}"></span>
+      <span class="lead-name">${lead}</span>
+      <span class="lead-status" id="ls-${lead}">${state.boxes[lead] ? boxShort(lead) : '未设置'}</span>
+      <span class="lead-del" onclick="event.stopPropagation();deleteBox('${lead}')">✕</span>
+    `;
+    list.appendChild(item);
+  });
+  updateCounts();
+}
+
+function boxShort(lead) {
+  const b = state.boxes[lead];
+  if (!b) return '未设置';
+  return `${Math.round(b.x2-b.x1)}×${Math.round(b.y2-b.y1)}px`;
+}
+
+function updateLeadItem(lead) {
+  const item = document.getElementById(`li-${lead}`);
+  const badge = document.getElementById(`badge-${lead}`);
+  const ls = document.getElementById(`ls-${lead}`);
+  if (!item) return;
+  const hasExtract = state.extractedMV && state.extractedMV[lead];
+  item.className = 'lead-item' +
+    (state.boxes[lead] ? ' has-box' : '') +
+    (state.selectedLead === lead ? ' active' : '');
+  badge.className = 'badge' + (hasExtract ? ' extracted' : (state.boxes[lead] ? ' set' : ''));
+  ls.textContent = hasExtract
+    ? `${state.extractedMV[lead].length}pt`
+    : (state.boxes[lead] ? boxShort(lead) : '未设置');
+}
+
+function updateCounts() {
+  const n = Object.keys(state.boxes).length;
+  const ne = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+  const calibrationReady = isCalibrationReady();
+  document.getElementById('leadCount').textContent = `${n}/12`;
+  document.getElementById('statusLeads').innerHTML =
+    `<span class="${n===12?'hl':''}">${n}/12 导联</span>${ne>0?' <span style="color:var(--red)">'+ne+'已提取</span>':''}`;
+  document.getElementById('btnExtract').disabled = n === 0 || !calibrationReady;
+  document.getElementById('btnClear').disabled = n === 0;
+  document.getElementById('btnSave').disabled = !state.extractedMV || !calibrationReady;
+  document.getElementById('btnSave2').disabled = !state.extractedMV || !calibrationReady;
+  document.getElementById('btnPreset').disabled = !state.image;
+  document.getElementById('btnPerspectiveMode').disabled = !state.image;
+  document.getElementById('btnAutoCorners').disabled = !state.image;
+  document.getElementById('btnResetPerspective').disabled = !state.originalImage;
+  document.getElementById('btnApplyPerspective').disabled = state.perspectivePoints.length !== 4;
+  const btnPerspectiveMode = document.getElementById('btnPerspectiveMode');
+  const btnAutoCorners = document.getElementById('btnAutoCorners');
+  if (btnPerspectiveMode) {
+    const active = state.perspectiveMode && state.perspectiveModeSource === 'manual';
+    btnPerspectiveMode.style.borderColor = active ? 'var(--accent)' : 'var(--border2)';
+    btnPerspectiveMode.style.color = active ? 'var(--accent)' : 'var(--text2)';
+    btnPerspectiveMode.style.background = active ? 'var(--accent-dim)' : 'var(--surface2)';
+  }
+  if (btnAutoCorners) {
+    const active = state.perspectiveMode && state.perspectiveModeSource === 'auto';
+    btnAutoCorners.style.borderColor = active ? 'var(--blue)' : 'var(--border2)';
+    btnAutoCorners.style.color = active ? 'var(--blue)' : 'var(--text2)';
+    btnAutoCorners.style.background = active ? 'rgba(96, 165, 250, 0.12)' : 'var(--surface2)';
+  }
+  const statusExtract = document.getElementById('statusExtract');
+  if (statusExtract) {
+    if (n > 0 && !calibrationReady) {
+      statusExtract.textContent = '请先完成横向/纵向 5 个大格标定';
+      statusExtract.style.color = 'var(--amber)';
+    } else if (ne === 0) {
+      statusExtract.textContent = '未提取';
+      statusExtract.style.color = 'var(--text3)';
+    }
+  }
+  const previewEmpty = document.getElementById('previewEmpty');
+  if (previewEmpty && n > 0 && !calibrationReady) {
+    previewEmpty.style.display = 'flex';
+    previewEmpty.innerHTML = `
+      <div style="font-size:36px;opacity:0.2">⌁</div>
+      <div>还不能提取预览</div>
+      <div style="font-size:10px;opacity:0.8">请先完成横向 5 个大格和纵向 5 个大格标定</div>
+    `;
+  }
+  updateCalibrationUI();
+}
+
+function selectLead(lead) {
+  state.selectedLead = lead;
+  LEADS_ORDER.forEach(l => {
+    const item = document.getElementById(`li-${l}`);
+    if (item) item.classList.toggle('active', l === lead);
+  });
+  const infoEl = document.getElementById('selectedLeadInfo');
+  if (state.boxes[lead]) {
+    const b = state.boxes[lead];
+    infoEl.style.display = 'block';
+    infoEl.innerHTML = `
+      <div class="kv"><span>${lead} 区域</span><span class="v">${Math.round(b.x2-b.x1)}×${Math.round(b.y2-b.y1)}px</span></div>
+      <div class="kv"><span>位置</span><span class="v">(${Math.round(b.x1)}, ${Math.round(b.y1)})</span></div>
+      ${state.extractedMV && state.extractedMV[lead] ? `<div class="kv"><span>提取点数</span><span class="v">${state.extractedMV[lead].length} pts</span></div>` : ''}
+      ${!isCalibrationReady() ? `<div style="margin-top:6px;color:var(--amber);font-size:9px;line-height:1.6">下一步请先完成横向 5 个大格和纵向 5 个大格标定，之后才能提取预览。</div>` : ''}
+    `;
+  } else {
+    infoEl.style.display = 'block';
+    infoEl.innerHTML = `<div style="color:var(--text3);font-size:9px">在图像上拖拽绘制 <b style="color:var(--accent)">${lead}</b> 区域</div>`;
+  }
+  renderOverlay();
+}
+
+function deleteBox(lead) {
+  delete state.boxes[lead];
+  if (state.extractedMV) delete state.extractedMV[lead];
+  invalidateLeadCanvas(lead);
+  updateLeadItem(lead);
+  updateCounts();
+  renderOverlay();
+  if (state.selectedLead === lead) selectLead(lead);
+}
+
+function clearAllBoxes() {
+  state.boxes = {};
+  state.extractedMV = null;
+  state.extractedSignals = null;
+  state.leadCanvases = {};
+  state.repairedLeads = new Set();
+  buildLeadList();
+  renderOverlay();
+  document.getElementById('previewGrid').innerHTML = '';
+  document.getElementById('previewEmpty').style.display = 'flex';
+  document.getElementById('previewHeader').style.display = 'none';
+  toast('已清空所有导联区域');
+  setStep(2);
+}
+
+// ════════════════════════════════════════════════════════
+//  IMAGE LOAD
+// ════════════════════════════════════════════════════════
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      state.image = img;
+      state.imageW = img.naturalWidth;
+      state.imageH = img.naturalHeight;
+      state.originalImage = img;
+      state.originalImageW = img.naturalWidth;
+      state.originalImageH = img.naturalHeight;
+      state.originalImageDataUrl = String(e.target.result || '');
+      state.originalImageMime = (file && file.type) || 'image/png';
+      state.originalImageName = (file && file.name) || '';
+      state.boxes = {}; state.selectedLead = null;
+      state.extractedMV = null; state.extractedSignals = null;
+      state.rotation = 0;
+      state.perspectiveMode = false;
+      state.perspectiveModeSource = null;
+      state.perspectivePoints = [];
+      state.selectedPerspectivePoint = -1;
+      state.offCanvas = null;
+      state.leadCanvases = {};
+      state.repairedLeads = new Set();
+      resetCalibrationState(false);
+      state.saveConfig.fileName = file.name.replace(/\.[^.]+$/, '') + '.csv';
+      state.saveConfig.lastSavedLabel = '';
+      document.getElementById('rotSlider').value = 0;
+      document.getElementById('rotVal').textContent = '0.0°';
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('canvasContainer').style.display = 'block';
+      fitToWindow();
+      buildLeadList();
+      selectLead('I');
+      renderECG(); renderOverlay();
+      document.getElementById('statusImg').innerHTML =
+        `<span class="hl">${file.name}</span> ${img.naturalWidth}×${img.naturalHeight}`;
+      document.getElementById('btnPreset').disabled = false;
+      document.getElementById('btnAutoDetect').disabled = false;
+      document.getElementById('perspectiveStatus').textContent = 'You can click 4 corners manually or try auto corner detection first.';
+      document.getElementById('csvRenderPanel').style.display = 'none';
+      document.getElementById('csvRenderWrap').innerHTML = '';
+      document.getElementById('csvRenderInfo').textContent = '';
+      updateSaveLocationLabel();
+      setStep(2);
+      switchView('edit');
+      toast(`已加载: ${file.name}`);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function fitToWindow() {
+  const wrap = document.getElementById('editView');
+  const pad = 32;
+  state.scale = Math.min(
+    (wrap.clientWidth  - pad) / state.imageW,
+    (wrap.clientHeight - pad) / state.imageH,
+    1.0
+  );
+  applyScale();
+}
+
+function applyScale() {
+  const w = Math.round(state.imageW * state.scale);
+  const h = Math.round(state.imageH * state.scale);
+  const c1 = document.getElementById('ecgCanvas');
+  const c2 = document.getElementById('overlayCanvas');
+  c1.width = w; c1.height = h;
+  c2.width = w; c2.height = h;
+  c1.style.width = w+'px'; c1.style.height = h+'px';
+  c2.style.width = w+'px'; c2.style.height = h+'px';
+  document.getElementById('zoomLabel').textContent = Math.round(state.scale*100)+'%';
+  document.getElementById('statusZoom').textContent = Math.round(state.scale*100)+'%';
+  renderECG(); renderOverlay();
+}
+
+function resetDerivedState() {
+  state.boxes = {};
+  state.selectedLead = null;
+  state.extractedMV = null;
+  state.extractedSignals = null;
+  state.offCanvas = null;
+  state.leadCanvases = {};
+  state.repairedLeads = new Set();
+  resetCalibrationState(false);
+  buildLeadList();
+  document.getElementById('previewGrid').innerHTML = '';
+  document.getElementById('previewGrid').style.display = '';
+  document.getElementById('previewEmpty').style.display = 'flex';
+  document.getElementById('previewHeader').style.display = 'none';
+  document.querySelector('.extract-controls').style.display = '';
+  document.getElementById('csvRenderPanel').style.display = 'none';
+  document.getElementById('csvRenderWrap').innerHTML = '';
+  document.getElementById('csvRenderInfo').textContent = '';
+}
+
+function setPerspectiveStatus(msg, color='var(--text3)') {
+  const el = document.getElementById('perspectiveStatus');
+  el.textContent = msg;
+  el.style.color = color;
+}
+
+function startPerspectiveSelection() {
+  if (!state.image) return;
+  state.perspectiveMode = true;
+  state.perspectiveModeSource = 'manual';
+  state.perspectivePoints = [];
+  state.selectedPerspectivePoint = -1;
+  resetCalibrationState(true);
+  updateCounts();
+  renderOverlay();
+  setPerspectiveStatus('Click 4 corners in order: top-left, top-right, bottom-right, bottom-left.', 'var(--amber)');
+  toast('Perspective mode enabled');
+}
+
+function sortPerspectivePoints(points) {
+  if (points.length !== 4) return points.slice();
+  const pts = points.slice().sort((a, b) => a.y - b.y);
+  const top = pts.slice(0, 2).sort((a, b) => a.x - b.x);
+  const bottom = pts.slice(2, 4).sort((a, b) => a.x - b.x);
+  return [top[0], top[1], bottom[1], bottom[0]];
+}
+
+function detectContentBounds(ctx, W, H, darkThresh=185) {
+  const data = ctx.getImageData(0, 0, W, H).data;
+  let minX = W, minY = H, maxX = 0, maxY = 0, found = false;
+  const step = Math.max(1, Math.round(Math.min(W, H) / 800));
+  for (let y = 0; y < H; y += step) {
+    for (let x = 0; x < W; x += step) {
+      const i = (y * W + x) * 4;
+      const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      const chroma = Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]);
+      if (gray < darkThresh || chroma > 18) {
+        found = true;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (!found) return { x1: 0, y1: 0, x2: W, y2: H };
+  const padX = Math.round((maxX - minX) * 0.03);
+  const padY = Math.round((maxY - minY) * 0.03);
+  return {
+    x1: Math.max(0, minX - padX),
+    y1: Math.max(0, minY - padY),
+    x2: Math.min(W, maxX + padX),
+    y2: Math.min(H, maxY + padY),
+  };
+}
+
+function isPaperPixel(data, W, x, y) {
+  const i = (y * W + x) * 4;
+  const r = data[i], g = data[i + 1], b = data[i + 2];
+  const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  return gray > 145 && chroma < 85;
+}
+
+function detectPaperBounds(data, W, H, seedBounds) {
+  const bounds = seedBounds || { x1: 0, y1: 0, x2: W, y2: H };
+  const rowBright = new Float32Array(H);
+  const colBright = new Float32Array(W);
+  for (let y = Math.round(bounds.y1); y < Math.round(bounds.y2); y++) {
+    let cnt = 0;
+    for (let x = Math.round(bounds.x1); x < Math.round(bounds.x2); x++) {
+      if (isPaperPixel(data, W, x, y)) cnt++;
+    }
+    rowBright[y] = cnt / Math.max(1, Math.round(bounds.x2 - bounds.x1));
+  }
+  for (let x = Math.round(bounds.x1); x < Math.round(bounds.x2); x++) {
+    let cnt = 0;
+    for (let y = Math.round(bounds.y1); y < Math.round(bounds.y2); y++) {
+      if (isPaperPixel(data, W, x, y)) cnt++;
+    }
+    colBright[x] = cnt / Math.max(1, Math.round(bounds.y2 - bounds.y1));
+  }
+  let x1 = bounds.x1, x2 = bounds.x2 - 1, y1 = bounds.y1, y2 = bounds.y2 - 1;
+  while (x1 < x2 && colBright[Math.round(x1)] < 0.18) x1++;
+  while (x2 > x1 && colBright[Math.round(x2)] < 0.18) x2--;
+  while (y1 < y2 && rowBright[Math.round(y1)] < 0.18) y1++;
+  while (y2 > y1 && rowBright[Math.round(y2)] < 0.18) y2--;
+  return { x1, y1, x2, y2 };
+}
+
+function scanPaperEdgeAtRow(data, W, H, bounds, y, fromLeft=true) {
+  const yy = Math.max(0, Math.min(H - 1, Math.round(y)));
+  const start = fromLeft ? Math.round(bounds.x1) : Math.round(bounds.x2 - 1);
+  const end = fromLeft ? Math.round(bounds.x2 - 1) : Math.round(bounds.x1);
+  const step = fromLeft ? 1 : -1;
+  let run = 0;
+  let hit = null;
+  for (let x = start; fromLeft ? x <= end : x >= end; x += step) {
+    if (isPaperPixel(data, W, x, yy)) {
+      run++;
+      if (run >= 8) { hit = x - step * 4; break; }
+    } else run = 0;
+  }
+  return hit;
+}
+
+function scanPaperEdgeAtCol(data, W, H, bounds, x, fromTop=true) {
+  const xx = Math.max(0, Math.min(W - 1, Math.round(x)));
+  const start = fromTop ? Math.round(bounds.y1) : Math.round(bounds.y2 - 1);
+  const end = fromTop ? Math.round(bounds.y2 - 1) : Math.round(bounds.y1);
+  const step = fromTop ? 1 : -1;
+  let run = 0;
+  let hit = null;
+  for (let y = start; fromTop ? y <= end : y >= end; y += step) {
+    if (isPaperPixel(data, W, xx, y)) {
+      run++;
+      if (run >= 8) { hit = y - step * 4; break; }
+    } else run = 0;
+  }
+  return hit;
+}
+
+function fitLineXFromY(points) {
+  if (!points || points.length < 2) return null;
+  let sumY = 0, sumX = 0, sumYY = 0, sumYX = 0;
+  points.forEach(p => {
+    sumY += p.y; sumX += p.x; sumYY += p.y * p.y; sumYX += p.y * p.x;
+  });
+  const n = points.length;
+  const denom = n * sumYY - sumY * sumY;
+  if (Math.abs(denom) < 1e-6) return null;
+  const a = (n * sumYX - sumY * sumX) / denom;
+  const b = (sumX - a * sumY) / n;
+  return { a, b };
+}
+
+function fitLineYFromX(points) {
+  if (!points || points.length < 2) return null;
+  let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+  points.forEach(p => {
+    sumX += p.x; sumY += p.y; sumXX += p.x * p.x; sumXY += p.x * p.y;
+  });
+  const n = points.length;
+  const denom = n * sumXX - sumX * sumX;
+  if (Math.abs(denom) < 1e-6) return null;
+  const a = (n * sumXY - sumX * sumY) / denom;
+  const b = (sumY - a * sumX) / n;
+  return { a, b };
+}
+
+function intersectEdgeModels(lineXFromY, lineYFromX, fallback) {
+  if (!lineXFromY || !lineYFromX) return fallback;
+  const denom = 1 - lineXFromY.a * lineYFromX.a;
+  if (Math.abs(denom) < 1e-6) return fallback;
+  const x = (lineXFromY.a * lineYFromX.b + lineXFromY.b) / denom;
+  const y = lineYFromX.a * x + lineYFromX.b;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return fallback;
+  return { x, y };
+}
+
+function estimatePerspectiveQuad(ctx, W, H) {
+  const seedBounds = detectContentBounds(ctx, W, H, 205);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const bounds = detectPaperBounds(data, W, H, seedBounds);
+  const sampleRows = [0.10, 0.26, 0.42, 0.58, 0.74, 0.90].map(t => bounds.y1 + (bounds.y2 - bounds.y1) * t);
+  const sampleCols = [0.10, 0.26, 0.42, 0.58, 0.74, 0.90].map(t => bounds.x1 + (bounds.x2 - bounds.x1) * t);
+
+  const leftPts = sampleRows.map(y => ({ x: scanPaperEdgeAtRow(data, W, H, bounds, y, true), y })).filter(p => Number.isFinite(p.x));
+  const rightPts = sampleRows.map(y => ({ x: scanPaperEdgeAtRow(data, W, H, bounds, y, false), y })).filter(p => Number.isFinite(p.x));
+  const topPts = sampleCols.map(x => ({ x, y: scanPaperEdgeAtCol(data, W, H, bounds, x, true) })).filter(p => Number.isFinite(p.y));
+  const bottomPts = sampleCols.map(x => ({ x, y: scanPaperEdgeAtCol(data, W, H, bounds, x, false) })).filter(p => Number.isFinite(p.y));
+
+  const leftLine = fitLineXFromY(leftPts);
+  const rightLine = fitLineXFromY(rightPts);
+  const topLine = fitLineYFromX(topPts);
+  const bottomLine = fitLineYFromX(bottomPts);
+
+  const fallback = [
+    { x: bounds.x1, y: bounds.y1 },
+    { x: bounds.x2, y: bounds.y1 },
+    { x: bounds.x2, y: bounds.y2 },
+    { x: bounds.x1, y: bounds.y2 },
+  ];
+  const quad = [
+    intersectEdgeModels(leftLine, topLine, fallback[0]),
+    intersectEdgeModels(rightLine, topLine, fallback[1]),
+    intersectEdgeModels(rightLine, bottomLine, fallback[2]),
+    intersectEdgeModels(leftLine, bottomLine, fallback[3]),
+  ].map((p, idx) => ({
+    x: Math.max(0, Math.min(W, p.x ?? fallback[idx].x)),
+    y: Math.max(0, Math.min(H, p.y ?? fallback[idx].y)),
+  }));
+
+  return { bounds, quad, quality: { leftPts, rightPts, topPts, bottomPts } };
+}
+
+function autoDetectPerspectiveCorners() {
+  if (!state.image) return;
+  const off = getOffCanvas();
+  const ctx = off.getContext('2d');
+  const estimate = estimatePerspectiveQuad(ctx, state.imageW, state.imageH);
+  state.perspectivePoints = sortPerspectivePoints(estimate.quad);
+  state.perspectiveMode = true;
+  state.perspectiveModeSource = 'auto';
+  state.selectedPerspectivePoint = -1;
+  updateCounts();
+  renderOverlay();
+  setPerspectiveStatus('已生成纸张轮廓预设，请拖动四个角点微调后再应用矫正。', 'var(--blue)');
+  toast('已生成轮廓预设，可手动微调');
+}
+
+function distance2(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function computePerspectiveTarget(points) {
+  const [tl, tr, br, bl] = sortPerspectivePoints(points);
+  const width = Math.max(distance2(tl, tr), distance2(bl, br));
+  const height = Math.max(distance2(tl, bl), distance2(tr, br));
+  return {
+    width: Math.max(32, Math.round(width)),
+    height: Math.max(32, Math.round(height)),
+    ordered: [tl, tr, br, bl],
+  };
+}
+
+function solveLinearSystem(A, b) {
+  const n = b.length;
+  const M = A.map((row, i) => row.slice().concat([b[i]]));
+  for (let i = 0; i < n; i++) {
+    let maxRow = i;
+    for (let r = i + 1; r < n; r++) {
+      if (Math.abs(M[r][i]) > Math.abs(M[maxRow][i])) maxRow = r;
+    }
+    if (Math.abs(M[maxRow][i]) < 1e-8) return null;
+    [M[i], M[maxRow]] = [M[maxRow], M[i]];
+    const pivot = M[i][i];
+    for (let c = i; c <= n; c++) M[i][c] /= pivot;
+    for (let r = 0; r < n; r++) {
+      if (r === i) continue;
+      const factor = M[r][i];
+      for (let c = i; c <= n; c++) M[r][c] -= factor * M[i][c];
+    }
+  }
+  return M.map(row => row[n]);
+}
+
+function computeHomography(srcPts, dstPts) {
+  const A = [];
+  const b = [];
+  for (let i = 0; i < 4; i++) {
+    const { x, y } = srcPts[i];
+    const { x: u, y: v } = dstPts[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+    b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+    b.push(v);
+  }
+  const h = solveLinearSystem(A, b);
+  if (!h) return null;
+  return [
+    [h[0], h[1], h[2]],
+    [h[3], h[4], h[5]],
+    [h[6], h[7], 1],
+  ];
+}
+
+function multiplyMat3(A, B) {
+  const out = Array.from({ length: 3 }, () => [0, 0, 0]);
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      out[r][c] = A[r][0] * B[0][c] + A[r][1] * B[1][c] + A[r][2] * B[2][c];
+    }
+  }
+  return out;
+}
+
+function invertMat3(m) {
+  const a = m[0][0], b = m[0][1], c = m[0][2];
+  const d = m[1][0], e = m[1][1], f = m[1][2];
+  const g = m[2][0], h = m[2][1], i = m[2][2];
+  const A = e * i - f * h;
+  const B = -(d * i - f * g);
+  const C = d * h - e * g;
+  const D = -(b * i - c * h);
+  const E = a * i - c * g;
+  const F = -(a * h - b * g);
+  const G = b * f - c * e;
+  const H = -(a * f - c * d);
+  const I = a * e - b * d;
+  const det = a * A + b * B + c * C;
+  if (Math.abs(det) < 1e-8) return null;
+  return [
+    [A / det, D / det, G / det],
+    [B / det, E / det, H / det],
+    [C / det, F / det, I / det],
+  ];
+}
+
+function sampleBilinear(src, W, H, x, y) {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const x1 = Math.min(W - 1, x0 + 1), y1 = Math.min(H - 1, y0 + 1);
+  const dx = x - x0, dy = y - y0;
+  const idx = (xx, yy) => (yy * W + xx) * 4;
+  const i00 = idx(x0, y0), i10 = idx(x1, y0), i01 = idx(x0, y1), i11 = idx(x1, y1);
+  const out = [0, 0, 0, 255];
+  for (let c = 0; c < 3; c++) {
+    const v =
+      src[i00 + c] * (1 - dx) * (1 - dy) +
+      src[i10 + c] * dx * (1 - dy) +
+      src[i01 + c] * (1 - dx) * dy +
+      src[i11 + c] * dx * dy;
+    out[c] = v;
+  }
+  return out;
+}
+
+function warpCanvasPerspective(srcCanvas, points) {
+  const target = computePerspectiveTarget(points);
+  const dstPts = [
+    { x: 0, y: 0 },
+    { x: target.width - 1, y: 0 },
+    { x: target.width - 1, y: target.height - 1 },
+    { x: 0, y: target.height - 1 },
+  ];
+  const Hmat = computeHomography(target.ordered, dstPts);
+  const Hinv = Hmat ? invertMat3(Hmat) : null;
+  if (!Hinv) return null;
+
+  const srcCtx = srcCanvas.getContext('2d');
+  const srcImg = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = target.width;
+  outCanvas.height = target.height;
+  const outCtx = outCanvas.getContext('2d');
+  const outImg = outCtx.createImageData(target.width, target.height);
+
+  for (let y = 0; y < target.height; y++) {
+    for (let x = 0; x < target.width; x++) {
+      const denom = Hinv[2][0] * x + Hinv[2][1] * y + Hinv[2][2];
+      if (Math.abs(denom) < 1e-8) continue;
+      const sx = (Hinv[0][0] * x + Hinv[0][1] * y + Hinv[0][2]) / denom;
+      const sy = (Hinv[1][0] * x + Hinv[1][1] * y + Hinv[1][2]) / denom;
+      if (sx < 0 || sy < 0 || sx >= srcCanvas.width - 1 || sy >= srcCanvas.height - 1) continue;
+      const rgba = sampleBilinear(srcImg.data, srcCanvas.width, srcCanvas.height, sx, sy);
+      const di = (y * target.width + x) * 4;
+      outImg.data[di] = rgba[0];
+      outImg.data[di + 1] = rgba[1];
+      outImg.data[di + 2] = rgba[2];
+      outImg.data[di + 3] = 255;
+    }
+  }
+  outCtx.putImageData(outImg, 0, 0);
+  return outCanvas;
+}
+
+function commitCanvasAsImage(canvas, onDone) {
+  const img = new Image();
+  img.onload = () => onDone(img);
+  img.src = canvas.toDataURL('image/png');
+}
+
+function stretchGray(gray, lo, hi) {
+  if (hi <= lo + 1) return gray;
+  return Math.max(0, Math.min(255, (gray - lo) * 255 / (hi - lo)));
+}
+
+function applyPerspectiveCorrection() {
+  if (!state.image || state.perspectivePoints.length !== 4) return;
+  const source = getOffCanvas();
+  const warped = warpCanvasPerspective(source, state.perspectivePoints);
+  if (!warped) {
+    setPerspectiveStatus('Perspective correction failed. Please re-mark the corners.', 'var(--red)');
+    return;
+  }
+  commitCanvasAsImage(warped, img => {
+    state.image = img;
+    state.imageW = img.width;
+    state.imageH = img.height;
+    state.rotation = 0;
+    document.getElementById('rotSlider').value = 0;
+    document.getElementById('rotVal').textContent = '0.0°';
+    state.perspectiveMode = false;
+    state.perspectiveModeSource = null;
+    state.perspectivePoints = [];
+    state.selectedPerspectivePoint = -1;
+    resetDerivedState();
+    fitToWindow();
+    selectLead('I');
+    renderECG();
+    renderOverlay();
+    updateCounts();
+    setPerspectiveStatus('Perspective correction done. You can run auto lead detection now.', 'var(--accent)');
+    toast('Perspective correction done');
+  });
+}
+
+function resetPerspectiveCorrection() {
+  if (!state.originalImage) return;
+  state.image = state.originalImage;
+  state.imageW = state.originalImageW;
+  state.imageH = state.originalImageH;
+  state.rotation = 0;
+  document.getElementById('rotSlider').value = 0;
+  document.getElementById('rotVal').textContent = '0.0°';
+  state.perspectiveMode = false;
+  state.perspectiveModeSource = null;
+  state.perspectivePoints = [];
+  state.selectedPerspectivePoint = -1;
+  resetDerivedState();
+  fitToWindow();
+  selectLead('I');
+  renderECG();
+  renderOverlay();
+  updateCounts();
+  setPerspectiveStatus('Restored to the original uploaded image.', 'var(--text2)');
+  toast('Original image restored');
+}
+
+// ════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════
+function renderECG() {
+  if (!state.image) return;
+  const c = document.getElementById('ecgCanvas');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  if (state.rotation !== 0) {
+    ctx.save();
+    ctx.translate(c.width/2, c.height/2);
+    ctx.rotate(state.rotation * Math.PI / 180);
+    ctx.drawImage(state.image, -c.width/2, -c.height/2, c.width, c.height);
+    ctx.restore();
+  } else {
+    ctx.drawImage(state.image, 0, 0, c.width, c.height);
+  }
+}
+
+function renderOverlay() {
+  if (!state.image) return;
+  const c = document.getElementById('overlayCanvas');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const s = state.scale;
+
+  if (state.perspectivePoints.length > 0) {
+    const pts = sortPerspectivePoints(state.perspectivePoints);
+    ctx.save();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.fillStyle = 'rgba(251,191,36,0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const px = p.x * s;
+      const py = p.y * s;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    if (pts.length >= 3) ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    pts.forEach((p, i) => {
+      const px = p.x * s;
+      const py = p.y * s;
+      const isSelected = i === state.selectedPerspectivePoint;
+      ctx.fillStyle = isSelected ? '#fbbf24' : '#e5e7eb';
+      ctx.beginPath();
+      ctx.arc(px, py, isSelected ? 7 : 5, 0, Math.PI * 2);
+      ctx.fill();
+      if (isSelected) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.fillStyle = isSelected ? '#0d0f0e' : '#111827';
+      ctx.font = 'bold 10px JetBrains Mono, monospace';
+      ctx.fillText(String(i + 1), px - 3, py + 3);
+    });
+    ctx.restore();
+  }
+
+  if (state.calibration.mode && state.calibration.pendingPoints.length > 0) {
+    ctx.save();
+    const pts = state.calibration.pendingPoints;
+    const guideColor = state.calibration.mode === 'x' ? '#f59e0b' : '#22c55e';
+    ctx.strokeStyle = guideColor;
+    ctx.fillStyle = guideColor;
+    ctx.lineWidth = 2;
+    pts.forEach((p, idx) => {
+      const px = p.x * s;
+      const py = p.y * s;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillText(String(idx + 1), px + 8, py - 8);
+    });
+    if (pts.length === 1) {
+      const px = state.cursorPos.x * s;
+      const py = state.cursorPos.y * s;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      if (state.calibration.mode === 'x') {
+        ctx.moveTo(pts[0].x * s, pts[0].y * s);
+        ctx.lineTo(px, pts[0].y * s);
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, c.height);
+      } else {
+        ctx.moveTo(pts[0].x * s, pts[0].y * s);
+        ctx.lineTo(pts[0].x * s, py);
+        ctx.moveTo(0, py);
+        ctx.lineTo(c.width, py);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
+  Object.entries(state.boxes).forEach(([lead, b]) => {
+    const isActive = lead === state.selectedLead;
+    const color = COLORS[lead] || '#4ade80';
+    const x1=b.x1*s, y1=b.y1*s, w=(b.x2-b.x1)*s, h=(b.y2-b.y1)*s;
+
+    ctx.fillStyle = isActive ? color+'25' : color+'0d';
+    ctx.fillRect(x1,y1,w,h);
+    ctx.strokeStyle = isActive ? color : color+'99';
+    ctx.lineWidth = isActive ? 1.5 : 1;
+    ctx.strokeRect(x1+.5, y1+.5, w-1, h-1);
+    ctx.fillStyle = color;
+    ctx.font = `bold ${isActive?12:10}px JetBrains Mono,monospace`;
+    ctx.fillText(lead, x1+5, y1+14);
+
+    // Draw extracted signal line on top of box (red)
+    if (state.extractedSignals && state.extractedSignals[lead]) {
+      const sig = state.extractedSignals[lead]; // raw y coords in image space
+      ctx.beginPath();
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.9;
+      for (let i=0; i<sig.length; i++) {
+        const px = (b.x1 + i) * s;
+        const py = (b.y1 + sig[i]) * s;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    if (isActive) {
+      getHandles(b).forEach(({hx,hy}) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(hx*s-4, hy*s-4, 8, 8);
+        ctx.strokeStyle = '#0d0f0e';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(hx*s-4, hy*s-4, 8, 8);
+      });
+    }
+  });
+
+  if (state.drawing && state.drawStart) {
+    const {sx,sy}=state.drawStart, {x,y}=state.cursorPos;
+    const x1=Math.min(sx,x), y1=Math.min(sy,y);
+    const w=Math.abs(x-sx)*s, h=Math.abs(y-sy)*s;
+    const color=COLORS[state.selectedLead]||'#4ade80';
+    ctx.fillStyle=color+'22';
+    ctx.fillRect(x1*s,y1*s,w,h);
+    ctx.strokeStyle=color; ctx.lineWidth=1.5;
+    ctx.setLineDash([4,3]);
+    ctx.strokeRect(x1*s+.5,y1*s+.5,w-1,h-1);
+    ctx.setLineDash([]);
+  }
+}
+
+function getHandles(b) {
+  const mx=(b.x1+b.x2)/2, my=(b.y1+b.y2)/2;
+  return [
+    {hx:b.x1,hy:b.y1,name:'tl'},{hx:mx,hy:b.y1,name:'tc'},{hx:b.x2,hy:b.y1,name:'tr'},
+    {hx:b.x1,hy:my,name:'ml'},                               {hx:b.x2,hy:my,name:'mr'},
+    {hx:b.x1,hy:b.y2,name:'bl'},{hx:mx,hy:b.y2,name:'bc'},{hx:b.x2,hy:b.y2,name:'br'},
+  ];
+}
+
+// ════════════════════════════════════════════════════════
+//  MOUSE
+// ════════════════════════════════════════════════════════
+function getCanvasPos(e) {
+  const c2 = document.getElementById('overlayCanvas');
+  const rect = c2.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(state.imageW, (e.clientX-rect.left)/state.scale)),
+    y: Math.max(0, Math.min(state.imageH, (e.clientY-rect.top)/state.scale)),
+  };
+}
+
+function onMouseDown(e) {
+  if (!state.image) return;
+  e.preventDefault();
+  if (state.spacePan || e.button === 1) {
+    const wrap = document.getElementById('editView');
+    state.dragState = {
+      type:'panView',
+      startClient:{ x:e.clientX, y:e.clientY },
+      startScroll:{ left: wrap.scrollLeft, top: wrap.scrollTop }
+    };
+    document.getElementById('overlayCanvas').style.cursor = 'grabbing';
+    return;
+  }
+  const {x,y} = getCanvasPos(e);
+  if (state.calibration.mode) {
+    commitManualCalibrationPoint(x, y);
+    return;
+  }
+  if (state.perspectiveMode) {
+    const threshold = 12 / state.scale;
+    const idx = state.perspectivePoints.findIndex(p => Math.abs(p.x - x) < threshold && Math.abs(p.y - y) < threshold);
+    if (idx >= 0) {
+      state.selectedPerspectivePoint = idx;
+      state.dragState = { type: 'perspective', pointIndex: idx };
+      renderOverlay();
+      return;
+    }
+    if (state.perspectivePoints.length < 4) {
+      state.perspectivePoints.push({ x, y });
+      state.selectedPerspectivePoint = state.perspectivePoints.length - 1;
+      updateCounts();
+      renderOverlay();
+      if (state.perspectivePoints.length === 4) {
+        setPerspectiveStatus('角点已选完，确认顺序后点击“应用矫正”。', 'var(--accent)');
+      } else {
+        setPerspectiveStatus(`已记录 ${state.perspectivePoints.length}/4 个角点。`, 'var(--amber)');
+      }
+    }
+    return;
+  }
+  if (!state.selectedLead) return;
+  const ab = state.boxes[state.selectedLead];
+  if (ab) {
+    const handle = hitTestHandles(ab,x,y);
+    if (handle) {
+      state.dragState = {type:'resize',handle,lead:state.selectedLead,startBox:{...ab},startMouse:{x,y}};
+      return;
+    }
+    if (x>=ab.x1&&x<=ab.x2&&y>=ab.y1&&y<=ab.y2) {
+      state.dragState = {type:'move',lead:state.selectedLead,startBox:{...ab},startMouse:{x,y}};
+      return;
+    }
+  }
+  state.drawing=true; state.drawStart={sx:x,sy:y}; state.cursorPos={x,y};
+}
+
+function onMouseMove(e) {
+  if (!state.image) return;
+  const {x,y} = getCanvasPos(e);
+  state.cursorPos={x,y};
+  document.getElementById('statusCursor').textContent = `x:${Math.round(x)}  y:${Math.round(y)}`;
+
+  if (state.dragState) {
+    if (state.dragState.type === 'panView') {
+      const wrap = document.getElementById('editView');
+      wrap.scrollLeft = state.dragState.startScroll.left - (e.clientX - state.dragState.startClient.x);
+      wrap.scrollTop = state.dragState.startScroll.top - (e.clientY - state.dragState.startClient.y);
+      return;
+    }
+    if (state.dragState.type === 'perspective') {
+      const idx = state.dragState.pointIndex;
+      state.selectedPerspectivePoint = idx;
+      state.perspectivePoints[idx] = { x, y };
+      updateCounts();
+      renderOverlay();
+      return;
+    }
+    const ds=state.dragState, dx=x-ds.startMouse.x, dy=y-ds.startMouse.y;
+    if (ds.type==='move') {
+      const bw=ds.startBox.x2-ds.startBox.x1, bh=ds.startBox.y2-ds.startBox.y1;
+      const nx1=Math.max(0,Math.min(state.imageW-bw,ds.startBox.x1+dx));
+      const ny1=Math.max(0,Math.min(state.imageH-bh,ds.startBox.y1+dy));
+      state.boxes[ds.lead]={x1:nx1,y1:ny1,x2:nx1+bw,y2:ny1+bh};
+    } else {
+      const b={...ds.startBox};
+      applyResize(b,ds.handle,dx,dy);
+      state.boxes[ds.lead]=b;
+    }
+    updateLeadItem(ds.lead); renderOverlay(); return;
+  }
+  if (state.drawing) renderOverlay();
+
+  const ov=document.getElementById('overlayCanvas');
+  if (state.spacePan) {
+    ov.style.cursor = state.dragState?.type === 'panView' ? 'grabbing' : 'grab';
+    return;
+  }
+  if (state.calibration.mode) {
+    ov.style.cursor = 'crosshair';
+    renderOverlay();
+    return;
+  }
+  if (state.perspectiveMode) {
+    ov.style.cursor = 'crosshair';
+    return;
+  }
+  if (state.selectedLead && state.boxes[state.selectedLead]) {
+    const b=state.boxes[state.selectedLead];
+    const h=hitTestHandles(b,x,y);
+    if (h) { ov.style.cursor=handleCursor(h); return; }
+    if (x>=b.x1&&x<=b.x2&&y>=b.y1&&y<=b.y2) { ov.style.cursor='move'; return; }
+  }
+  ov.style.cursor = state.selectedLead ? 'crosshair' : 'default';
+}
+
+function onMouseUp(e) {
+  if (!state.image) return;
+  const {x,y} = getCanvasPos(e);
+  if (state.dragState) {
+    if (state.dragState.type === 'panView') {
+      state.dragState = null;
+      document.getElementById('overlayCanvas').style.cursor = state.spacePan ? 'grab' : 'crosshair';
+      return;
+    }
+    if (state.dragState.type === 'perspective') {
+      state.dragState = null;
+      renderOverlay();
+      return;
+    }
+    // Box was moved or resized — invalidate its isolated canvas
+    invalidateLeadCanvas(state.dragState.lead);
+    state.dragState=null; updateCounts(); renderOverlay(); return;
+  }
+  if (state.drawing && state.drawStart && state.selectedLead) {
+    const {sx,sy}=state.drawStart;
+    const minSize=10/state.scale;
+    if (Math.abs(x-sx)>minSize && Math.abs(y-sy)>minSize) {
+      state.boxes[state.selectedLead]={
+        x1:Math.min(sx,x),y1:Math.min(sy,y),
+        x2:Math.max(sx,x),y2:Math.max(sy,y),
+      };
+      // New box drawn — invalidate any prior isolated canvas
+      invalidateLeadCanvas(state.selectedLead);
+      updateLeadItem(state.selectedLead); updateCounts();
+      const idx=LEADS_ORDER.indexOf(state.selectedLead);
+      const next=LEADS_ORDER.slice(idx+1).find(l=>!state.boxes[l]);
+      if (next) setTimeout(()=>selectLead(next),80);
+      toast(`✓ ${state.selectedLead} 已标注`);
+    }
+  }
+  state.drawing=false; state.drawStart=null; renderOverlay();
+}
+
+function onMouseLeave() {
+  if (state.drawing) { state.drawing=false; state.drawStart=null; renderOverlay(); }
+}
+
+function hitTestHandles(b,x,y) {
+  const t=8/state.scale;
+  for (const h of getHandles(b))
+    if (Math.abs(x-h.hx)<t && Math.abs(y-h.hy)<t) return h.name;
+  return null;
+}
+function applyResize(b,handle,dx,dy) {
+  if (handle.includes('l')) b.x1=Math.min(b.x1+dx,b.x2-20);
+  if (handle.includes('r')) b.x2=Math.max(b.x2+dx,b.x1+20);
+  if (handle.includes('t')) b.y1=Math.min(b.y1+dy,b.y2-20);
+  if (handle.includes('b')) b.y2=Math.max(b.y2+dy,b.y1+20);
+  b.x1=Math.max(0,b.x1); b.y1=Math.max(0,b.y1);
+  b.x2=Math.min(state.imageW,b.x2); b.y2=Math.min(state.imageH,b.y2);
+}
+function handleCursor(h) {
+  return {tl:'nw-resize',tr:'ne-resize',bl:'sw-resize',br:'se-resize',
+          tc:'n-resize',bc:'s-resize',ml:'w-resize',mr:'e-resize'}[h]||'crosshair';
+}
+
+// ════════════════════════════════════════════════════════
+//  ZOOM & ROTATE
+// ════════════════════════════════════════════════════════
+function zoom(f) {
+  state.scale=Math.min(Math.max(state.scale*f,0.1),5); applyScale();
+}
+function resetZoom() { if (state.image) fitToWindow(); }
+function onWheel(e) { e.preventDefault(); zoom(e.deltaY<0?1.12:0.88); }
+function onRotate(val) {
+  state.rotation=parseFloat(val);
+  document.getElementById('rotVal').textContent=parseFloat(val).toFixed(1)+'°';
+  state.offCanvas=null; // invalidate master
+  state.leadCanvases={}; // all crops must be rebuilt from new rotation
+  state.repairedLeads=new Set();
+  state.perspectiveModeSource = null;
+  state.perspectivePoints = [];
+  state.selectedPerspectivePoint = -1;
+  updateCounts();
+  setPerspectiveStatus('Rotation updated. Re-mark corners if you still want perspective correction.');
+  renderECG();
+}
+
+// ════════════════════════════════════════════════════════
+//  KEYBOARD
+// ════════════════════════════════════════════════════════
+function onKeyDown(e) {
+  if (!state.image) return;
+  if (e.code === 'Space' && !state.spacePan) {
+    e.preventDefault();
+    state.spacePan = true;
+    document.getElementById('overlayCanvas').style.cursor = 'grab';
+  }
+  if (e.key === 'Escape' && state.calibration.mode) {
+    state.calibration.mode = null;
+    state.calibration.pendingPoints = [];
+    updateCalibrationUI();
+    setCalibrationStatus('已退出手动标定模式。', 'var(--text3)');
+    renderOverlay();
+    return;
+  }
+  if ((e.key==='+' || e.key==='=') && !e.ctrlKey) { e.preventDefault(); zoom(1.2); }
+  if (e.key==='-' && !e.ctrlKey) { e.preventDefault(); zoom(1/1.2); }
+  if (e.key==='0') resetZoom();
+  if ((e.key==='Delete'||e.key==='Backspace') && state.selectedLead && state.boxes[state.selectedLead]) {
+    deleteBox(state.selectedLead);
+  }
+  if (e.key==='Tab') {
+    e.preventDefault();
+    const idx=LEADS_ORDER.indexOf(state.selectedLead);
+    const next=e.shiftKey?Math.max(0,idx-1):Math.min(LEADS_ORDER.length-1,idx+1);
+    selectLead(LEADS_ORDER[next]);
+  }
+  if (e.key>='1' && e.key<='9' && !e.ctrlKey && !e.shiftKey) {
+    const idx=parseInt(e.key)-1;
+    if (idx<LEADS_ORDER.length) selectLead(LEADS_ORDER[idx]);
+  }
+}
+
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    state.spacePan = false;
+    if (document.getElementById('overlayCanvas')) document.getElementById('overlayCanvas').style.cursor = 'crosshair';
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  PRESET
+// ════════════════════════════════════════════════════════
+function selectLayout(layout) {
+  state.layout=layout;
+  ['4col','2col','custom'].forEach(l => {
+    document.getElementById(`tab-${l}`).classList.toggle('active',l===layout);
+  });
+  document.getElementById('layoutDesc').innerHTML = LAYOUT_PRESETS[layout].desc;
+}
+
+function applyPreset() {
+  if (!state.image) return;
+  const preset=LAYOUT_PRESETS[state.layout];
+  if (state.layout==='custom') { selectLead(LEADS_ORDER[0]); return; }
+  const W=state.imageW, H=state.imageH;
+  Object.entries(preset.leads).forEach(([lead,[x1r,y1r,x2r,y2r]]) => {
+    state.boxes[lead]={x1:x1r*W,y1:y1r*H,x2:x2r*W,y2:y2r*H};
+  });
+  buildLeadList(); renderOverlay(); selectLead('I');
+  toast('预设已应用，可拖拽微调各导联区域');
+  setStep(2);
+}
+
+// ════════════════════════════════════════════════════════
+//  DROP
+// ════════════════════════════════════════════════════════
+function setupDrop() {
+  ['editView','uploadZone'].forEach(id => {
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
+    el.addEventListener('dragleave', ()=>el.classList.remove('dragover'));
+    el.addEventListener('drop', e=>{
+      e.preventDefault(); el.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) batchLoadFiles(e.dataTransfer.files);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  EXTRACTION CORE
+// ════════════════════════════════════════════════════════
+
+/** Build (or reuse) off-screen full-resolution canvas — READ-ONLY master */
+function getOffCanvas() {
+  if (state.offCanvas) return state.offCanvas;
+  const oc = document.createElement('canvas');
+  oc.width = state.imageW; oc.height = state.imageH;
+  const ctx = oc.getContext('2d');
+  if (state.rotation !== 0) {
+    ctx.save();
+    ctx.translate(state.imageW/2, state.imageH/2);
+    ctx.rotate(state.rotation * Math.PI / 180);
+    ctx.drawImage(state.image, -state.imageW/2, -state.imageH/2);
+    ctx.restore();
+  } else {
+    ctx.drawImage(state.image, 0, 0);
+  }
+  state.offCanvas = oc;
+  return oc;
+}
+
+/**
+ * Get (or build) an isolated canvas for a single lead.
+ * This is what the repair tool edits — master offCanvas is never touched.
+ * If the lead has no stored canvas yet, crop it fresh from the master.
+ */
+function getLeadCanvas(lead) {
+  if (state.leadCanvases[lead]) return state.leadCanvases[lead];
+  const off = getOffCanvas();
+  const b = state.boxes[lead];
+  if (!b) return null;
+  const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
+  const lc = document.createElement('canvas');
+  lc.width = bW; lc.height = bH;
+  lc.getContext('2d').drawImage(off, Math.round(b.x1), Math.round(b.y1), bW, bH, 0, 0, bW, bH);
+  state.leadCanvases[lead] = lc;
+  return lc;
+}
+
+/** Invalidate a lead's isolated canvas (e.g. after box resize) */
+function invalidateLeadCanvas(lead) {
+  delete state.leadCanvases[lead];
+  state.repairedLeads.delete(lead);
+}
+
+/**
+ * Extract signal y-coordinate per column from a region.
+ * Uses adaptive background removal that works on both coloured and grey paper.
+ * Returns Float32Array of length = region width (px)
+ */
+function extractSignalFromRegion(offCtx, b, params) {
+  const x1=Math.round(b.x1), y1=Math.round(b.y1);
+  const w=Math.round(b.x2-b.x1), h=Math.round(b.y2-b.y1);
+  if (w<2||h<2) return null;
+
+  const imgData = offCtx.getImageData(x1,y1,w,h);
+  const pix = imgData.data;
+  const { threshold, method } = params;
+
+  // ── Adaptive background removal ──────────────────────────
+  // Works for both coloured ECG paper (cream/yellow) AND grey/white paper.
+  //
+  // Two-stage approach:
+  //
+  // Stage A — Colour discrimination (works for coloured paper):
+  //   ECG ink = dark AND achromatic. Grid lines on coloured paper are colourful.
+  //   Pixels with chroma < chromaThresh AND brightness < darkThresh → ink candidate.
+  //
+  // Stage B — Local contrast (works for grey/white paper):
+  //   ECG ink is significantly darker than its LOCAL neighbourhood.
+  //   For each pixel, compute the mean brightness in a small window around it.
+  //   If (localMean - pixelBrightness) > contrastThresh → ink candidate.
+  //   This filters out the uniform grey grid background regardless of its absolute value.
+  //
+  // The final ink mask = Stage A OR Stage B.
+  // On grey paper, Stage A contributes little (both ink and grid have low chroma),
+  // but Stage B correctly separates the darker ECG lines from the lighter grid.
+
+  // Compute grayscale
+  const gray = new Float32Array(w * h);
+  for (let r=0;r<h;r++) for (let c=0;c<w;c++) {
+    const i=(r*w+c)*4;
+    gray[r*w+c] = 0.299*pix[i] + 0.587*pix[i+1] + 0.114*pix[i+2];
+  }
+
+  // Auto-calibrate from sampled pixels
+  let sumV=0, sumCh=0, ns=0;
+  for (let r=0;r<h;r+=3) for (let c=0;c<w;c+=3) {
+    const i=(r*w+c)*4;
+    const mx=Math.max(pix[i],pix[i+1],pix[i+2]);
+    sumV+=mx; sumCh+=mx-Math.min(pix[i],pix[i+1],pix[i+2]); ns++;
+  }
+  const avgV  = ns>0 ? sumV/ns  : 200;
+  const avgCh = ns>0 ? sumCh/ns : 30;
+
+  // Stage A thresholds
+  const darkT   = Math.min(threshold, avgV * 0.55);
+  const chromaT = Math.max(15, avgCh * 0.65);
+
+  // Stage B: local contrast window (half-size, capped for performance)
+  // Use a larger window (~8% of box height, min 6px) to capture local background
+  const halfWin = Math.max(6, Math.min(20, Math.round(h * 0.08)));
+  // Contrast threshold: ink must be at least this much darker than local average
+  // Use 12% of local mean as minimum, or 18 grey levels, whichever is larger
+  const contrastFrac = 0.14;
+
+  // Build local mean via two-pass box filter (O(w*h), not O(w*h*win²))
+  const localMean = new Float32Array(w * h);
+  // Horizontal pass
+  const hPass = new Float32Array(w * h);
+  for (let r=0; r<h; r++) {
+    let sum=0, cnt=0;
+    // Initialise window
+    for (let c=0; c<=Math.min(halfWin, w-1); c++) { sum+=gray[r*w+c]; cnt++; }
+    for (let c=0; c<w; c++) {
+      hPass[r*w+c] = sum/cnt;
+      // Slide window
+      const add=c+halfWin+1, rem=c-halfWin;
+      if (add<w) { sum+=gray[r*w+add]; cnt++; }
+      if (rem>=0){ sum-=gray[r*w+rem]; cnt--; }
+    }
+  }
+  // Vertical pass
+  for (let c=0; c<w; c++) {
+    let sum=0, cnt=0;
+    for (let r=0; r<=Math.min(halfWin, h-1); r++) { sum+=hPass[r*w+c]; cnt++; }
+    for (let r=0; r<h; r++) {
+      localMean[r*w+c] = sum/cnt;
+      const add=r+halfWin+1, rem=r-halfWin;
+      if (add<h) { sum+=hPass[add*w+c]; cnt++; }
+      if (rem>=0){ sum-=hPass[rem*w+c]; cnt--; }
+    }
+  }
+
+  // Build ink mask
+  const isInk = new Uint8Array(w * h);
+
+  // ── Erased-region protection ──────────────────────────────
+  // Pixels that were painted white by the repair tool have brightness > 240
+  // AND very low chroma (nearly pure white). These must NEVER be classified
+  // as ink, even if their neighbours create a high local-contrast edge.
+  // Additionally, columns that are mostly "erased white" should be treated
+  // as signal gaps and left to interpolation — not searched for ink at all.
+  const erasedCol = new Uint8Array(w); // 1 = this column is in an erased region
+  for (let c = 0; c < w; c++) {
+    let whitePx = 0;
+    for (let r = 0; r < h; r++) {
+      const i = (r*w+c)*4;
+      const mx = Math.max(pix[i],pix[i+1],pix[i+2]);
+      const ch = mx - Math.min(pix[i],pix[i+1],pix[i+2]);
+      if (mx > 240 && ch < 15) whitePx++;
+    }
+    // If >40% of this column is near-pure white → erased column
+    if (whitePx / h > 0.40) erasedCol[c] = 1;
+  }
+  // Expand erased zone by 2 columns on each side (edge artifact buffer)
+  const erasedColExp = erasedCol.slice();
+  for (let c = 0; c < w; c++) {
+    if (erasedCol[c]) {
+      for (let d = Math.max(0,c-2); d <= Math.min(w-1,c+2); d++) erasedColExp[d] = 1;
+    }
+  }
+
+  for (let r=0;r<h;r++) for (let c=0;c<w;c++) {
+    const idx=r*w+c;
+    const i=idx*4;
+    const mx=Math.max(pix[i],pix[i+1],pix[i+2]);
+    const ch=mx-Math.min(pix[i],pix[i+1],pix[i+2]);
+    const g=gray[idx], lm=localMean[idx];
+
+    // Never mark erased pixels or their edge columns as ink
+    if (erasedColExp[c]) continue;
+    // Also never mark near-pure-white pixels as ink regardless of local contrast
+    if (mx > 235 && ch < 20) continue;
+
+    // Stage A: absolute colour discrimination (coloured paper)
+    const stageA = (mx < darkT && ch < chromaT);
+
+    // Stage B: local contrast (grey/white paper)
+    // Pixel must be notably darker than its local neighbourhood
+    const contrastThresh = Math.max(18, lm * contrastFrac);
+    const stageB = (lm - g) > contrastThresh;
+
+    if (stageA || stageB) isInk[idx]=1;
+  }
+
+  // ── Grid-line suppression ─────────────────────────────────
+  // ECG grid lines are long continuous horizontal/vertical dark stripes.
+  // A true ink line has horizontal runs that are SHORT (pen strokes vary in y).
+  // Strategy: for each pixel marked as ink, check if it belongs to a very long
+  // unbroken horizontal run. If the run length > gridRunThresh, it's likely a
+  // grid line — clear the entire run.
+  //
+  // Grid lines on ECG paper are typically 0.5–1mm wide and span the full width.
+  // ECG signal strokes are much shorter horizontally (they curve up/down).
+  // We use: if a horizontal ink run spans > 30% of box width → likely grid → suppress.
+  const gridRunThresh = Math.round(w * 0.30);
+  const suppressed = isInk.slice(); // work on a copy
+  for (let r=0;r<h;r++) {
+    let runStart=-1, runLen=0;
+    for (let c=0;c<=w;c++) {
+      const on = c<w && isInk[r*w+c];
+      if (on) {
+        if (runStart<0) runStart=c;
+        runLen++;
+      } else {
+        if (runLen > gridRunThresh) {
+          // Suppress this run
+          for (let k=runStart;k<runStart+runLen;k++) suppressed[r*w+k]=0;
+        }
+        runStart=-1; runLen=0;
+      }
+    }
+  }
+
+  const isInkFinal = suppressed;
+
+  if (method === 'track') {
+    return trackSignalDP(pix, w, h, threshold, isInkFinal, erasedColExp);
+  }
+
+  // ── Classic column-by-column methods (ink-only) ───────────
+  // For erased columns, we'll mark as "no data" and let caller interpolate
+  // by filling with neighbours. We use h/2 as placeholder since classic
+  // methods don't support -1 gaps — caller smoothing will handle it.
+  const rawY = new Float32Array(w);
+  const erasedPlaceholder = new Uint8Array(w); // track which cols had no ink
+  for (let c=0; c<w; c++) {
+    // Skip erased columns entirely — interpolate later
+    if (erasedColExp[c]) { rawY[c] = -1; erasedPlaceholder[c] = 1; continue; }
+    let totalW=0, weightedY=0, darkestY=h/2, darkestV=255, topmostY=h/2;
+    let found=false;
+    for (let r=0; r<h; r++) {
+      if (!isInkFinal[r*w+c]) continue;
+      const i=(r*w+c)*4;
+      const g2 = gray[r*w+c];
+      if (method==='centroid' || method==='topmost') {
+        const w2 = Math.max(0, threshold - g2);
+        if (w2 > 0) {
+          totalW += w2; weightedY += w2*r;
+          if (!found) { topmostY=r; found=true; }
+        }
+      }
+      if (method==='darkest') {
+        if (g2 < darkestV) { darkestV=g2; darkestY=r; }
+      }
+    }
+    if (method==='centroid')     rawY[c] = totalW>0 ? weightedY/totalW : h/2;
+    else if (method==='darkest') rawY[c] = darkestY;
+    else                         rawY[c] = found ? topmostY : h/2;
+  }
+
+  // Fill erased columns by linear interpolation from neighbours
+  for (let c=0; c<w; c++) {
+    if (!erasedPlaceholder[c]) continue;
+    // Find nearest valid left and right
+    let lv=-1, rv=-1;
+    for (let k=c-1; k>=0; k--) { if (!erasedPlaceholder[k]){ lv=k; break; } }
+    for (let k=c+1; k<w;  k++) { if (!erasedPlaceholder[k]){ rv=k; break; } }
+    if (lv>=0 && rv>=0) rawY[c] = rawY[lv] + (rawY[rv]-rawY[lv])*(c-lv)/(rv-lv);
+    else if (lv>=0)     rawY[c] = rawY[lv];
+    else if (rv>=0)     rawY[c] = rawY[rv];
+    else                rawY[c] = h/2;
+  }
+
+  const smooth = parseInt(params.smooth)||0;
+  if (smooth > 1) {
+    const smoothed = new Float32Array(w);
+    const half = Math.floor(smooth/2);
+    for (let i=0; i<w; i++) {
+      let sum=0, cnt=0;
+      for (let j=Math.max(0,i-half); j<=Math.min(w-1,i+half); j++) { sum+=rawY[j]; cnt++; }
+      smoothed[i] = sum/cnt;
+    }
+    return smoothed;
+  }
+  return rawY;
+}
+/**
+ * SPANNING-LINE TRACKER
+ *
+ * Two-scenario approach:
+ *
+ * Scenario 1 — Line enters from top/bottom edge (not left-right spanning):
+ *   Detected by checking if the component touches the top/bottom border
+ *   but does NOT span left-to-right. These are automatically excluded.
+ *
+ * Scenario 2 — Line spans left-to-right but user has partially erased it:
+ *   After erasure the line has a gap, so it no longer forms a single
+ *   left-to-right spanning component. It splits into left-fragment and
+ *   right-fragment, neither of which spans fully. Automatically excluded.
+ *   Only the target lead's component (which was not erased) remains spanning.
+ *
+ * Among remaining spanning components, pick the one whose per-column
+ * centroid series is smoothest (least column-to-column variation) — this
+ * is the most "well-behaved" continuous line, i.e. the target ECG lead.
+ * Smooth fallback interpolates any remaining gaps.
+ */
+function trackSignalDP(pix, w, h, threshold, isInkIn, erasedCols) {
+  const repairOpen = document.getElementById('repairModal')?.classList.contains('open');
+  const targetY = (typeof trackYHint !== 'undefined' && trackYHint >= 0) ? trackYHint * h : -1;
+  const activeAnchors = (repairOpen && typeof rp !== 'undefined' && Array.isArray(rp.anchors)) ? rp.anchors : [];
+
+  function nearestCentroidAt(centroid, x, radius = 4) {
+    const cx = Math.round(x);
+    let best = -1, bestDist = Infinity;
+    for (let d = -radius; d <= radius; d++) {
+      const idx = cx + d;
+      if (idx < 0 || idx >= centroid.length || centroid[idx] < 0) continue;
+      const dist = Math.abs(d);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = centroid[idx];
+      }
+    }
+    return best;
+  }
+
+  // ── 1. Background removal + binarise ─────────────────────
+  // Use pre-computed isInk mask if provided (from extractSignalFromRegion),
+  // otherwise compute it here (direct call path).
+  let isInk = isInkIn;
+  if (!isInk) {
+    // Fallback: compute ink mask using same adaptive local-contrast method
+    const gray2 = new Float32Array(w * h);
+    for (let r=0;r<h;r++) for (let c=0;c<w;c++) {
+      const i=(r*w+c)*4;
+      gray2[r*w+c] = 0.299*pix[i]+0.587*pix[i+1]+0.114*pix[i+2];
+    }
+    let sumV=0, sumCh=0, ns=0;
+    for (let r=0;r<h;r+=3) for (let c=0;c<w;c+=3) {
+      const i=(r*w+c)*4;
+      const mx=Math.max(pix[i],pix[i+1],pix[i+2]);
+      sumV+=mx; sumCh+=mx-Math.min(pix[i],pix[i+1],pix[i+2]); ns++;
+    }
+    const avgV=ns>0?sumV/ns:200, avgCh=ns>0?sumCh/ns:30;
+    const darkT=Math.min(threshold,avgV*0.55), chromaT=Math.max(15,avgCh*0.65);
+    const halfWin=Math.max(6,Math.min(20,Math.round(h*0.08)));
+    const hPass2=new Float32Array(w*h), lm2=new Float32Array(w*h);
+    for (let r=0;r<h;r++){let s=0,cnt=0;
+      for(let c=0;c<=Math.min(halfWin,w-1);c++){s+=gray2[r*w+c];cnt++;}
+      for(let c=0;c<w;c++){hPass2[r*w+c]=s/cnt;
+        const a=c+halfWin+1,rm=c-halfWin;
+        if(a<w){s+=gray2[r*w+a];cnt++;}if(rm>=0){s-=gray2[r*w+rm];cnt--;}}}
+    for (let c=0;c<w;c++){let s=0,cnt=0;
+      for(let r=0;r<=Math.min(halfWin,h-1);r++){s+=hPass2[r*w+c];cnt++;}
+      for(let r=0;r<h;r++){lm2[r*w+c]=s/cnt;
+        const a=r+halfWin+1,rm=r-halfWin;
+        if(a<h){s+=hPass2[a*w+c];cnt++;}if(rm>=0){s-=hPass2[rm*w+c];cnt--;}}}
+    isInk = new Uint8Array(w*h);
+    for(let r=0;r<h;r++) for(let c=0;c<w;c++){
+      const idx=r*w+c,i=idx*4;
+      const mx=Math.max(pix[i],pix[i+1],pix[i+2]);
+      const ch=mx-Math.min(pix[i],pix[i+1],pix[i+2]);
+      const stageA=(mx<darkT&&ch<chromaT);
+      const ct=Math.max(18,lm2[idx]*0.14);
+      const stageB=(lm2[idx]-gray2[idx])>ct;
+      if(stageA||stageB) isInk[idx]=1;
+    }
+    // Grid suppression
+    const gridT=Math.round(w*0.30);
+    for(let r=0;r<h;r++){let rs=-1,rl=0;
+      for(let c=0;c<=w;c++){const on=c<w&&isInk[r*w+c];
+        if(on){if(rs<0)rs=c;rl++;}
+        else{if(rl>gridT){for(let k=rs;k<rs+rl;k++)isInk[r*w+k]=0;}rs=-1;rl=0;}}}
+  }
+
+  const binary = isInk; // alias — same meaning
+
+  // Vertical dilation ±1px to bridge hairline gaps in a single stroke
+  const dil = new Uint8Array(w * h);
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      if (binary[r*w+c] ||
+          (r > 0   && binary[(r-1)*w+c]) ||
+          (r < h-1 && binary[(r+1)*w+c])) dil[r*w+c] = 1;
+    }
+  }
+
+  // ── 2. Union-Find connected components ───────────────────
+  const par = new Int32Array(w * h).map((_, i) => i);
+  function find(x) { while (par[x]!==x){par[x]=par[par[x]];x=par[x];}return x; }
+  function union(a,b){a=find(a);b=find(b);if(a!==b)par[a]=b;}
+
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      if (!dil[r*w+c]) continue;
+      const idx = r*w+c;
+      if (c > 0 && dil[idx-1]) union(idx, idx-1);
+      if (r > 0 && dil[idx-w]) union(idx, idx-w);
+    }
+  }
+
+  // ── 3. Collect per-component stats ───────────────────────
+  // Edge zones for spanning / top-bottom detection
+  const leftZ  = Math.max(1, Math.round(w * 0.04));
+  const rightZ = Math.max(1, Math.round(w * 0.04));
+  const topZ   = Math.max(1, Math.round(h * 0.08));
+  const botZ   = Math.max(1, Math.round(h * 0.08));
+
+  const colSum = new Map();  // root → Float32Array(w)
+  const colCnt = new Map();  // root → Float32Array(w)
+  const hitsLeft  = new Set();
+  const hitsRight = new Set();
+  const hitsTop   = new Set();
+  const hitsBot   = new Set();
+
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      if (!dil[r*w+c]) continue;
+      const root = find(r*w+c);
+      if (!colSum.has(root)) {
+        colSum.set(root, new Float32Array(w));
+        colCnt.set(root, new Float32Array(w));
+      }
+      colSum.get(root)[c] += r;
+      colCnt.get(root)[c] += 1;
+      if (c < leftZ)        hitsLeft.add(root);
+      if (c >= w - rightZ)  hitsRight.add(root);
+      if (r < topZ)         hitsTop.add(root);
+      if (r >= h - botZ)    hitsBot.add(root);
+    }
+  }
+
+  // ── 4. Filter: keep only left-right spanning components ──
+  // Scenario 1 exclusion: components that only touch top/bottom (not LR) are
+  // bleed-ins from adjacent leads — skip them automatically.
+  // Scenario 2 exclusion: an erased component no longer reaches both L and R
+  // edges, so it's automatically excluded here.
+  const candidates = [];
+
+  for (const root of hitsLeft) {
+    if (!hitsRight.has(root)) continue; // not spanning L→R: skip
+
+    const cc = colCnt.get(root);
+    const cs = colSum.get(root);
+
+    // Build per-column centroid
+    const centroid = new Float32Array(w).fill(-1);
+    let covered = 0, totalPx = 0;
+    for (let c = 0; c < w; c++) {
+      if (cc[c] > 0) {
+        centroid[c] = cs[c] / cc[c];
+        covered++;
+        totalPx += cc[c];
+      }
+    }
+    if (covered < w * 0.5) continue; // too broken even among spanning ones
+
+    // Smoothness: mean |Δcentroid| per column gap
+    let diffSum = 0, diffCnt = 0, prevC = -1, prevV = 0;
+    for (let c = 0; c < w; c++) {
+      if (centroid[c] < 0) continue;
+      if (prevC >= 0) { diffSum += Math.abs(centroid[c]-prevV)/(c-prevC); diffCnt++; }
+      prevC = c; prevV = centroid[c];
+    }
+    const smoothness = diffCnt > 0 ? diffSum/diffCnt : h;
+
+    // ── Amplitude (std-dev of centroid series) ───────────────
+    // A flat horizontal line (background grid) has near-zero std-dev.
+    // A real ECG curve has meaningful oscillation.
+    let cSum = 0, cCnt = 0;
+    for (let c = 0; c < w; c++) if (centroid[c] >= 0) { cSum += centroid[c]; cCnt++; }
+    const cMean = cCnt > 0 ? cSum / cCnt : h/2;
+    let cVar = 0;
+    for (let c = 0; c < w; c++) if (centroid[c] >= 0) cVar += (centroid[c]-cMean)**2;
+    const stdDev = cCnt > 0 ? Math.sqrt(cVar/cCnt) : 0;
+
+    // Edge bleed penalty: waveforms entering from adjacent rows usually touch
+    // top/bottom edges. Keep them as candidates, but make them expensive.
+    const edgePenalty = (hitsTop.has(root) ? 1 : 0) + (hitsBot.has(root) ? 1 : 0);
+
+    let hintPenalty = 0;
+    if (targetY >= 0) {
+      let dist = 0, n = 0;
+      for (let c = 0; c < w; c += Math.max(1, Math.round(w / 120))) {
+        if (centroid[c] < 0) continue;
+        dist += Math.abs(centroid[c] - targetY) / h;
+        n++;
+      }
+      hintPenalty = n > 0 ? dist / n : 1;
+    }
+
+    let anchorPenalty = 0;
+    if (activeAnchors.length > 0) {
+      let dist = 0, n = 0;
+      activeAnchors.forEach(a => {
+        const y = nearestCentroidAt(centroid, a.ix, Math.max(4, Math.round(w * 0.01)));
+        dist += y >= 0 ? Math.abs(y - a.iy) / h : 1;
+        n++;
+      });
+      anchorPenalty = n > 0 ? dist / n : 0;
+    }
+
+    const coverageRatio = covered / w;
+
+    candidates.push({
+      root, centroid, covered, totalPx, smoothness, edgePenalty, stdDev,
+      hintPenalty, anchorPenalty, coverageRatio
+    });
+  }
+
+  // ── 5. Remove background/grid lines (near-flat components) ─
+  // Minimum amplitude: at least 1.5% of box height std-dev.
+  // Grid lines and blank bands have stdDev ≈ 0; ECG curves have >> this.
+  const minAmplitude = h * 0.015;
+  const ecgCandidates = candidates.filter(c => c.stdDev >= minAmplitude);
+  // If filtering removed everything, fall back to all candidates
+  const pool = ecgCandidates.length > 0 ? ecgCandidates : candidates;
+
+  // ── 5b. Fallback: no spanning component ──────────────────
+  if (pool.length === 0) {
+    const result = new Float32Array(w);
+    for (let c = 0; c < w; c++) {
+      let dY = h/2, dV = 255;
+      for (let r = 0; r < h; r++) {
+        const i=(r*w+c)*4;
+        const g=0.299*pix[i]+0.587*pix[i+1]+0.114*pix[i+2];
+        if (g < dV) { dV=g; dY=r; }
+      }
+      result[c] = dY;
+    }
+    return result;
+  }
+
+  // ── 6. Rank candidates ────────────────────────────────────
+  // Priority 1: follow the manually marked target line / anchors when present.
+  // Priority 2: ignore top/bottom bleed-in waveforms.
+  // Priority 3: highest amplitude/smoothness ratio among plausible continuous curves.
+  //   - amplitude (stdDev) rewards oscillating ECG curves, penalises flat grid lines
+  //   - dividing by smoothness rewards continuous curves, penalises jagged intruders
+  pool.sort((a, b) => {
+    const scoreA =
+      (a.stdDev / (a.smoothness + 0.01)) +
+      a.coverageRatio * 1.5 -
+      a.edgePenalty * 4.0 -
+      a.hintPenalty * (targetY >= 0 ? 8.0 : 0.0) -
+      a.anchorPenalty * (activeAnchors.length > 0 ? 12.0 : 0.0);
+    const scoreB =
+      (b.stdDev / (b.smoothness + 0.01)) +
+      b.coverageRatio * 1.5 -
+      b.edgePenalty * 4.0 -
+      b.hintPenalty * (targetY >= 0 ? 8.0 : 0.0) -
+      b.anchorPenalty * (activeAnchors.length > 0 ? 12.0 : 0.0);
+    return scoreB - scoreA;
+  });
+
+  // ── 7. Build signal from winner ───────────────────────────
+  const win = pool[0];
+  const result = new Float32Array(w).fill(-1);
+  for (let c = 0; c < w; c++) {
+    // Force erased columns to gap — never use ink found inside erased regions
+    if (erasedCols && erasedCols[c]) continue;
+    if (win.centroid[c] >= 0) result[c] = win.centroid[c];
+  }
+
+  // ── 8. Interpolate gaps ───────────────────────────────────
+  let fv = -1, lv = -1;
+  for (let c = 0; c < w; c++) if (result[c]>=0){if(fv<0)fv=c;lv=c;}
+  if (fv < 0) { result.fill(h/2); return result; }
+  for (let c = 0; c < fv; c++) result[c] = result[fv];
+  for (let c = lv+1; c < w; c++) result[c] = result[lv];
+  let gs = -1;
+  for (let c = fv; c <= lv; c++) {
+    if (result[c]<0 && gs<0) gs=c;
+    else if (result[c]>=0 && gs>=0) {
+      const y0=result[gs-1], y1=result[c], span=c-gs+1;
+      for (let g=gs; g<c; g++) result[g]=y0+(y1-y0)*(g-gs+1)/span;
+      gs=-1;
+    }
+  }
+
+  // ── 9. Final smooth pass ──────────────────────────────────
+  const sm = parseInt(document.getElementById('epSmooth')?.value)||0;
+  if (sm > 1) {
+    const half = Math.floor(sm/2);
+    const out = new Float32Array(w);
+    for (let c=0;c<w;c++){
+      let s=0,n=0;
+      for(let j=Math.max(0,c-half);j<=Math.min(w-1,c+half);j++){s+=result[j];n++;}
+      out[c]=s/n;
+    }
+    return out;
+  }
+  return result;
+}
+
+
+/** Convert raw y-pixels to mV using baseline correction + scale */
+function yPixToMV(rawY, boxH, scalePxMV, baselineWindowPct) {
+  const n = rawY.length;
+  const winSize = Math.max(10, Math.round(n * baselineWindowPct / 100));
+
+  // Running median baseline via sliding window (approx with moving average)
+  const baseline = new Float32Array(n);
+  for (let i=0; i<n; i++) {
+    const lo=Math.max(0,i-Math.floor(winSize/2));
+    const hi=Math.min(n-1,i+Math.floor(winSize/2));
+    const slice=[];
+    for(let j=lo;j<=hi;j++) slice.push(rawY[j]);
+    slice.sort((a,b)=>a-b);
+    baseline[i]=slice[Math.floor(slice.length/2)];
+  }
+  const mv = new Float32Array(n);
+  for (let i=0; i<n; i++) {
+    mv[i] = -(rawY[i]-baseline[i]) / scalePxMV;
+  }
+  return mv;
+}
+
+/** Resample signal from n_in points to n_out points (linear) */
+function resampleLinear(sig, nOut) {
+  const n=sig.length;
+  if (n===nOut) return sig;
+  const out=new Float32Array(nOut);
+  for(let i=0;i<nOut;i++){
+    const t=i/(nOut-1)*(n-1);
+    const lo=Math.floor(t),hi=Math.min(Math.ceil(t),n-1);
+    out[i]=sig[lo]+(sig[hi]-sig[lo])*(t-lo);
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════
+//  RUN EXTRACTION
+// ════════════════════════════════════════════════════════
+async function runExtraction() {
+  const presentLeads = LEADS_ORDER.filter(l=>state.boxes[l]);
+  if (!state.image || presentLeads.length===0) {
+    toast('请先标注至少一个导联区域','warn'); return;
+  }
+  if (!isCalibrationReady()) {
+    toast('请先完成横向和纵向 5 个大格标定', 'warn');
+    setCalibrationStatus('这是必填项：先完成横向 5 个大格和纵向 5 个大格标定，才能提取。', 'var(--amber)');
+    return;
+  }
+
+  // Read params
+  const dpi     = parseFloat(document.getElementById('paramDPI').value)||96;
+  const speed   = parseFloat(document.getElementById('paramSpeed').value)||25;
+  const gain    = parseFloat(document.getElementById('paramGain').value)||10;
+  const fs      = parseFloat(document.getElementById('paramFS').value)||500;
+  const thresh  = parseFloat(document.getElementById('epThreshold').value)||150;
+  const blWin   = parseFloat(document.getElementById('epBaseline').value)||10;
+  const smooth  = parseFloat(document.getElementById('epSmooth').value)||0;
+  const method  = document.getElementById('epMethod').value||'track';
+  const { pxPerMmX, pxPerMmY } = getScaleMetrics();
+  const scalePxMV = pxPerMmY * gain;
+
+  // Show progress
+  const progWrap = document.getElementById('extractProgress');
+  const progFill = document.getElementById('progressFill');
+  progWrap.style.display='block'; progFill.style.width='0%';
+  document.getElementById('btnExtract').disabled=true;
+
+  // Ensure master offCanvas exists (but we won't read from it directly per-lead)
+  getOffCanvas();
+
+  state.extractedSignals = {};
+  state.extractedMV = {};
+  const params = { threshold: thresh, smooth, method };
+
+  // Process each lead using its own isolated canvas
+  for (let li=0; li<presentLeads.length; li++) {
+    const lead = presentLeads[li];
+    const b = state.boxes[lead];
+
+    if (li%3===0) await new Promise(r=>setTimeout(r,0));
+
+    // Use the per-lead canvas (may have been repaired); box coords become (0,0,bW,bH)
+    const lc = getLeadCanvas(lead);
+    if (!lc) continue;
+    const lcCtx = lc.getContext('2d');
+    const bW = Math.round(b.x2-b.x1), bH = Math.round(b.y2-b.y1);
+    const bLocal = { x1:0, y1:0, x2:bW, y2:bH };
+
+    const rawY = extractSignalFromRegion(lcCtx, bLocal, params);
+    if (!rawY) continue;
+
+    state.extractedSignals[lead] = rawY;
+
+    const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
+    const dur_s = rawY.length / (pxPerMmX * speed);
+    const nOut = Math.round(dur_s * fs);
+    state.extractedMV[lead] = resampleLinear(mv, nOut);
+
+    progFill.style.width = Math.round((li+1)/presentLeads.length*100)+'%';
+    updateLeadItem(lead);
+  }
+
+  progWrap.style.display='none';
+  document.getElementById('btnExtract').disabled=false;
+  updateCounts();
+  setStep(3);
+
+  // Render overlay with signal lines
+  renderOverlay();
+
+  // Build preview panel
+  buildPreviewPanel(presentLeads, dpi, speed, gain, fs);
+  switchView('preview');
+  document.getElementById('statusExtract').innerHTML =
+    `<span style="color:var(--red)">✓ ${presentLeads.length}导联已提取</span>`;
+  toast(`✓ 提取完成 · ${presentLeads.length} 导联`);
+
+  try{
+    emitExtractionToHeartOS(presentLeads, fs);
+  }catch(e){
+    console.warn('emitExtractionToHeartOS error', e);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  PREVIEW PANEL
+// ════════════════════════════════════════════════════════
+function buildPreviewPanel(leads, dpi, speed, gain, fs) {
+  const grid = document.getElementById('previewGrid');
+  grid.innerHTML='';
+  setCSVPreviewMode(false);
+  document.querySelector('.extract-controls').style.display = '';
+  document.getElementById('previewGrid').style.display = '';
+  document.getElementById('previewEmpty').style.display='none';
+  document.getElementById('previewHeader').style.display='flex';
+
+  let totalSnr=0, count=0;
+
+  leads.forEach(lead => {
+    const b = state.boxes[lead];
+    const rawY = state.extractedSignals[lead];
+    const mvSig = state.extractedMV[lead];
+    if (!rawY || !mvSig) return;
+
+    const bW=Math.round(b.x2-b.x1), bH=Math.round(b.y2-b.y1);
+
+    const mean = mvSig.reduce((a,b)=>a+b,0)/mvSig.length;
+    const range = Math.max(...mvSig)-Math.min(...mvSig);
+    const residual = mvSig.map(v=>v-mean);
+    const std = Math.sqrt(residual.reduce((a,b)=>a+b*b,0)/residual.length);
+    const snr = std>0 ? range/std : 0;
+    totalSnr+=snr; count++;
+
+    const isRepaired = state.repairedLeads.has(lead);
+
+    const card = document.createElement('div');
+    card.className='preview-card';
+    card.innerHTML=`
+      <div class="preview-card-header">
+        <span class="preview-card-lead" style="color:${COLORS[lead]}">${lead}</span>
+        <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s</span>
+        <span class="preview-card-status ${snr>3?'ok':'warn'}">${snr>3?'✓ 良好':'⚠ 检查'}</span>
+        ${isRepaired ? '<span style="font-size:9px;color:var(--accent);margin-left:2px">🔧已修复</span>' : ''}
+        <button class="preview-card-edit${isRepaired?' edited':''}" id="editBtn-${lead}" onclick="event.stopPropagation();openRepairModal('${lead}')">${isRepaired?'✓ 重新修复':'✏ 修复'}</button>
+      </div>
+      <div class="preview-canvas-wrap" id="pcw-${lead}"></div>
+    `;
+    grid.appendChild(card);
+
+    drawPreviewCard(lead, card, rawY, bW, bH);
+  });
+
+  // Update header quality badge
+  const avgSnr = count>0 ? totalSnr/count : 0;
+  const badge = document.getElementById('qualityBadge');
+  const title = document.getElementById('previewHeaderTitle');
+  title.textContent = `${leads.length} 导联已提取 · 采样率 ${fs}Hz · ${state.extractedMV[leads[0]]?.length||0} 点/导联`;
+  badge.textContent = avgSnr>4 ? '质量: 优' : avgSnr>2 ? '质量: 良' : '质量: 差';
+  badge.className = 'quality-badge ' + (avgSnr>4?'good':avgSnr>2?'good':'warn');
+}
+
+/**
+ * Draw a preview card's canvas using the lead's isolated canvas + extracted signal.
+ * Signal color: red = auto-extracted, green = after repair.
+ */
+function drawPreviewCard(lead, card, rawY, bW, bH) {
+  const lc = getLeadCanvas(lead);
+  if (!lc) return;
+
+  const previewH = Math.max(60, Math.min(120, bH));
+  const previewW = card.offsetWidth || 300;
+  const scaleX = previewW / bW;
+  const scaleY = previewH / bH;
+
+  const pc = document.createElement('canvas');
+  pc.width  = Math.round(bW * scaleX) || previewW;
+  pc.height = previewH;
+  pc.style.width = '100%';
+
+  const pcCtx = pc.getContext('2d');
+  // Draw from the lead's isolated canvas (which may be repaired)
+  pcCtx.drawImage(lc, 0, 0, bW, bH, 0, 0, pc.width, pc.height);
+  pcCtx.fillStyle = 'rgba(13,15,14,0.15)';
+  pcCtx.fillRect(0, 0, pc.width, pc.height);
+
+  const isRepaired = state.repairedLeads.has(lead);
+  pcCtx.beginPath();
+  pcCtx.strokeStyle = isRepaired ? '#4ade80' : '#f87171';
+  pcCtx.lineWidth = 1.5;
+  pcCtx.shadowColor = isRepaired ? '#4ade80' : '#f87171';
+  pcCtx.shadowBlur = 2;
+  for (let i = 0; i < rawY.length; i++) {
+    const px = i * scaleX, py = rawY[i] * scaleY;
+    i === 0 ? pcCtx.moveTo(px, py) : pcCtx.lineTo(px, py);
+  }
+  pcCtx.stroke();
+  pcCtx.shadowBlur = 0;
+
+  document.getElementById(`pcw-${lead}`).appendChild(pc);
+}
+
+// ════════════════════════════════════════════════════════
+//  SAVE CSV
+// ════════════════════════════════════════════════════════
+function parseCSVString(csv) {
+  const lines = csv.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return null;
+  const headers = lines[0].split(',');
+  const leads = headers.slice(1);
+  const times = [];
+  const series = Object.fromEntries(leads.map(l => [l, []]));
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    if (cols.length < headers.length) continue;
+    times.push(parseFloat(cols[0]));
+    leads.forEach((lead, idx) => series[lead].push(parseFloat(cols[idx + 1])));
+  }
+  return { leads, times, series };
+}
+
+function renderCurrentCSVPreview(csv = null) {
+  const csvText = csv || buildCSVString();
+  if (!csvText) { toast('没有可回绘的 CSV 数据', 'warn'); return; }
+  const parsed = parseCSVString(csvText);
+  if (!parsed || parsed.leads.length === 0) { toast('CSV 数据解析失败', 'warn'); return; }
+
+  const panel = document.getElementById('csvRenderPanel');
+  const wrap = document.getElementById('csvRenderWrap');
+  const info = document.getElementById('csvRenderInfo');
+  wrap.innerHTML = '';
+
+  const speed = parseFloat(document.getElementById('paramSpeed').value) || 25;
+  const gain = parseFloat(document.getElementById('paramGain').value) || 10;
+  const fs = parseFloat(document.getElementById('paramFS').value) || 500;
+  const pxPerMm = 8;
+  const msPerMm = 1000 / speed;
+  const mvPerMm = 1 / gain;
+  const leftPad = 78;
+  const rightPad = 24;
+  const topPad = 20;
+  const bottomPad = 20;
+  const leadHeight = 120;
+  const totalMs = parsed.times.length > 1 ? parsed.times[parsed.times.length - 1] - parsed.times[0] : ((parsed.times.length - 1) / fs * 1000);
+  const plotWidth = Math.max(760, Math.round((totalMs / msPerMm) * pxPerMm));
+  const width = leftPad + plotWidth + rightPad;
+  const height = Math.max(240, parsed.leads.length * leadHeight + topPad + bottomPad);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.style.width = '100%';
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fffaf7';
+  ctx.fillRect(0, 0, width, height);
+
+  const smallGridPx = pxPerMm;
+  const bigGridPx = pxPerMm * 5;
+  for (let x = leftPad; x < width - rightPad + 1; x += smallGridPx) {
+    ctx.strokeStyle = ((x - leftPad) % bigGridPx === 0) ? 'rgba(220,38,38,0.25)' : 'rgba(244,114,114,0.12)';
+    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, height); ctx.stroke();
+  }
+  for (let y = topPad; y < height - bottomPad + 1; y += smallGridPx) {
+    ctx.strokeStyle = ((y - topPad) % bigGridPx === 0) ? 'rgba(220,38,38,0.25)' : 'rgba(244,114,114,0.12)';
+    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(width, y + 0.5); ctx.stroke();
+  }
+
+  parsed.leads.forEach((lead, leadIdx) => {
+    const top = topPad + leadIdx * leadHeight;
+    const mid = top + leadHeight / 2;
+    const values = parsed.series[lead];
+    const yScale = pxPerMm / mvPerMm;
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 14px JetBrains Mono, monospace';
+    ctx.fillText(lead, 18, top + 18);
+    ctx.strokeStyle = 'rgba(17,24,39,0.18)';
+    ctx.beginPath(); ctx.moveTo(leftPad, mid + 0.5); ctx.lineTo(width - rightPad, mid + 0.5); ctx.stroke();
+    ctx.strokeStyle = '#b91c1c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    values.forEach((v, idx) => {
+      const ms = parsed.times.length > 1 ? (parsed.times[idx] - parsed.times[0]) : (idx / fs * 1000);
+      const x = leftPad + (ms / msPerMm) * pxPerMm;
+      const y = mid - v * yScale;
+      idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
+
+  wrap.appendChild(canvas);
+  info.textContent = `${parsed.leads.length} 导联 · ${parsed.times.length} 点 · 纸速 ${speed} · 增益 ${gain}`;
+  setCSVPreviewMode(true);
+  panel.style.display = 'block';
+  switchView('preview');
+}
+
+async function saveCSV() {
+  if (!state.extractedMV || Object.keys(state.extractedMV).length===0) {
+    toast('请先提取信号','warn'); return;
+  }
+  if (!isCalibrationReady()) {
+    toast('请先完成横向和纵向 5 个大格标定', 'warn');
+    return;
+  }
+  const csv = buildCSVString();
+  if (!csv) { toast('无可用信号','warn'); return; }
+
+  // Auto-save to batch results if in batch mode
+  if (batch.files.length > 1 && batch.current >= 0) {
+    batchSaveCurrent();
+  }
+
+  const fs = parseFloat(document.getElementById('paramFS').value)||500;
+  const presentLeads = LEADS_ORDER.filter(l=>state.extractedMV && state.extractedMV[l]);
+  const maxN = Math.max(...presentLeads.map(l=>state.extractedMV[l].length));
+
+  let fileName = (document.getElementById('saveFileName')?.value || state.saveConfig.fileName || makeDefaultCSVFileName()).trim();
+  if (!fileName) fileName = makeDefaultCSVFileName();
+  if (!fileName.toLowerCase().endsWith('.csv')) fileName += '.csv';
+  state.saveConfig.fileName = fileName;
+
+  if (state.saveConfig.dirHandle && window.showDirectoryPicker) {
+    try {
+      const fileHandle = await state.saveConfig.dirHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(csv);
+      await writable.close();
+      state.saveConfig.lastSavedLabel = `${state.saveConfig.dirName}/${fileName}`;
+    } catch (err) {
+      toast('写入所选位置失败，已改用浏览器下载', 'warn');
+      const blob=new Blob([csv],{type:'text/csv'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      state.saveConfig.lastSavedLabel = `浏览器下载/${fileName}`;
+    }
+  } else {
+    const blob=new Blob([csv],{type:'text/csv'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    state.saveConfig.lastSavedLabel = `浏览器下载/${fileName}`;
+  }
+  updateSaveLocationLabel();
+  setStep(4);
+  toast(`✓ 已保存 · ${presentLeads.length}导联 · ${maxN}点 · ${fs}Hz`);
+  try{
+    emitCSVToHeartOS(fileName, csv, presentLeads, fs, maxN);
+  }catch(e){
+    console.warn('emitCSVToHeartOS error', e);
+  }
+  try{
+    emitSaveToHeartOS(fileName, presentLeads, fs, maxN);
+  }catch(e){
+    console.warn('emitSaveToHeartOS error', e);
+  }
+}
+
+function _stripDataUrlPrefix(dataUrl){
+  const s = String(dataUrl || '');
+  const idx = s.indexOf('base64,');
+  return idx >= 0 ? s.slice(idx + 'base64,'.length) : s;
+}
+
+function _serializeLeadsForSave(presentLeads){
+  const leads = {};
+  const arr = Array.isArray(presentLeads) ? presentLeads : [];
+  for (let i = 0; i < arr.length; i++) {
+    const lead = arr[i];
+    const buf = state.extractedMV && state.extractedMV[lead];
+    if (!buf) continue;
+    const out = new Array(buf.length);
+    for (let j = 0; j < buf.length; j++) {
+      const v = Number(buf[j]);
+      out[j] = Number.isFinite(v) ? Number(v.toFixed(4)) : 0;
+    }
+    leads[lead] = out;
+  }
+  return leads;
+}
+
+function emitSaveToHeartOS(fileName, presentLeads, fs, maxN){
+  const payload = {
+    type: 'HEARTOS_HANDECG_SAVE',
+    tool: 'handecg',
+    fileName: fileName || 'ecg.csv',
+    image_base64: _stripDataUrlPrefix(state.originalImageDataUrl),
+    image_mime: state.originalImageMime || 'image/png',
+    image_name: state.originalImageName || '',
+    data: {
+      sampleRate: fs || 500,
+      pointsPerLead: maxN || 0,
+      leads: _serializeLeadsForSave(presentLeads),
+    },
+    ts: Date.now(),
+  };
+  try { parent.postMessage(payload, '*'); } catch (_) {}
+}
+
+function downsampleSignal(sig, limit) {
+  if (!Array.isArray(sig) && !(sig && typeof sig.length === 'number')) return [];
+  const n = sig.length || 0;
+  if (n <= 0) return [];
+  if (n <= limit) {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(Number(sig[i].toFixed ? sig[i].toFixed(4) : Number(sig[i]).toFixed(4)));
+    return out;
+  }
+  const out = [];
+  const step = (n - 1) / (limit - 1);
+  for (let i = 0; i < limit; i++) {
+    const idx = Math.round(i * step);
+    const v = Number(sig[idx] || 0);
+    out.push(Number(v.toFixed(4)));
+  }
+  return out;
+}
+
+function emitExtractionToHeartOS(presentLeads, fs) {
+  const leads = Array.isArray(presentLeads) ? presentLeads.slice() : [];
+  const waveforms = {};
+  leads.forEach(lead => {
+    if (state.extractedMV && state.extractedMV[lead]) {
+      waveforms[lead] = downsampleSignal(state.extractedMV[lead], 240);
+    }
+  });
+  const payload = {
+    type: 'HEARTOS_ECG_EXTRACTED',
+    tool: 'handecg',
+    leads: leads,
+    fs: fs,
+    pointsPerLead: leads.length ? ((state.extractedMV && state.extractedMV[leads[0]]) ? state.extractedMV[leads[0]].length : 0) : 0,
+    waveforms: waveforms,
+    ts: Date.now()
+  };
+  try { parent.postMessage(payload, '*'); } catch (_) {}
+}
+
+function emitCSVToHeartOS(fileName, csv, presentLeads, fs, maxN) {
+  const payload = {
+    type: 'HEARTOS_ECG_CSV',
+    tool: 'handecg',
+    fileName: fileName || 'ecg.csv',
+    csv: csv || '',
+    leads: Array.isArray(presentLeads) ? presentLeads.slice() : [],
+    fs: fs || 500,
+    pointsPerLead: maxN || 0,
+    ts: Date.now()
+  };
+  try { parent.postMessage(payload, '*'); } catch (_) {}
+}
+
+// ════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg, type='success') {
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='toast show'+(type==='error'?' error':type==='warn'?' warn':'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+// Global y-hint for tracking (fraction of box height, -1 = not set)
+let trackYHint = -1;
+
+// ════════════════════════════════════════════════════════
+//  REPAIR TOOL  (Erase + Anchor-guided re-extraction)
+// ════════════════════════════════════════════════════════
+const rp = {
+  lead: null,
+  tool: 'erase',
+  eraseColor: 'white',
+  pickedColor: null,
+  brushSize: 8,
+  scale: 1.0,
+  box: null,
+  workCanvas: null,
+  undoStack: [],
+  anchors: [],
+  dragging: false,
+  lastPos: null,
+  panStart: null,
+  panOrigin: null,
+  scrollEl: null,
+  // Vertical crop: fraction of box height [0,1]
+  vcropTop: 0,       // top crop boundary
+  vcropBottom: 1,    // bottom crop boundary
+  vcropDragging: null, // 'top' | 'bottom' | null
+};
+
+function openRepairModal(lead) {
+  if (!state.image || !state.boxes[lead]) { toast('请先标注该导联区域', 'warn'); return; }
+
+  rp.lead = lead;
+  rp.box = state.boxes[lead];
+  rp.anchors = [];
+  rp.undoStack = [];
+  rp.scale = 1.0;
+  rp.vcropTop = 0;
+  rp.vcropBottom = 1;
+  rp.vcropDragging = null;
+  trackYHint = -1; // reset hint for new lead
+
+  // Get the lead's isolated canvas (creates fresh copy from master if first time)
+  // We work on a COPY so the user can cancel without damage
+  const lc = getLeadCanvas(lead);
+  const bW = lc.width, bH = lc.height;
+  const wc = document.createElement('canvas');
+  wc.width = bW; wc.height = bH;
+  wc.getContext('2d').drawImage(lc, 0, 0);
+  rp.workCanvas = wc;  // editing copy; committed on "apply"
+  rp.scrollEl = document.getElementById('repairCanvasArea');
+
+  // Badge
+  const badge = document.getElementById('repairLeadBadge');
+  badge.textContent = lead;
+  badge.style.color = COLORS[lead] || '#4ade80';
+  badge.style.borderColor = COLORS[lead] || '#4ade80';
+  badge.style.background = (COLORS[lead]||'#4ade80') + '22';
+
+  document.getElementById('repairModal').classList.add('open');
+  setRepairTool('erase');
+
+  setTimeout(() => { repairZoomFit(); }, 40);
+}
+
+function closeRepairModal() {
+  document.getElementById('repairModal').classList.remove('open');
+  rp.lead = null; rp.workCanvas = null; rp.undoStack = [];
+}
+
+function setRepairTool(t) {
+  rp.tool = t;
+  ['erase','anchor','delanchor','pan','hint','vcrop'].forEach(id => {
+    const el = document.getElementById('rtool-' + id);
+    if (el) el.classList.toggle('active', id === t);
+  });
+  const cv = document.getElementById('repairCanvas');
+  cv.style.cursor = t === 'erase' ? 'crosshair' : t === 'pan' ? 'grab' :
+                    t === 'hint' ? 'row-resize' : t === 'anchor' ? 'cell' :
+                    t === 'vcrop' ? 'ns-resize' : 'pointer';
+  document.getElementById('repairModeLabel').textContent =
+    { erase:'画笔擦除', anchor:'添加锚点', delanchor:'删除锚点',
+      pan:'平移视图', hint:'点击标记目标线位置', vcrop:'拖动裁剪边界线' }[t] || '';
+  document.getElementById('vcropControls').style.display = t === 'vcrop' ? 'block' : 'none';
+}
+
+function setEraseColor(mode) {
+  if (mode === 'white') {
+    rp.eraseColor = 'white';
+    document.getElementById('eraseWhite').style.borderColor = 'var(--accent)';
+    document.getElementById('eraseWhite').style.color = 'var(--accent)';
+    document.getElementById('eraseCustom').style.borderColor = 'var(--border2)';
+    document.getElementById('eraseCustom').style.color = 'var(--text3)';
+  } else {
+    // pick color from canvas on next click
+    rp.eraseColor = 'pick';
+    document.getElementById('eraseCustom').style.borderColor = 'var(--amber)';
+    document.getElementById('eraseCustom').style.color = 'var(--amber)';
+    document.getElementById('eraseWhite').style.borderColor = 'var(--border2)';
+    document.getElementById('eraseWhite').style.color = 'var(--text3)';
+    toast('在图像上点击以取色', 'warn');
+  }
+}
+
+function repairZoom(factor) {
+  const area = document.getElementById('repairCanvasArea');
+  const oldScale = rp.scale || 1;
+  const focusX = (area.scrollLeft + area.clientWidth / 2) / oldScale;
+  const focusY = (area.scrollTop + area.clientHeight / 2) / oldScale;
+  rp.scale = Math.max(0.3, Math.min(8, rp.scale * factor));
+  renderRepairCanvas();
+  area.scrollLeft = Math.max(0, focusX * rp.scale - area.clientWidth / 2);
+  area.scrollTop = Math.max(0, focusY * rp.scale - area.clientHeight / 2);
+  document.getElementById('repairZoomLabel').textContent = Math.round(rp.scale * 100) + '%';
+}
+
+function repairZoomFit() {
+  const area = document.getElementById('repairCanvasArea');
+  const wc = rp.workCanvas;
+  if (!wc) return;
+  const maxW = area.clientWidth - 24;
+  const maxH = area.clientHeight - 24;
+  rp.scale = Math.min(maxW / wc.width, maxH / wc.height, 3);
+  renderRepairCanvas();
+  area.scrollLeft = 0;
+  area.scrollTop = 0;
+  document.getElementById('repairZoomLabel').textContent = Math.round(rp.scale * 100) + '%';
+}
+
+function renderRepairCanvas() {
+  const wc = rp.workCanvas;
+  if (!wc) return;
+  const cv = document.getElementById('repairCanvas');
+  const dw = Math.round(wc.width * rp.scale);
+  const dh = Math.round(wc.height * rp.scale);
+  cv.width = dw; cv.height = dh;
+  cv.style.width = dw + 'px'; cv.style.height = dh + 'px';
+
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = rp.scale < 1;
+  ctx.drawImage(wc, 0, 0, dw, dh);
+
+  // Draw extracted signal overlay (current extractedSignals for this lead)
+  if (state.extractedSignals && state.extractedSignals[rp.lead]) {
+    const sig = state.extractedSignals[rp.lead];
+    ctx.beginPath();
+    ctx.strokeStyle = '#f87171';
+    ctx.lineWidth = Math.max(1, rp.scale * 1.2);
+    ctx.globalAlpha = 0.7;
+    for (let i = 0; i < sig.length; i++) {
+      const px = i * rp.scale;
+      const py = sig[i] * rp.scale;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw anchors
+  rp.anchors.forEach((a, idx) => {
+    const ax = a.ix * rp.scale, ay = a.iy * rp.scale;
+    // Vertical guide line
+    ctx.strokeStyle = 'rgba(251,191,36,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(ax, 0); ctx.lineTo(ax, dh); ctx.stroke();
+    ctx.setLineDash([]);
+    // Dot
+    ctx.beginPath();
+    ctx.arc(ax, ay, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.globalAlpha = 0.9;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#0d0f0e';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Index label
+    ctx.font = `bold ${Math.max(9, rp.scale * 7)}px JetBrains Mono,monospace`;
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText(idx + 1, ax + 7, ay - 4);
+  });
+
+  // Brush preview when hovering
+  if (rp._cursorPos && rp.tool === 'erase') {
+    ctx.beginPath();
+    ctx.arc(rp._cursorPos.x, rp._cursorPos.y, (parseInt(document.getElementById('brushSize').value) / 2) * rp.scale, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(248,113,113,0.7)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Draw vcrop overlay
+  if (rp.vcropTop > 0 || rp.vcropBottom < 1) {
+    const topY    = rp.vcropTop    * wc.height * rp.scale;
+    const bottomY = rp.vcropBottom * wc.height * rp.scale;
+    // Shade masked regions
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    if (topY > 0)    ctx.fillRect(0, 0,       dw, topY);
+    if (bottomY < dh) ctx.fillRect(0, bottomY, dw, dh - bottomY);
+    // Draw crop lines
+    [{ y: topY, label: '▲ 上边界' }, { y: bottomY, label: '▼ 下边界' }].forEach(({ y, label }) => {
+      ctx.strokeStyle = '#2dd4bf';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(dw, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#2dd4bf';
+      ctx.fillRect(0, y - 1, dw, 2);
+      ctx.font = 'bold 10px JetBrains Mono,monospace';
+      ctx.fillText(label, 6, y + (label.includes('▲') ? -4 : 14));
+    });
+  }
+
+  document.getElementById('repairFooterInfo').textContent =
+    `锚点: ${rp.anchors.length} · 画布: ${wc.width}×${wc.height}px · 缩放: ${Math.round(rp.scale*100)}%` +
+    (trackYHint >= 0 ? ` · 目标线已标记` : '');
+
+  // Draw y-hint line if set
+  if (trackYHint >= 0) {
+    const hy = trackYHint * wc.height * rp.scale;
+    ctx.save();
+    ctx.strokeStyle = '#a78bfa';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(dw, hy); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = '10px JetBrains Mono,monospace';
+    ctx.fillText('← 目标线位置', 6, hy - 4);
+    ctx.restore();
+  }
+}
+
+function repairCanvasPos(e) {
+  const cv = document.getElementById('repairCanvas');
+  const r = cv.getBoundingClientRect();
+  return {
+    cx: e.clientX - r.left,
+    cy: e.clientY - r.top,
+    ix: (e.clientX - r.left) / rp.scale,
+    iy: (e.clientY - r.top) / rp.scale,
+  };
+}
+
+function pushUndo() {
+  const wctx = rp.workCanvas.getContext('2d');
+  const snap = wctx.getImageData(0, 0, rp.workCanvas.width, rp.workCanvas.height);
+  rp.undoStack.push(snap);
+  if (rp.undoStack.length > 30) rp.undoStack.shift();
+}
+
+function repairUndo() {
+  if (!rp.undoStack.length) { toast('没有可撤销的操作', 'warn'); return; }
+  const snap = rp.undoStack.pop();
+  rp.workCanvas.getContext('2d').putImageData(snap, 0, 0);
+  renderRepairCanvas();
+  toast('已撤销');
+}
+
+function repairReset() {
+  if (!rp.lead) return;
+  // Restore fresh copy from the READ-ONLY master offCanvas
+  const off = getOffCanvas();
+  const b = rp.box;
+  const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
+  rp.workCanvas.width = bW; rp.workCanvas.height = bH;
+  rp.workCanvas.getContext('2d').drawImage(off, Math.round(b.x1), Math.round(b.y1), bW, bH, 0, 0, bW, bH);
+  rp.anchors = [];
+  rp.undoStack = [];
+  renderRepairCanvas();
+  toast('已重置为原始图像');
+}
+
+function eraseAt(ix, iy) {
+  const wctx = rp.workCanvas.getContext('2d');
+  const r = parseInt(document.getElementById('brushSize').value) / 2;
+  if (rp.eraseColor === 'pick' && rp.pickedColor) {
+    wctx.fillStyle = rp.pickedColor;
+  } else {
+    wctx.fillStyle = 'white';
+  }
+  wctx.beginPath();
+  wctx.arc(ix, iy, r, 0, Math.PI * 2);
+  wctx.fill();
+}
+
+function pickColorAt(ix, iy) {
+  const wctx = rp.workCanvas.getContext('2d');
+  const d = wctx.getImageData(Math.round(ix), Math.round(iy), 1, 1).data;
+  rp.pickedColor = `rgb(${d[0]},${d[1]},${d[2]})`;
+  rp.eraseColor = 'picked';
+  document.getElementById('eraseCustom').style.borderColor = 'var(--accent)';
+  document.getElementById('eraseCustom').style.color = 'var(--accent)';
+  toast(`已取色 rgb(${d[0]},${d[1]},${d[2]})`);
+}
+
+function getNearestAnchor(ix, iy, radiusPx) {
+  let best = -1, bestD = radiusPx * radiusPx;
+  rp.anchors.forEach((a, i) => {
+    const d = (a.ix - ix) ** 2 + (a.iy - iy) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+// Setup canvas events once
+document.addEventListener('DOMContentLoaded', () => {
+  const cv = document.getElementById('repairCanvas');
+
+  cv.addEventListener('mousedown', e => {
+    if (!rp.lead) return;
+    e.preventDefault();
+    const { cx, cy, ix, iy } = repairCanvasPos(e);
+
+    if (rp.tool === 'erase') {
+      if (rp.eraseColor === 'pick') {
+        pickColorAt(ix, iy); setEraseColor('white'); return;
+      }
+      pushUndo();
+      rp.dragging = true;
+      eraseAt(ix, iy);
+      rp.lastPos = { ix, iy };
+      renderRepairCanvas();
+    } else if (rp.tool === 'vcrop') {
+      // Determine which boundary is closer (in canvas px)
+      const topY    = rp.vcropTop    * rp.workCanvas.height * rp.scale;
+      const bottomY = rp.vcropBottom * rp.workCanvas.height * rp.scale;
+      const distTop    = Math.abs(cy - topY);
+      const distBottom = Math.abs(cy - bottomY);
+      // If clicking far from both lines, snap nearest boundary to click
+      const snapDist = 20;
+      if (distTop <= distBottom && distTop < snapDist) {
+        rp.vcropDragging = 'top';
+      } else if (distBottom < distTop && distBottom < snapDist) {
+        rp.vcropDragging = 'bottom';
+      } else {
+        // Snap: if click is in top half → move top boundary, else bottom
+        rp.vcropDragging = (iy / rp.workCanvas.height < 0.5) ? 'top' : 'bottom';
+      }
+      rp.dragging = true;
+      // Apply immediately
+      const frac = Math.max(0, Math.min(1, iy / rp.workCanvas.height));
+      if (rp.vcropDragging === 'top') rp.vcropTop = Math.min(frac, rp.vcropBottom - 0.05);
+      else rp.vcropBottom = Math.max(frac, rp.vcropTop + 0.05);
+      renderRepairCanvas();
+    } else if (rp.tool === 'hint') {
+      // Set y-hint: fraction of box height where the user clicked
+      trackYHint = Math.max(0, Math.min(1, iy / rp.workCanvas.height));
+      renderRepairCanvas();
+      toast(`目标线已标记在 ${Math.round(trackYHint*100)}% 处，点击「重新提取」生效`);
+    } else if (rp.tool === 'anchor') {
+      rp.anchors.push({ ix: Math.round(ix), iy: Math.round(iy) });
+      renderRepairCanvas();
+    } else if (rp.tool === 'delanchor') {
+      const hitRadius = 14 / rp.scale;
+      const idx = getNearestAnchor(ix, iy, hitRadius);
+      if (idx >= 0) { rp.anchors.splice(idx, 1); renderRepairCanvas(); }
+    } else if (rp.tool === 'pan') {
+      rp.dragging = true;
+      rp.panStart = { x: e.clientX, y: e.clientY };
+      rp.panOrigin = { sl: rp.scrollEl.scrollLeft, st: rp.scrollEl.scrollTop };
+      cv.style.cursor = 'grabbing';
+    }
+  });
+
+  cv.addEventListener('mousemove', e => {
+    if (!rp.lead) return;
+    const { cx, cy, ix, iy } = repairCanvasPos(e);
+    rp._cursorPos = { x: cx, y: cy };
+
+    if (rp.dragging && rp.tool === 'erase') {
+      const last = rp.lastPos;
+      const dx = ix - last.ix, dy = iy - last.iy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const steps = Math.max(1, Math.ceil(dist));
+      for (let s = 0; s <= steps; s++) {
+        eraseAt(last.ix + dx * s/steps, last.iy + dy * s/steps);
+      }
+      rp.lastPos = { ix, iy };
+      renderRepairCanvas();
+    } else if (rp.dragging && rp.tool === 'vcrop' && rp.vcropDragging) {
+      const frac = Math.max(0, Math.min(1, iy / rp.workCanvas.height));
+      if (rp.vcropDragging === 'top')
+        rp.vcropTop = Math.min(frac, rp.vcropBottom - 0.05);
+      else
+        rp.vcropBottom = Math.max(frac, rp.vcropTop + 0.05);
+      renderRepairCanvas();
+    } else if (rp.dragging && rp.tool === 'pan') {
+      rp.scrollEl.scrollLeft = rp.panOrigin.sl - (e.clientX - rp.panStart.x);
+      rp.scrollEl.scrollTop  = rp.panOrigin.st  - (e.clientY - rp.panStart.y);
+    } else if (rp.tool === 'erase') {
+      renderRepairCanvas();
+    }
+  });
+
+  cv.addEventListener('mouseup', () => {
+    rp.dragging = false;
+    if (rp.tool === 'pan') cv.style.cursor = 'grab';
+  });
+  cv.addEventListener('mouseleave', () => {
+    rp.dragging = false; rp._cursorPos = null;
+    if (rp.tool === 'pan') cv.style.cursor = 'grab';
+    renderRepairCanvas();
+  });
+
+  // Scroll wheel zoom
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    repairZoom(e.deltaY < 0 ? 1.15 : 0.87);
+  }, { passive: false });
+});
+
+function resetVCrop() {
+  rp.vcropTop = 0; rp.vcropBottom = 1;
+  rp.vcropDragging = null;
+  renderRepairCanvas();
+  toast('裁剪范围已重置');
+}
+
+async function applyRepairAndReextract() {
+  if (!rp.lead) return;
+  const lead = rp.lead;
+  const b = rp.box;
+
+  // 1. Commit the edited workCanvas → lead's isolated canvas ONLY
+  const lc = getLeadCanvas(lead);
+  lc.width = rp.workCanvas.width;
+  lc.height = rp.workCanvas.height;
+  lc.getContext('2d').drawImage(rp.workCanvas, 0, 0);
+
+  // Apply vertical crop: paint masked rows white so extraction ignores them
+  if (rp.vcropTop > 0 || rp.vcropBottom < 1) {
+    const lctx = lc.getContext('2d');
+    lctx.fillStyle = 'white';
+    const bH = lc.height;
+    const topPx    = Math.round(rp.vcropTop    * bH);
+    const bottomPx = Math.round(rp.vcropBottom * bH);
+    if (topPx > 0)        lctx.fillRect(0, 0,        lc.width, topPx);
+    if (bottomPx < bH)    lctx.fillRect(0, bottomPx, lc.width, bH - bottomPx);
+  }
+
+  // 2. If anchors exist, paint dark dots onto the lead canvas to guide extraction
+  if (rp.anchors.length > 0) {
+    const lctx = lc.getContext('2d');
+    rp.anchors.forEach(a => {
+      lctx.fillStyle = 'rgb(20,20,20)';
+      lctx.fillRect(Math.round(a.ix) - 2, Math.round(a.iy) - 2, 5, 5);
+    });
+  }
+
+  // 3. Read extraction params
+  const dpi    = parseFloat(document.getElementById('paramDPI').value)  || 96;
+  const speed  = parseFloat(document.getElementById('paramSpeed').value) || 25;
+  const gain   = parseFloat(document.getElementById('paramGain').value)  || 10;
+  const fs     = parseFloat(document.getElementById('paramFS').value)    || 500;
+  const thresh = parseFloat(document.getElementById('epThreshold').value)|| 150;
+  const blWin  = parseFloat(document.getElementById('epBaseline').value) || 10;
+  const smooth = parseFloat(document.getElementById('epSmooth').value)   || 0;
+  const method = document.getElementById('epMethod').value               || 'track';
+  const { pxPerMmX, pxPerMmY } = getScaleMetrics();
+  const scalePxMV = pxPerMmY * gain;
+
+  // 4. Re-extract using the lead's own isolated canvas (local coords 0,0,bW,bH)
+  const bW = lc.width, bH = lc.height;
+  const bLocal = { x1:0, y1:0, x2:bW, y2:bH };
+  const lctx = lc.getContext('2d');
+
+  let rawY = extractSignalFromRegion(lctx, bLocal, { threshold: thresh, smooth, method });
+  if (!rawY) { toast('提取失败', 'error'); return; }
+
+  // 5. Cosine-blend anchor constraints into extracted signal
+  if (rp.anchors.length > 0) {
+    const blended = new Float32Array(rawY);
+    rp.anchors.forEach(a => {
+      const radius = Math.max(12, Math.round(rawY.length * 0.06));
+      for (let di = -radius; di <= radius; di++) {
+        const idx = Math.round(a.ix) + di;
+        if (idx < 0 || idx >= blended.length) continue;
+        const w = Math.cos((di / radius) * Math.PI * 0.5);
+        blended[idx] = blended[idx] * (1 - w) + a.iy * w;
+      }
+    });
+    rawY = blended;
+  }
+
+  // 6. Convert to mV and resample
+  state.extractedSignals[lead] = rawY;
+  const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
+  const dur_s = rawY.length / (pxPerMmX * speed);
+  state.extractedMV[lead] = resampleLinear(mv, Math.round(dur_s * fs));
+
+  // 7. Mark as repaired
+  state.repairedLeads.add(lead);
+
+  // 8. Refresh the preview card for this lead only
+  const pcw = document.getElementById(`pcw-${lead}`);
+  if (pcw) {
+    const card = pcw.closest('.preview-card');
+    if (card) drawPreviewCard(lead, card, rawY, bW, bH);
+  }
+
+  // Update edit button
+  const btn = document.getElementById(`editBtn-${lead}`);
+  if (btn) { btn.textContent = '✓ 重新修复'; btn.classList.add('edited'); }
+
+  // Update repair badge on card header
+  const headerSpan = document.querySelector(`#editBtn-${lead}`)?.parentElement?.querySelector('.repair-badge');
+  // Re-render the overlay on the main canvas too
+  renderOverlay();
+
+  updateLeadItem(lead);
+  toast(`✓ ${lead} 修复完成 · 其他导联不受影响`);
+  closeRepairModal();
+}
+
+// ════════════════════════════════════════════════════════
+//  AUTO-DETECT LEAD REGIONS
+// ════════════════════════════════════════════════════════
+/**
+ * Automatically detect lead bounding boxes from the ECG image.
+ *
+ * Strategy:
+ *  1. Compute a horizontal "darkness profile" — for each row, how many
+ *     dark pixels are there? Real ECG rows (containing signal) have
+ *     more dark pixels than whitespace separators.
+ *  2. Find horizontal separators (rows with very few dark pixels) to
+ *     split the image into lead rows.
+ *  3. Within the selected layout (4col / 2col), divide each row into
+ *     the expected number of columns.
+ *  4. For each cell, shrink the bounding box vertically by finding
+ *     the tightest row band that actually contains dark signal pixels.
+ */
+async function autoDetectLeads() {
+  if (!state.image) return;
+
+  const statusEl = document.getElementById('autoDetectStatus');
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--amber)';
+  statusEl.textContent = '⏳ 分析中…';
+
+  await new Promise(r => setTimeout(r, 20)); // let UI update
+
+  const off = getOffCanvas();
+  const ctx = off.getContext('2d');
+  const W = state.imageW, H = state.imageH;
+  const contentBounds = detectContentBounds(ctx, W, H, 190);
+
+  // ── 1. Darkness threshold (auto-calibrate from image) ──
+  const sampleData = ctx.getImageData(0, 0, W, H);
+  const pix = sampleData.data;
+
+  // Build row darkness profile: fraction of pixels darker than threshold
+  const darkThresh = 160;
+  const rowDark = new Float32Array(H);
+  for (let r = contentBounds.y1; r < contentBounds.y2; r++) {
+    let darkCount = 0;
+    for (let c = contentBounds.x1; c < contentBounds.x2; c++) {
+      const i = (r*W + c)*4;
+      const gray = 0.299*pix[i] + 0.587*pix[i+1] + 0.114*pix[i+2];
+      if (gray < darkThresh) darkCount++;
+    }
+    rowDark[r] = darkCount / Math.max(1, (contentBounds.x2 - contentBounds.x1));
+  }
+
+  // Smooth row profile (window=5)
+  const rowDarkSm = new Float32Array(H);
+  for (let r = 0; r < H; r++) {
+    let s = 0, n = 0;
+    for (let j = Math.max(0,r-5); j <= Math.min(H-1,r+5); j++) { s+=rowDark[j]; n++; }
+    rowDarkSm[r] = s/n;
+  }
+
+  // ── 2. Find row bands (contiguous dark regions = lead rows) ──
+  // A "separator" row has darkness < separatorThresh
+  const separatorThresh = 0.012; // less than 1.2% dark pixels = whitespace/grid line
+
+  // Find transitions: separator -> signal and signal -> separator
+  const bands = []; // [{y1, y2}]
+  let inBand = false, bandStart = 0;
+
+  // First pass: collect raw transitions
+  for (let r = contentBounds.y1; r < contentBounds.y2; r++) {
+    const isDark = rowDarkSm[r] > separatorThresh;
+    if (!inBand && isDark) { inBand = true; bandStart = r; }
+    else if (inBand && !isDark) {
+      if (r - bandStart > H * 0.02) bands.push({ y1: bandStart, y2: r-1 }); // min 2% height
+      inBand = false;
+    }
+  }
+  if (inBand) bands.push({ y1: bandStart, y2: contentBounds.y2 - 1 });
+
+  // Merge bands that are too close (< 1% of H apart) — grid lines cause false splits
+  const merged = [];
+  for (const b of bands) {
+    if (merged.length && b.y1 - merged[merged.length-1].y2 < H * 0.03) {
+      merged[merged.length-1].y2 = b.y2;
+    } else {
+      merged.push({ ...b });
+    }
+  }
+
+  // ── 3. Trim header/footer: keep only bands that look like ECG rows ──
+  // ECG lead rows are typically > 6% of image height and have consistent darkness
+  const ecgBands = merged.filter(b => (b.y2 - b.y1) > H * 0.05);
+
+  if (ecgBands.length < 1) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = '✗ 未能检测到导联行，请手动标注或调整图像';
+    return;
+  }
+
+  // ── 4. Determine layout ──
+  let layout = state.layout;
+  let nRows, nCols, leadsMatrix;
+
+  if (layout === 'custom') {
+    layout = ecgBands.length >= 5 ? '2col' : '4col';
+  }
+
+  if (layout === '4col') {
+    nRows = 3; nCols = 4;
+    leadsMatrix = [
+      ['I','aVR','V1','V4'],
+      ['II','aVL','V2','V5'],
+      ['III','aVF','V3','V6'],
+    ];
+  } else if (layout === '2col') {
+    nRows = 6; nCols = 2;
+    leadsMatrix = [
+      ['I','V1'],['II','V2'],['III','V3'],
+      ['aVR','V4'],['aVL','V5'],['aVF','V6'],
+    ];
+  } else {
+    // Custom: just use detected bands to suggest bounding boxes
+    // Use 4-col as default structure
+    nRows = 3; nCols = 4;
+    leadsMatrix = [
+      ['I','aVR','V1','V4'],
+      ['II','aVL','V2','V5'],
+      ['III','aVF','V3','V6'],
+    ];
+  }
+
+  // Pick the best nRows bands (largest ones)
+  const sorted = ecgBands.slice().sort((a,b) => (b.y2-b.y1) - (a.y2-a.y1));
+  const topBands = sorted.slice(0, nRows).sort((a,b) => a.y1 - b.y1);
+
+  // If fewer bands detected than nRows, duplicate/expand last
+  while (topBands.length < nRows) {
+    const last = topBands[topBands.length-1];
+    const rowH = Math.round((last.y2 - last.y1) / (nRows - topBands.length + 1));
+    topBands.push({ y1: last.y1 + rowH, y2: last.y2 });
+    topBands[topBands.length-2].y2 = last.y1 + rowH - 1;
+    topBands.sort((a,b) => a.y1 - b.y1);
+  }
+
+  // ── 5. For each row, auto-detect column boundaries ──
+  // Most ECG papers have columns separated by label text (darker) at left edge
+  // Simple approach: divide evenly, then fine-tune using vertical darkness profile
+
+  const newBoxes = {};
+  let detectedCount = 0;
+
+  for (let ri = 0; ri < Math.min(nRows, topBands.length); ri++) {
+    const band = topBands[ri];
+    const bandH = band.y2 - band.y1;
+
+    // Build column darkness profile for this band
+    const roiX1 = contentBounds.x1;
+    const roiX2 = contentBounds.x2;
+    const roiW = roiX2 - roiX1;
+    const colDark = new Float32Array(W);
+    for (let c = roiX1; c < roiX2; c++) {
+      let s = 0;
+      for (let r = band.y1; r <= band.y2; r++) {
+        const i = (r*W + c)*4;
+        const gray = 0.299*pix[i]+0.587*pix[i+1]+0.114*pix[i+2];
+        if (gray < darkThresh) s++;
+      }
+      colDark[c] = s / bandH;
+    }
+
+    // Find column separators: low-darkness vertical stripes
+    // Start from evenly-spaced positions and search nearby for a valley
+    const colWidth = roiW / nCols;
+    const colBounds = [roiX1]; // x boundaries
+
+    for (let ci = 1; ci < nCols; ci++) {
+      const nominalX = Math.round(roiX1 + ci * colWidth);
+      const searchRange = Math.round(colWidth * 0.15);
+      let minDark = Infinity, bestX = nominalX;
+      for (let dx = -searchRange; dx <= searchRange; dx++) {
+        const x = nominalX + dx;
+        if (x < roiX1 || x >= roiX2) continue;
+        // Average darkness in a narrow vertical band
+        let sum = 0, n = 0;
+        for (let sx = Math.max(0,x-3); sx <= Math.min(W-1,x+3); sx++) { sum+=colDark[sx]; n++; }
+        const avg = sum/n;
+        if (avg < minDark) { minDark = avg; bestX = x; }
+      }
+      colBounds.push(bestX);
+    }
+    colBounds.push(roiX2);
+
+    // ── 6. Vertical tight-fit per cell ──
+    for (let ci = 0; ci < nCols; ci++) {
+      const lead = leadsMatrix[ri] && leadsMatrix[ri][ci];
+      if (!lead) continue;
+
+      const cx1 = colBounds[ci];
+      const cx2 = colBounds[ci+1];
+      const cellW = cx2 - cx1;
+
+      // Find tightest vertical bounds with signal in this cell
+      let tightY1 = band.y1, tightY2 = band.y2;
+
+      // Scan rows within band: find first/last row with enough dark pixels
+      const minDarkFrac = 0.005;
+      let foundTop = false;
+      for (let r = band.y1; r <= band.y2; r++) {
+        let dc = 0;
+        for (let c = cx1; c < cx2; c++) {
+          const i=(r*W+c)*4;
+          const g = 0.299*pix[i]+0.587*pix[i+1]+0.114*pix[i+2];
+          if (g < darkThresh) dc++;
+        }
+        if (dc/cellW > minDarkFrac) {
+          if (!foundTop) { tightY1 = r; foundTop = true; }
+          tightY2 = r;
+        }
+      }
+
+      // Add a small margin
+      const marginY = Math.round(bandH * 0.05);
+      const marginX = Math.round(cellW * 0.015);
+      newBoxes[lead] = {
+        x1: Math.max(0, cx1 + marginX),
+        y1: Math.max(0, tightY1 - marginY),
+        x2: Math.min(W, cx2 - marginX),
+        y2: Math.min(H, tightY2 + marginY),
+      };
+      detectedCount++;
+    }
+  }
+
+  // Commit boxes
+  Object.assign(state.boxes, newBoxes);
+  // Invalidate any stale lead canvases
+  Object.keys(newBoxes).forEach(l => invalidateLeadCanvas(l));
+
+  buildLeadList();
+  renderOverlay();
+  selectLead('I');
+  setStep(2);
+
+  statusEl.style.color = 'var(--accent)';
+  statusEl.textContent = `✓ 检测到 ${detectedCount} 个导联区域`;
+  toast(`✓ 自动检测完成 · ${detectedCount} 导联 · 可拖拽微调边界`);
+}
+
+// ════════════════════════════════════════════════════════
+//  BATCH PROCESSING
+// ════════════════════════════════════════════════════════
+const batch = {
+  files: [],        // File[] — all queued files
+  current: -1,      // index of currently active file
+  results: {},      // filename -> { csv: string, leads: number }
+};
+
+function batchLoadFiles(files) {
+  if (!files || files.length === 0) return;
+
+  if (files.length === 1) {
+    // Single file — use normal flow, no batch UI
+    batch.files = [];
+    batch.current = -1;
+    document.getElementById('batchSection').style.display = 'none';
+    document.getElementById('btnNextImage').style.display = 'none';
+    loadImage(files[0]);
+    return;
+  }
+
+  // Multiple files — activate batch mode
+  batch.files = Array.from(files);
+  batch.current = 0;
+  batch.results = {};
+
+  document.getElementById('batchSection').style.display = 'block';
+  document.getElementById('btnNextImage').style.display = 'inline-flex';
+
+  buildBatchQueue();
+  loadImage(batch.files[0]);
+}
+
+function buildBatchQueue() {
+  const container = document.getElementById('batchQueue');
+  container.innerHTML = '';
+  batch.files.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'batch-item' + (i === batch.current ? ' active' : '') +
+                     (batch.results[f.name] ? ' done' : '');
+    item.id = `bi-${i}`;
+    item.onclick = () => batchJumpTo(i);
+    item.innerHTML = `
+      <span class="bi-idx">${i+1}</span>
+      <span class="bi-name" title="${f.name}">${f.name}</span>
+      <span class="bi-status">${batch.results[f.name] ? '✓' : ''}</span>
+    `;
+    container.appendChild(item);
+  });
+  updateBatchProgress();
+}
+
+function updateBatchProgress() {
+  const done = Object.keys(batch.results).length;
+  const total = batch.files.length;
+  document.getElementById('batchProgressText').textContent = `${done} / ${total} 完成`;
+  document.getElementById('batchBarFill').style.width = `${total > 0 ? done/total*100 : 0}%`;
+  document.getElementById('btnDownloadAll').disabled = done === 0;
+  document.getElementById('btnNextImage').textContent =
+    batch.current < batch.files.length - 1 ? '✓ 完成，下一张 ›' : '✓ 完成批量处理';
+  document.getElementById('btnNextImage').disabled = false;
+}
+
+function batchJumpTo(idx) {
+  if (idx < 0 || idx >= batch.files.length) return;
+  // Auto-save current if extracted
+  batchSaveCurrent();
+  batch.current = idx;
+  buildBatchQueue();
+  loadImage(batch.files[idx]);
+  // Scroll queue item into view
+  setTimeout(() => {
+    const el = document.getElementById(`bi-${idx}`);
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }, 100);
+}
+
+function batchSaveCurrent() {
+  if (batch.current < 0) return;
+  if (!state.extractedMV || Object.keys(state.extractedMV).length === 0) return;
+  const filename = batch.files[batch.current]?.name || `image_${batch.current}`;
+  const csvStr = buildCSVString();
+  if (!csvStr) return;
+  const leads = Object.keys(state.extractedMV).length;
+  batch.results[filename] = { csv: csvStr, leads };
+  updateBatchProgress();
+  // Update queue item
+  const item = document.getElementById(`bi-${batch.current}`);
+  if (item) {
+    item.classList.add('done');
+    item.querySelector('.bi-status').textContent = '✓';
+  }
+}
+
+function batchNext() {
+  batchSaveCurrent();
+  const next = batch.current + 1;
+  if (next >= batch.files.length) {
+    // All done
+    toast(`✓ 全部 ${batch.files.length} 张处理完成，点击「打包下载 ZIP」`);
+    document.getElementById('btnNextImage').disabled = true;
+    return;
+  }
+  batchJumpTo(next);
+}
+
+function buildCSVString() {
+  if (!state.extractedMV || Object.keys(state.extractedMV).length === 0) return null;
+  const fs = parseFloat(document.getElementById('paramFS').value) || 500;
+  const presentLeads = LEADS_ORDER.filter(l => state.extractedMV && state.extractedMV[l]);
+  if (presentLeads.length === 0) return null;
+  const maxN = Math.max(...presentLeads.map(l => state.extractedMV[l].length));
+  const dt = 1000 / fs;
+  let csv = 'time_ms,' + presentLeads.join(',') + '\n';
+  for (let i = 0; i < maxN; i++) {
+    const row = [(i*dt).toFixed(3)];
+    presentLeads.forEach(l => {
+      const s = state.extractedMV[l];
+      row.push(s && s[i] !== undefined ? s[i].toFixed(6) : '');
+    });
+    csv += row.join(',') + '\n';
+  }
+  return csv;
+}
+
+async function downloadAllCSV() {
+  // Auto-save current before downloading
+  batchSaveCurrent();
+
+  const entries = Object.entries(batch.results);
+  if (entries.length === 0) { toast('没有已完成的文件', 'warn'); return; }
+
+  if (entries.length === 1) {
+    // Single result — just download directly
+    const [name, { csv }] = entries[0];
+    const base = name.replace(/\.[^.]+$/, '');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = base + '.csv'; a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  // Multiple results — pack into ZIP using JSZip
+  toast('正在打包 ZIP…', 'warn');
+  try {
+    // Load JSZip dynamically
+    await new Promise((resolve, reject) => {
+      if (window.JSZip) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+
+    const zip = new JSZip();
+    entries.forEach(([name, { csv }]) => {
+      const base = name.replace(/\.[^.]+$/, '');
+      zip.file(base + '.csv', csv);
+    });
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ecg_batch_${new Date().toISOString().slice(0,10)}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`✓ 已下载 ZIP · ${entries.length} 个文件`);
+  } catch (err) {
+    toast('ZIP 打包失败: ' + err.message, 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  Init
+document.getElementById('epMethod').value = 'track';
+selectLead('I');
+</script>
+<script>
+(function(){
+  function toFileFromDataUrl(dataUrl, filename){
+    if(!dataUrl || dataUrl.indexOf(',') < 0) return null;
+    var arr = dataUrl.split(',');
+    var mime = ((arr[0].match(/:(.*?);/) || [])[1]) || 'application/octet-stream';
+    var bstr = atob(arr[1] || '');
+    var n = bstr.length;
+    var u8 = new Uint8Array(n);
+    while(n--) u8[n] = bstr.charCodeAt(n);
+    return new File([u8], filename || 'ecg_image.png', { type: mime });
+  }
+
+  function importDataUrl(dataUrl, filename){
+    try{
+      var f = toFileFromDataUrl(dataUrl, filename);
+      if(!f) return false;
+      if(typeof loadImage === 'function'){ loadImage(f); return true; }
+      if(typeof batchLoadFiles === 'function'){
+        var dt = new DataTransfer(); dt.items.add(f); batchLoadFiles(dt.files); return true;
+      }
+      return false;
+    }catch(e){ console.warn('importDataUrl error', e); return false; }
+  }
+
+  async function importFromRemoteUrl(url, filename){
+    if(!url) return false;
+    try{
+      var r = await fetch(url);
+      if(!r.ok) return false;
+      var b = await r.blob();
+      var f = new File([b], filename || 'ecg_image.png', { type: b.type || 'image/png' });
+      if(typeof loadImage === 'function'){ loadImage(f); return true; }
+      if(typeof batchLoadFiles === 'function'){
+        var dt = new DataTransfer(); dt.items.add(f); batchLoadFiles(dt.files); return true;
+      }
+      return false;
+    }catch(e){ console.warn('importFromRemoteUrl error', e); return false; }
+  }
+
+  function notifyReady(){
+    var launchId = '';
+    try{ launchId = new URL(window.location.href).searchParams.get('heartosLaunch') || ''; }catch(_){}
+    try{ parent.postMessage({ type:'HEARTOS_TOOL_READY', launchId: launchId, tool:'handecg' }, '*'); }catch(_){}
+    try{ parent.postMessage({ type:'TOOL_READY', launchId: launchId, tool:'handecg' }, '*'); }catch(_){}
+  }
+
+  function notifyImportDone(filename){
+    var launchId = '';
+    try{ launchId = new URL(window.location.href).searchParams.get('heartosLaunch') || ''; }catch(_){}
+    try{
+      parent.postMessage({
+        type:'HEARTOS_IMPORT_DONE',
+        launchId: launchId,
+        tool:'handecg',
+        filename: filename || 'ecg_image.png'
+      }, '*');
+    }catch(_){}
+  }
+
+  window.addEventListener('message', function(evt){
+    var d = evt.data || {};
+    var t = d.type || '';
+    if(['HEARTOS_OPEN_FILE','HEARTOS_ECG_IMAGE','HAND_ECG_IMAGE','ECG_IMAGE','IMPORT_IMAGE','HEARTOS_FILE_PAYLOAD'].indexOf(t) < 0) return;
+    var filename = d.filename || d.name || 'ecg_image.png';
+    var dataUrl = d.dataUrl || d.imageDataUrl || d.image || '';
+    var remote = d.uploadedUrl || d.remoteUrl || d.url || d.imageUrl || '';
+    if(dataUrl && importDataUrl(dataUrl, filename)){ notifyImportDone(filename); return; }
+    if(remote){
+      importFromRemoteUrl(remote, filename).then(function(ok){
+        if(ok) notifyImportDone(filename);
+      });
+    }
+  });
+
+  (function(){
+    var u = null;
+    try{ u = new URL(window.location.href); }catch(_){ return; }
+    var remote = u.searchParams.get('image') || u.searchParams.get('imageUrl') || u.searchParams.get('fileUrl') || u.searchParams.get('url') || u.searchParams.get('src') || '';
+    var dataUrl = u.searchParams.get('dataUrl') || '';
+    var filename = u.searchParams.get('filename') || 'ecg_image.png';
+    if(dataUrl){ importDataUrl(dataUrl, filename); return; }
+    if(remote) importFromRemoteUrl(remote, filename);
+  })();
+
+  (function(){
+    var launchId = '', fileToken = '';
+    try{
+      var u = new URL(window.location.href);
+      launchId = u.searchParams.get('heartosLaunch') || '';
+      fileToken = u.searchParams.get('heartosFileToken') || '';
+    }catch(_){}
+    try{ parent.postMessage({ type:'HEARTOS_REQUEST_FILE', launchId: launchId, fileToken: fileToken }, '*'); }catch(_){}
+  })();
+
+  var ping=0;
+  var timer=setInterval(function(){
+    ping+=1; notifyReady();
+    if(ping>=12) clearInterval(timer);
+  },400);
+})();
+</script>
+</body>
+</html>
+

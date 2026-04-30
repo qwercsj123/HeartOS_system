@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "id": "u_admin",
+      "username": "admin",
+      "display_name": "Administrator",
+      "salt": "10b793cd2d624427",
+      "password_hash": "b16955e49a12af49bbdedeafc5d55727f5b7dacc395d304dff792987f21493ee",
+      "active": true
+    },
+    {
+      "id": "u_cc442c297d40",
+      "username": "chenjianwei",
+      "display_name": "ddd",
+      "salt": "fa874e187e9af38a",
+      "password_hash": "ed0a4dea52717a14dfdf7eb26ef579f4e2a509f2ae2478a8b06d87b6070b84b6",
+      "active": true
+    },
+    {
+      "id": "u_09535b7520fe",
+      "username": "chenjianwei1",
+      "display_name": "chenjianwei1",
+      "salt": "9ff34f926984e175",
+      "password_hash": "e94ce74f8a94b9fe751be4114b7cca842541e76ea9a390f39bfa361e23c94428",
+      "active": true
+    }
+  ]
+}

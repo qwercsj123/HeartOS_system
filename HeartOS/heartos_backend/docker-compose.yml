@@ -1,0 +1,22 @@
+﻿services:
+  heartos-backend:
+    build: .
+    container_name: heartos-backend
+    ports:
+      - "9000:9000"
+    environment:
+      APP_NAME: HeartOS Backend
+      APP_ENV: prod
+      APP_HOST: 0.0.0.0
+      APP_PORT: 9000
+      APP_CORS_ORIGINS: "http://127.0.0.1:8080,http://localhost:8080"
+      APP_HTTP_TIMEOUT: 45
+      APP_HTTP_RETRIES: 2
+      APP_MAX_UPLOAD_MB: 20
+      APP_UPLOAD_DIR: /app/data/uploads
+      APP_PUBLIC_BASE_URL: http://127.0.0.1:9000
+      APP_ECGOMICS_URL: http://110.157.241.24:18023/ECGOmics
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
