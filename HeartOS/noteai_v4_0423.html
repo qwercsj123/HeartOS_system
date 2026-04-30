@@ -87,6 +87,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .sel-all-row:hover{color:var(--text2);}
 .src-item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--r2);cursor:pointer;transition:all .15s;margin-bottom:2px;}
 .src-item:hover{background:var(--bg3);}
+.src-del{width:22px;height:22px;border:none;border-radius:6px;background:transparent;color:#98a2b3;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;opacity:.7;}
+.src-del:hover{background:#fee2e2;color:#dc2626;opacity:1;}
 .src-cb{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
 .src-cb.chk{background:var(--accent);border-color:var(--accent);}
 .src-cb.chk::after{content:'';width:7px;height:4px;border-left:1.5px solid #fff;border-bottom:1.5px solid #fff;transform:rotate(-45deg) translate(1px,-1px);display:block;}
@@ -104,10 +106,10 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .empty-srcs p{font-size:13px;line-height:1.65;}
 
 /* CHAT */
-.chat-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.chat-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-height:0;}
 .chat-head{padding:11px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--bg);}
 .chat-head-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
-.chat-area{flex:1;overflow-y:auto;background:var(--bg2);scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;}
+.chat-area{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;background:var(--bg2);scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;}
 .sum-card{margin:18px;border-radius:var(--r);border:1px solid var(--border);padding:22px;background:var(--bg);box-shadow:var(--sh1);}
 .sum-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:var(--accent-light);color:var(--accent);font-size:11px;font-weight:600;margin-bottom:10px;letter-spacing:.02em;}
 .sum-title{font-size:19px;font-weight:600;line-height:1.3;margin-bottom:7px;color:var(--text);letter-spacing:-.2px;}
@@ -124,7 +126,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .sq::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--accent);flex-shrink:0;opacity:.5;}
 .sq:hover{background:var(--accent-light);border-color:var(--accent-mid);color:var(--accent);}
 .sq:hover::before{opacity:1;}
-.msgs{padding:14px 18px;display:flex;flex-direction:column;gap:14px;}
+.msgs{padding:14px 18px;display:flex;flex-direction:column;gap:14px;min-height:0;}
 .msg-u{display:flex;justify-content:flex-end;}
 .msg-u-b{max-width:72%;background:var(--accent);color:#fff;border-radius:var(--r) var(--r) 4px var(--r);padding:10px 14px;font-size:14px;line-height:1.6;box-shadow:var(--sh1);}
 .msg-ai{display:flex;gap:10px;align-items:flex-start;}
@@ -437,13 +439,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     </div>
     <div class="tb-spacer"></div>
     <div class="tb-actions">
-      <button class="tb-btn primary" onclick="openUploadModal()">＋ 创建对话</button>
+      <button class="tb-btn primary" onclick="startNewNotebook()">＋ 创建对话</button>
       <button class="tb-btn">⤴ 分享</button>
-      <div id="aiStatusPill" onclick="openApiConfig()" style="display:flex;align-items:center;gap:5px;padding:0 10px;height:30px;border-radius:var(--r2);border:1px solid var(--border2);font-size:11px;color:var(--text3);cursor:pointer;background:var(--bg2);transition:all .15s;" title="AI 模型配置">
-        <div id="aiPillDot" style="width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;"></div>
-        <span id="aiPillText">配置 AI</span>
-      </div>
-      <button class="ib" onclick="openApiConfig()" title="AI 模型配置">⚙️</button>
       <div class="avatar" id="nbUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
     </div>
   </div>
@@ -548,11 +545,13 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <div style="font-size:16px;color:var(--text3);margin-bottom:6px;">或拖放文件</div>
         <div class="umo-drop-sub">PDF、图片、文档、音频，<span style="text-decoration:underline;cursor:pointer">等等</span></div>
       </div>
-      <input type="file" id="fileIn" style="display:none" multiple accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg,.bmp,.tiff" onchange="onFileSelect(event)">
+      <input type="file" id="fileIn" style="display:none" multiple accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg,.bmp,.tiff,.xml,.csv" onchange="onFileSelect(event)">
+      <input type="file" id="folderIn" style="display:none" multiple webkitdirectory directory onchange="onFolderSelect(event)">
 
       <!-- Method buttons -->
       <div class="umo-methods">
         <button class="umo-method" onclick="document.getElementById('fileIn').click()">⬆️ 上传文件</button>
+        <button class="umo-method" onclick="document.getElementById('folderIn').click()">📁 上传文件夹</button>
         <button class="umo-method" onclick="showUmoSub('url')">🔗 <span class="yt">▶</span> 网站</button>
         <button class="umo-method" onclick="showUmoSub('drive')">☁️ 云端硬盘</button>
         <button class="umo-method" onclick="showUmoSub('text')">📋 复制的文字</button>
@@ -668,14 +667,17 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 <script>
 // ======================== STATE ========================
 let notebooks = [
-  {id:1,title:'Mexiletine Efficacy and Arrhythmia Risk...',icon:'📈',color:'#fde8e8',srcs:2,date:'2026年4月21日'},
-  {id:2,title:'Mexiletine Efficacy and Arrhythmia Risk (2)',icon:'📈',color:'#fde8e8',srcs:1,date:'2026年4月21日'},
+  {id:'boot',title:'加载中…',icon:'📔',color:'#e8f0fe',srcs:0,date:'今天'},
 ];
 let curNb = null;
 let sources = [];
 let msgs = [];
 let busy = false;
+let chatAbortController = null;
+const USE_CHAT_DISPATCH = false;
 window.__heartosLastImageSource = null;
+let __nbLoaded = false;
+let __nbSaveTimer = null;
 
 
 // ======================== HOME ========================
@@ -685,16 +687,6 @@ function renderHome(){
     <div class="nb-new-icon">＋</div>
     <span style="font-size:14px;font-weight:500;">新建对话</span>
   </div>`;
-  notebooks.forEach(nb=>{
-    h += `<div class="nb-card" onclick="openNb(${nb.id})">
-      <div class="nb-inner">
-        <div class="nb-cover" style="background:${nb.color}">${nb.icon}</div>
-        <div class="nb-title">${nb.title}</div>
-        <div class="nb-meta">${nb.date} · ${nb.srcs} 个来源</div>
-      </div>
-      <button class="nb-menu" onclick="event.stopPropagation()">⋮</button>
-    </div>`;
-  });
   g.innerHTML = h;
 }
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
@@ -704,18 +696,104 @@ function goHome(){
   renderHome();
 }
 
+function todayText(){
+  const d = new Date();
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function normalizeNotebookItem(it){
+  const safeId = String((it && it.id) || Date.now());
+  const safeSources = Array.isArray(it && it.sources) ? it.sources : [];
+  const safeMsgs = Array.isArray(it && it.msgs) ? it.msgs : [];
+  return {
+    id: safeId,
+    title: (it && it.title) ? String(it.title) : 'New Conversation',
+    icon: (it && it.icon) ? String(it.icon) : '📔',
+    color: (it && it.color) ? String(it.color) : '#e8f0fe',
+    date: (it && it.date) ? String(it.date) : todayText(),
+    srcs: safeSources.length,
+    sources: safeSources,
+    msgs: safeMsgs
+  };
+}
+
+async function loadNotebooksFromServer(){
+  const resp = await apiFetch('/api/notebooks', { method:'GET' });
+  if(!resp.ok) throw new Error('加载笔记失败');
+  const out = await resp.json().catch(function(){ return {items:[]}; });
+  const items = Array.isArray(out.items) ? out.items.map(normalizeNotebookItem) : [];
+  notebooks = items;
+  __nbLoaded = true;
+  if(!notebooks.length){
+    renderHome();
+    return;
+  }
+  openNb(notebooks[0].id, false);
+}
+
+async function loadAiConfigFromServer(){
+  const resp = await apiFetch('/api/user/ai-config', { method:'GET' });
+  if(!resp.ok) throw new Error('加载 AI 配置失败');
+  const out = await resp.json().catch(function(){ return {items:[]}; });
+  aiServerKeyState = {};
+  const items = Array.isArray(out.items) ? out.items : [];
+  for(let i=0;i<items.length;i++){
+    const it = items[i] || {};
+    if(it.provider) aiServerKeyState[String(it.provider)] = !!it.has_key;
+  }
+  updateApiStatus();
+}
+
+function scheduleSaveCurrentNotebook(immediate){
+  if(!curNb || !__nbLoaded) return;
+  if(__nbSaveTimer){ clearTimeout(__nbSaveTimer); __nbSaveTimer = null; }
+  const run = async function(){
+    try{ await saveNotebook(curNb); }catch(_){}
+  };
+  if(immediate) run();
+  else __nbSaveTimer = setTimeout(run, 300);
+}
+
+async function saveNotebook(nb){
+  if(!nb) return;
+  const payload = {
+    id: String(nb.id),
+    title: nb.title || 'New Conversation',
+    icon: nb.icon || '📔',
+    color: nb.color || '#e8f0fe',
+    date: nb.date || todayText(),
+    sources: Array.isArray(nb.sources) ? nb.sources : [],
+    msgs: Array.isArray(nb.msgs) ? nb.msgs : []
+  };
+  const resp = await apiFetch('/api/notebooks', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if(!resp.ok) throw new Error('保存笔记失败');
+}
+
+function syncCurrentNotebookState(){
+  if(!curNb) return;
+  curNb.sources = Array.isArray(sources) ? sources : [];
+  curNb.msgs = Array.isArray(msgs) ? msgs : [];
+  curNb.srcs = curNb.sources.length;
+}
+
 // ======================== NEW NOTEBOOK ========================
 function startNewNotebook(){
   document.getElementById('nbnTitle').value = '';
   openMo('nbnMo');
 }
-function confirmNewNb(){
+async function confirmNewNb(){
   const title = document.getElementById('nbnTitle').value.trim() || 'New Conversation';
   const icons = ['📔','📗','📘','📙','📒','📓','🗂️'];
   const colors = ['#e8f0fe','#e6f4ea','#fce8ff','#fff8e1','#fde8e8','#f0f4f9','#fff3e0'];
   const idx = notebooks.length % icons.length;
-  const nb = {id: Date.now(), title, icon: icons[idx], color: colors[idx], srcs:0, date:'今天'};
+  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, date:todayText(), sources:[], msgs:[]};
   notebooks.unshift(nb);
+  renderHome();
+  try{ await saveNotebook(nb); }catch(_){}
   closeMo('nbnMo');
   // Open notebook AND immediately show upload modal
   openNb(nb.id, true);
@@ -724,8 +802,8 @@ function confirmNewNb(){
 // ======================== NOTEBOOK ========================
 function openNb(id, autoUpload=false){
   curNb = notebooks.find(n=>n.id===id) || notebooks[0];
-  sources = curNb.srcs > 0 ? makeFakeSrcs(curNb) : [];
-  msgs = [];
+  sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
+  msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
   document.getElementById('nbPageTitle').textContent = curNb.title;
   document.getElementById('homePage').classList.remove('active');
   document.getElementById('nbPage').classList.add('active');
@@ -734,13 +812,6 @@ function openNb(id, autoUpload=false){
   renderStudio();
   updateCiSrc();
   if(autoUpload) setTimeout(()=>openUploadModal(), 200);
-}
-
-function makeFakeSrcs(nb){
-  return Array.from({length:nb.srcs},(_,i)=>({
-    id:i+1, name:`来源文档_${i+1}.md`, type:'md', checked:true,
-    content:'这是一份关于'+nb.title+'的研究文档，包含详细数据分析和研究结论。'
-  }));
 }
 
 // ======================== SOURCES ========================
@@ -774,6 +845,7 @@ function renderSrcs(){
         <div class="src-type">${s.type.toUpperCase()}${isImg?' · ECG图像':''}</div>
       </div>
       ${ecgBtn}
+      <button class="src-del" title="删除来源" onclick="deleteSource(${s.id}, event)">✕</button>
     </div>`;
   }).join('');
 }
@@ -782,9 +854,36 @@ function fileIco(t){
   const cls={pdf:'pdf',txt:'txt',md:'md',url:'url',png:'img',jpg:'img',jpeg:'img',bmp:'img',tiff:'img',docx:'txt'}[t]||'default';
   return `<span class="src-ico ${cls}">${labels[t]||t.toUpperCase().slice(0,3)}</span>`;
 }
-function toggleAll(){const a=sources.every(s=>s.checked);sources.forEach(s=>s.checked=!a);renderSrcs();updateCiSrc();}
-function togSrc(id){const s=sources.find(x=>x.id===id);if(s){s.checked=!s.checked;renderSrcs();updateCiSrc();}}
+function toggleAll(){const a=sources.every(s=>s.checked);sources.forEach(s=>s.checked=!a);renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);}
+function togSrc(id){const s=sources.find(x=>x.id===id);if(s){s.checked=!s.checked;renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);}}
 function updateCiSrc(){document.getElementById('ciSrc').textContent=sources.filter(s=>s.checked).length+' 个来源';}
+
+async function deleteSource(id, evt){
+  if(evt) evt.stopPropagation();
+  const idx = sources.findIndex(x=>x.id===id);
+  if(idx < 0) return;
+  const src = sources[idx];
+  if(!confirm(`确认删除来源：${src.name} ？`)) return;
+
+  try{
+    // optional backend delete if source has server file id
+    const fileId = src.fileId || src.serverFileId || '';
+    if(fileId){
+      await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'DELETE' });
+    }
+  }catch(_){
+    // backend delete failure should not block local removal
+  }
+
+  sources.splice(idx, 1);
+  if(curNb) curNb.srcs = sources.length;
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
+  renderSrcs();
+  updateCiSrc();
+  renderChat();
+  renderStudio();
+}
 
 function openHandEcgFromSource(id, evt){
   if(evt){ evt.stopPropagation(); }
@@ -932,7 +1031,7 @@ async function callClaudeForSummary(latestSrc, isImg){
     }
   } catch(err){
     if(sb) sb.innerHTML = `<p style="color:var(--text2)">已加载 ${sources.length} 个来源，可在下方提问。</p>
-      ${!aiConfig.key ? '<p style="margin-top:6px;font-size:12px;color:#d97706;">⚠️ 未配置 API Key，<span style="cursor:pointer;text-decoration:underline;" onclick="openApiConfig()">点击配置 AI 模型</span></p>' : '<p style="margin-top:6px;font-size:12px;color:#dc2626;">错误：'+err.message+'</p>'}`;
+      ${!hasServerApiKey(aiConfig.provider) ? '<p style="margin-top:6px;font-size:12px;color:#d97706;">⚠️ 后端尚未配置该模型的 API Key，请联系管理员写入。</p>' : '<p style="margin-top:6px;font-size:12px;color:#dc2626;">错误：'+err.message+'</p>'}`;
     if(sq) sq.innerHTML = `<div class="sugg-label">建议问题</div>
       <button class="sq" onclick="askQ('请总结所有来源的核心内容')">请总结所有来源的核心内容</button>
       <button class="sq" onclick="askQ('文档中有哪些关键数据和发现？')">文档中有哪些关键数据和发现？</button>
@@ -953,8 +1052,550 @@ function copySum(){
   });
 }
 
+function pickImageSourceForTool(){
+  if(Array.isArray(sources)){
+    for(var i=0;i<sources.length;i++){
+      var s = sources[i];
+      if(s && s.checked && (s.imageDataUrl || (s.fileObj && /^image\//i.test(String(s.fileObj.type||''))))) return s;
+    }
+    for(var j=0;j<sources.length;j++){
+      var s2 = sources[j];
+      if(s2 && (s2.imageDataUrl || (s2.fileObj && /^image\//i.test(String(s2.fileObj.type||''))))) return s2;
+    }
+  }
+  return null;
+}
+
+let __pdfjsReady = null;
+async function ensurePdfJsReady(){
+  if(window.pdfjsLib) return window.pdfjsLib;
+  if(__pdfjsReady) return __pdfjsReady;
+  __pdfjsReady = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js';
+    s.onload = () => {
+      try{
+        if(window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions){
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js';
+        }
+        resolve(window.pdfjsLib);
+      }catch(e){ reject(e); }
+    };
+    s.onerror = () => reject(new Error('pdf.js 加载失败'));
+    document.head.appendChild(s);
+  });
+  return __pdfjsReady;
+}
+
+async function convertPdfSourceToImageDataUrl(src){
+  if(!src) return '';
+  const isPdfType = String(src.type || '').toLowerCase() === 'pdf' ||
+    /\.pdf$/i.test(String(src.name || '')) ||
+    (src.fileObj && /pdf/i.test(String(src.fileObj.type || '')));
+  if(!isPdfType) return '';
+
+  let pdfBytes = null;
+  if(src.fileObj){
+    pdfBytes = await src.fileObj.arrayBuffer();
+  }else if(src.content && /^data:application\/pdf;base64,/i.test(String(src.content))){
+    const b64 = String(src.content).split(',')[1] || '';
+    const raw = atob(b64);
+    const arr = new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+    pdfBytes = arr.buffer;
+  }else{
+    return '';
+  }
+
+  const pdfjsLib = await ensurePdfJsReady();
+  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+  const pdf = await loadingTask.promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 2.0 });
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return canvas.toDataURL('image/png');
+}
+
+async function ensureEcgImageSource(src){
+  if(!src) return null;
+  if(src.imageDataUrl) return src;
+  if(src.fileObj && /^image\//i.test(String(src.fileObj.type||''))){
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = e => resolve(String((e && e.target && e.target.result) || ''));
+      r.onerror = reject;
+      r.readAsDataURL(src.fileObj);
+    });
+    if(dataUrl){
+      src.imageDataUrl = dataUrl;
+      return src;
+    }
+  }
+  const pdfDataUrl = await convertPdfSourceToImageDataUrl(src);
+  if(pdfDataUrl){
+    src.imageDataUrl = pdfDataUrl;
+    src.type = 'png';
+    if(src.name && /\.pdf$/i.test(src.name)) src.name = src.name.replace(/\.pdf$/i, '.png');
+    return src;
+  }
+  return null;
+}
+
+function _parseDataUrl(dataUrl){
+  const s = String(dataUrl || '');
+  const m = s.match(/^data:([^;,]+)(?:;[^,]*)?,(.*)$/);
+  if(!m) return { mime:'image/png', base64:'' };
+  const mime = m[1] || 'image/png';
+  const body = m[2] || '';
+  const base64 = /;base64,/i.test(s) ? body : btoa(unescape(encodeURIComponent(body)));
+  return { mime, base64 };
+}
+
+function _normalizeCsvNameBySource(fileName, sourceName){
+  function toBaseName(input){
+    let s = String(input || '').trim();
+    if(!s) return '';
+    s = s.replace(/\\/g, '/');
+    s = s.split('/').pop() || s;
+    s = s.replace(/\.[^.]+$/, '');
+    return s.trim();
+  }
+  const srcBase = toBaseName(sourceName);
+  if(srcBase) return srcBase + '.csv';
+  const fileBase = toBaseName(fileName);
+  if(fileBase) return fileBase + '.csv';
+  return 'ecg.csv';
+}
+
+function _looksLikeLeadMap(m){
+  if(!m || typeof m !== 'object' || Array.isArray(m)) return false;
+  const keys = Object.keys(m);
+  if(!keys.length) return false;
+  let arrCount = 0;
+  for(let i=0;i<keys.length;i++){
+    const v = m[keys[i]];
+    if(!Array.isArray(v)) continue;
+    if(!v.length){ arrCount += 1; continue; }
+    let numericLike = 0;
+    for(let j=0;j<Math.min(v.length, 20); j++){
+      const n = Number(v[j]);
+      if(Number.isFinite(n)) numericLike += 1;
+    }
+    if(numericLike >= Math.min(3, v.length)) arrCount += 1;
+  }
+  return arrCount >= 1;
+}
+
+function _csvTextToLeadMap(csvText){
+  const text = String(csvText || '').trim();
+  if(!text) return null;
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if(lines.length < 2) return null;
+  const head = lines[0].split(',').map(s=>String(s||'').trim());
+  if(head.length < 2) return null;
+  const cols = head.slice(1);
+  const out = {};
+  for(let i=0;i<cols.length;i++) out[cols[i] || ('lead_' + (i+1))] = [];
+  for(let r=1;r<lines.length;r++){
+    const row = lines[r].split(',');
+    for(let c=1;c<Math.min(row.length, head.length);c++){
+      const k = cols[c-1] || ('lead_' + c);
+      const n = Number(row[c]);
+      if(Number.isFinite(n)) out[k].push(n);
+    }
+  }
+  return _looksLikeLeadMap(out) ? out : null;
+}
+
+function extractLeadMapFromAny(obj){
+  if(!obj) return null;
+  const seen = new Set();
+  const q = [obj];
+  while(q.length){
+    const cur = q.shift();
+    if(!cur || typeof cur !== 'object') continue;
+    if(seen.has(cur)) continue;
+    seen.add(cur);
+
+    if(_looksLikeLeadMap(cur)) return cur;
+    const direct = ['leads','waveforms','signals','lead_data','leadData','data','result','output','payload','upstream'];
+    for(let i=0;i<direct.length;i++){
+      const v = cur[direct[i]];
+      if(!v) continue;
+      if(_looksLikeLeadMap(v)) return v;
+      if(typeof v === 'string'){
+        const m = _csvTextToLeadMap(v);
+        if(m) return m;
+      }else if(typeof v === 'object'){
+        q.push(v);
+      }
+    }
+    const keys = Object.keys(cur);
+    for(let i=0;i<keys.length;i++){
+      const v = cur[keys[i]];
+      if(!v) continue;
+      if(typeof v === 'string' && /csv|time_ms|lead|i,ii|v1/i.test(v.slice(0,120))){
+        const m = _csvTextToLeadMap(v);
+        if(m) return m;
+      }
+      if(typeof v === 'object') q.push(v);
+    }
+  }
+  return null;
+}
+
+function leadMapToCsv(leadMap){
+  if(!leadMap || typeof leadMap !== 'object') return '';
+  const names = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+  if(!names.length) return '';
+  let maxN = 0;
+  for(let i=0;i<names.length;i++){
+    const n = leadMap[names[i]].length;
+    if(n > maxN) maxN = n;
+  }
+  let out = 'index,' + names.join(',') + '\n';
+  for(let i=0;i<maxN;i++){
+    const row = [String(i)];
+    for(let j=0;j<names.length;j++){
+      const arr = leadMap[names[j]];
+      const v = Number(arr[i]);
+      row.push(Number.isFinite(v) ? String(v) : '');
+    }
+    out += row.join(',') + '\n';
+  }
+  return out;
+}
+
+function _scoreLeadMap(leadMap){
+  if(!leadMap || typeof leadMap !== 'object') return {leadCount:0, pointCount:0, score:0};
+  const keys = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+  let pointCount = 0;
+  for(let i=0;i<keys.length;i++) pointCount += (leadMap[keys[i]] || []).length;
+  const leadCount = keys.length;
+  return { leadCount, pointCount, score: leadCount * 100000 + pointCount };
+}
+
+function _layoutPreferenceScore(layout){
+  // Only tiny tie-breaker; do not drive decision by fixed layout name.
+  const s = String(layout || '').toLowerCase();
+  if(s.includes('with_r1')) return 1000;
+  return 0;
+}
+
+function _layoutLikelihoodBySignals(leadMap){
+  if(!leadMap || typeof leadMap !== 'object') return 0;
+  const keys = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+  if(!keys.length) return -1e9;
+  const lens = keys.map(k => (leadMap[k] || []).length).filter(n => Number.isFinite(n) && n > 0).sort((a,b)=>a-b);
+  if(!lens.length) return -1e9;
+
+  const leadCount = keys.length;
+  const minLen = lens[0];
+  const maxLen = lens[lens.length - 1];
+  const medianLen = lens[Math.floor(lens.length / 2)] || 1;
+  const longRatio = maxLen / Math.max(1, medianLen);
+  const shortRatio = minLen / Math.max(1, medianLen);
+
+  // Data-driven likelihood:
+  // 1) 12导联附近更可信
+  // 2) 若存在明显长导联（r1节律条）则加分
+  // 3) 避免导联长度极度不合理（大量过短）
+  let score = 0;
+  score += -Math.abs(12 - leadCount) * 8000;
+  if(longRatio >= 1.6 && longRatio <= 4.5) score += 25000;
+  if(shortRatio < 0.25) score -= 12000;
+  if(medianLen >= 500) score += 8000;
+  if(leadCount >= 10) score += 6000;
+  return score;
+}
+
+async function _callAiDigitizeWithLayout(parsed, srcName, layout){
+  const reqCtrl = new AbortController();
+  const reqTimer = setTimeout(()=>{ try{ reqCtrl.abort(); }catch(_){} }, 12000);
+  try{
+    const resp = await apiFetch('/api/ai-ecg-digitize', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      signal: reqCtrl.signal,
+      body: JSON.stringify({
+        image_base64: parsed.base64,
+        image_mime: parsed.mime || 'image/png',
+        image_name: srcName || 'ecg_image.png',
+        options: {
+          layout_substring: layout,
+          return_image: true
+        }
+      })
+    });
+    const out = await resp.json().catch(()=>({}));
+    if(!resp.ok) throw new Error(out.detail || ('HTTP ' + resp.status));
+    const data = out && out.upstream ? out.upstream : out;
+    const leadMap = extractLeadMapFromAny(data);
+    const scored = _scoreLeadMap(leadMap);
+    return { layout, out, data, leadMap, scored };
+  }catch(e){
+    const msg = (e && e.message) ? String(e.message) : String(e || '');
+    const isAbortLike =
+      (e && e.name === 'AbortError') ||
+      /aborted|abort|signal is aborted/i.test(msg);
+    if(isAbortLike){
+      const err = new Error('LAYOUT_TIMEOUT:' + String(layout || 'unknown'));
+      err.code = 'LAYOUT_TIMEOUT';
+      err.layout = layout;
+      throw err;
+    }
+    throw e;
+  }finally{
+    clearTimeout(reqTimer);
+  }
+}
+
+function _extractReturnedImageDataUrl(obj){
+  function looksLikeImageBase64(s){
+    const t = String(s || '').replace(/\s+/g,'');
+    if(t.length < 128) return false;
+    if(/^iVBORw0KGgo/i.test(t)) return true;       // PNG
+    if(/^\/9j\//.test(t)) return true;            // JPEG
+    if(/^R0lGOD/.test(t)) return true;            // GIF
+    if(/^Qk0/.test(t)) return true;               // BMP
+    if(/^UklGR/.test(t)) return true;             // WEBP(RIFF)
+    return /^[A-Za-z0-9+/=]+$/.test(t) && t.length > 5000;
+  }
+  if(!obj) return '';
+  const q = [obj];
+  const seen = new Set();
+  while(q.length){
+    const cur = q.shift();
+    if(!cur) continue;
+    if(typeof cur === 'string'){
+      if(/^data:image\//i.test(cur)) return cur;
+      if(/^[A-Za-z0-9+/=\r\n]+$/.test(cur) && cur.length > 400){
+        return 'data:image/png;base64,' + cur.replace(/\s+/g,'');
+      }
+      continue;
+    }
+    if(typeof cur !== 'object') continue;
+    if(seen.has(cur)) continue;
+    seen.add(cur);
+    const keys = Object.keys(cur);
+    for(let i=0;i<keys.length;i++){
+      const k = String(keys[i] || '').toLowerCase();
+      const v = cur[keys[i]];
+      if(typeof v === 'string'){
+        if(/^data:image\//i.test(v)) return v;
+        // 优先匹配常见图像相关键名
+        if(k.includes('image') || k.includes('img') || k.includes('plot') || k.includes('preview') || k.includes('fig') || k.includes('processed')){
+          if(looksLikeImageBase64(v)){
+            return 'data:image/png;base64,' + v.replace(/\s+/g,'');
+          }
+        }
+        // 回退：即使键名不明显，只要值强烈像图片 base64 也接受
+        if(looksLikeImageBase64(v)){
+          return 'data:image/png;base64,' + v.replace(/\s+/g,'');
+        }
+      }
+      if(v && typeof v === 'object') q.push(v);
+    }
+  }
+  return '';
+}
+
+
+function upsertCsvSourceSafe(data){
+  if(typeof upsertCsvSource === 'function'){
+    try{ upsertCsvSource(data); return; }catch(_){}
+  }
+  if(!data || !data.csv) return;
+  const csvText = String(data.csv || '');
+  const fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
+  let fileObj = null;
+  try{ fileObj = new File([csvText], fileName, { type:'text/csv' }); }catch(_){}
+  const preview = csvText.split(/\r?\n/).slice(0, 8).join('\n');
+  const srcObj = {
+    id: sources.length + 1,
+    name: fileName,
+    type: 'csv',
+    checked: true,
+    content: '[AI/HandECG 导出 CSV]\n' + preview,
+    imageDataUrl: null,
+    fileObj: fileObj,
+    __fromHandEcg: true
+  };
+  let replaced = false;
+  for(let i=0;i<sources.length;i++){
+    if(sources[i] && sources[i].__fromHandEcg && sources[i].name === fileName){
+      srcObj.id = sources[i].id;
+      sources[i] = srcObj;
+      replaced = true;
+      break;
+    }
+  }
+  if(!replaced) sources.push(srcObj);
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
+  renderSrcs();
+  updateCiSrc();
+}
+
+async function runToolByAction(actionName, args){
+  if(actionName === 'analysis_ecg' || actionName === 'open_handecg'){
+    if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
+      return { ok:false, tool:actionName, message:'你刚关闭了 HandECG，已暂时阻止自动重开（约8秒）。如需打开请稍后再点一次。' };
+    }
+    var src = pickImageSourceForTool();
+    if(!src){
+      return {
+        ok: false,
+        tool: actionName,
+        message: '没有可用图像来源。请先上传 ECG 图片，或勾选一张图片来源后重试。'
+      };
+    }
+    try{
+      src = await ensureEcgImageSource(src);
+      if(!src || !src.imageDataUrl){
+        return {
+          ok: false,
+          tool: actionName,
+          message: '当前来源不是可直接发送的图像。若是 PDF，请确认文件可读取（将自动提取第1页）。'
+        };
+      }
+      window.__heartosLastImageSource = src;
+      await openEcgOverlay(src);
+      return {
+        ok: true,
+        tool: actionName,
+        sourceId: src.id || null,
+        sourceName: src.name || '',
+        message: '已调用 HandECG，并将当前图片发送过去。'
+      };
+    }catch(e){
+      return {
+        ok: false,
+        tool: actionName,
+        message: '调用 HandECG 失败：' + (e && e.message ? e.message : String(e))
+      };
+    }
+  }
+  if(actionName === 'analysis_ecgomics'){
+    try{
+      await runStudio('ecgd', { skipDispatch: true });
+      return { ok: true, tool: actionName, message: '已触发 ECGOmics 分析流程。' };
+    }catch(e){
+      return { ok: false, tool: actionName, message: '触发 ECGOmics 失败：' + (e && e.message ? e.message : String(e)) };
+    }
+  }
+  if(actionName === 'analysis_ml'){
+    return { ok:false, tool:actionName, message:'已下线：机器学习分析模块。' };
+  }
+  if(actionName === 'analysis_dl'){
+    return { ok:false, tool:actionName, message:'已下线：深度学习分析模块。' };
+  }
+  if(actionName === 'analysis_stats'){
+    return { ok:false, tool:actionName, message:'已下线：统计学分析模块。' };
+  }
+  if(actionName === 'analysis_agent'){
+    try{ await runStudio('agent', { skipDispatch: true }); return { ok:true, tool:actionName, message:'已触发智能体方案分析。' }; }
+    catch(e){ return { ok:false, tool:actionName, message:'触发智能体方案分析失败：' + (e && e.message ? e.message : String(e)) }; }
+  }
+  return { ok: false, tool: actionName, message: '未实现的工具：' + actionName };
+}
+
+function buildDispatchSources(){
+  return (sources || []).map(s => ({
+    source_id: String(s.id || ''),
+    name: s.name || '',
+    type: s.type || '',
+    checked: !!s.checked,
+    file_id: '',
+    image_url: s.imageDataUrl || '',
+    text: (s.content || '').slice(0, 600)
+  }));
+}
+
+async function dispatchAgentUnified(userInput, signal){
+  const payload = {
+    user_input: userInput,
+    api_key: '',
+    provider: 'zhipu',
+    model: (aiConfig && /glm/i.test(String(aiConfig.model||''))) ? aiConfig.model : 'glm-4-flash',
+    conversation_id: (window.__heartosConvId || ''),
+    message_id: ('msg_' + Date.now()),
+    sources: buildDispatchSources()
+  };
+  const resp = await apiFetch('/api/agent/dispatch', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+    signal: signal
+  });
+  const out = await resp.json().catch(()=>({}));
+  if(!resp.ok){
+    throw new Error(out.detail || out.error || ('dispatch failed: HTTP ' + resp.status));
+  }
+  return out || {};
+}
+
+function studioDispatchPrompt(type){
+  const mp = {
+    ecg: '请调用 HandECG 分析当前已勾选的心电图图像，并打开工具。',
+    ecgd: '请进行 ECGOmics/XML 特征提取分析。',
+    agent: '请给出智能体方案设计分析。'
+  };
+  return mp[type] || '请根据当前内容做分析。';
+}
+
+function safeJsonExtract(text){
+  if(!text) return null;
+  try{ return JSON.parse(text); }catch(_){}
+  var m = String(text).match(/\{[\s\S]*\}/);
+  if(m){
+    try{ return JSON.parse(m[0]); }catch(_){}
+  }
+  return null;
+}
+
+async function routeByLLM(userText){
+  var providerBak = aiConfig.provider;
+  var modelBak = aiConfig.model;
+  try{
+    // Force routing model to Zhipu (teacher-required path)
+    aiConfig.provider = 'zhipu';
+    if(!aiConfig.model || !/glm/i.test(String(aiConfig.model))){
+      aiConfig.model = 'glm-4-flash';
+    }
+
+    var routerSystem = [
+      '你是一个“工具路由器”，只负责判断用户意图并返回 JSON，不要返回解释。',
+      '可用工具：',
+      '1) analysis_ecg: 用户要分析心电图/导联/波形/ECG/HandECG/数字化时调用。',
+      '2) open_handecg: 用户明确要求打开 HandECG 工具时调用。',
+      '3) chat_qa: 普通问答或无法确定时。',
+      '输出严格 JSON：{"action":"analysis_ecg|open_handecg|chat_qa","reason":"...","args":{}}'
+    ].join('\n');
+
+    var routerReply = await callAI(routerSystem, [{role:'user', content:userText}], 220);
+    var route = safeJsonExtract(routerReply) || { action: 'chat_qa', reason: 'router_parse_failed', args: {} };
+    if(!route.args || typeof route.args !== 'object') route.args = {};
+    if(!route.action) route.action = 'chat_qa';
+    return route;
+  }catch(_){
+    return { action: 'chat_qa', reason: 'router_error', args: {} };
+  }finally{
+    aiConfig.provider = providerBak;
+    aiConfig.model = modelBak;
+  }
+}
+
 async function sendMsg(){
-  if(busy) return;
+  if(busy){
+    try{ if(chatAbortController) chatAbortController.abort(); }catch(_){}
+    return;
+  }
   const inp = document.getElementById('chatInput');
   const q = inp.value.trim();
   if(!q) return;
@@ -963,6 +1604,36 @@ async function sendMsg(){
   appendUser(q);
   showTyping();
   busy = true;
+  chatAbortController = new AbortController();
+
+  if(USE_CHAT_DISPATCH){
+    try{
+      const out = await dispatchAgentUnified(q, chatAbortController.signal);
+      if(out && out.tool && out.tool !== 'chat_qa'){
+        await runToolByAction(String(out.tool), (out.tool_result && out.tool_result.data) ? out.tool_result.data : {});
+        removeTyping();
+        appendAI(out.reply || ('已触发工具：' + out.tool));
+        msgs.push({role:'user',content:q},{role:'assistant',content:(out.reply || ('已触发工具：' + out.tool))});
+        syncCurrentNotebookState();
+        scheduleSaveCurrentNotebook(false);
+        busy = false;
+        chatAbortController = null;
+        return;
+      }
+      if(out && out.reply){
+        removeTyping();
+        appendAI(out.reply);
+        msgs.push({role:'user',content:q},{role:'assistant',content:out.reply});
+        syncCurrentNotebookState();
+        scheduleSaveCurrentNotebook(false);
+        busy = false;
+        chatAbortController = null;
+        return;
+      }
+    }catch(_){
+      // fallback to local flow below
+    }
+  }
 
   const srcContent = sources.filter(s=>s.checked).map(s=>s.content||s.name).join('\n\n---\n\n');
   const history = msgs.slice(-8).map(m=>({role:m.role,content:m.content}));
@@ -971,19 +1642,22 @@ async function sendMsg(){
     const reply = await callAI(
       `你是一个专业的文档问答助手。严格基于以下来源内容回答问题，回答要准确、专业、有洞察力。如果内容不足以回答，请说明。\n\n来源内容：\n${srcContent.slice(0,6000)}`,
       [...history,{role:'user',content:q}],
-      1000
+      1000,
+      '',
+      chatAbortController.signal
     );
     removeTyping();
     appendAI(reply);
     msgs.push({role:'user',content:q},{role:'assistant',content:reply});
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(false);
   }catch(e){
     removeTyping();
-    const errMsg = !aiConfig.key
-      ? '⚠️ 未配置 API Key。<span style="cursor:pointer;text-decoration:underline;color:var(--accent)" onclick="openApiConfig()">点击配置 →</span>'
-      : '连接 AI 出错：' + e.message;
+    const errMsg = (e && e.name === 'AbortError') ? '已中断当前回复。' : ('连接 AI 出错：' + e.message);
     appendAI(errMsg);
   }
   busy = false;
+  chatAbortController = null;
 }
 
 function appendUser(text){
@@ -1009,16 +1683,63 @@ function appendAI(text){
   d.innerHTML=`<div class="ai-av">AI</div><div class="ai-body">${html}</div>`;
   w.appendChild(d); scrollChat();
 }
+function ensureChatImageZoomModal(){
+  let m = document.getElementById('chatImgZoomModal');
+  if(m) return m;
+  m = document.createElement('div');
+  m.id = 'chatImgZoomModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,.82);display:none;align-items:center;justify-content:center;z-index:30000;padding:24px;';
+  m.innerHTML = `
+    <img id="chatImgZoomModalImg" alt="zoom-image" style="max-width:96vw;max-height:92vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.45);transform:scale(1);transform-origin:center center;transition:transform .12s ease;" />
+    <button id="chatImgZoomModalClose" style="position:absolute;right:16px;top:12px;width:36px;height:36px;border:none;border-radius:8px;background:#111827;color:#fff;font-size:20px;cursor:pointer;">×</button>
+  `;
+  document.body.appendChild(m);
+  let scale = 1;
+  const img = m.querySelector('#chatImgZoomModalImg');
+  const close = ()=>{
+    scale = 1;
+    if(img) img.style.transform = 'scale(1)';
+    m.style.display = 'none';
+  };
+  m.addEventListener('click', (e)=>{ if(e.target === m) close(); });
+  const btn = m.querySelector('#chatImgZoomModalClose');
+  if(btn) btn.addEventListener('click', close);
+  m.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const d = e.deltaY > 0 ? -0.1 : 0.1;
+    scale = Math.max(0.2, Math.min(5, scale + d));
+    if(img) img.style.transform = `scale(${scale})`;
+  }, { passive:false });
+  return m;
+}
+function openChatImageZoom(src){
+  const m = ensureChatImageZoomModal();
+  const img = m.querySelector('#chatImgZoomModalImg');
+  if(img) img.src = src || '';
+  m.style.display = 'flex';
+}
+function appendImagePreviewInChat(src){
+  const w = document.getElementById('msgsList');
+  if(!w || !src || !src.imageDataUrl) return;
+  const d = document.createElement('div');
+  d.className='msg-ai';
+  d.innerHTML =
+    `<div class="ai-av">AI</div>
+     <div class="ai-body">
+       <p><strong>已加载图片来源</strong>：${esc(src.name || 'image')}</p>
+       <img src="${src.imageDataUrl}" alt="${esc(src.name || 'ecg-image')}" onclick="openChatImageZoom('${src.imageDataUrl}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />
+     </div>`;
+  w.appendChild(d);
+  scrollChat();
+}
 function scrollChat(){const a=document.getElementById('chatArea');setTimeout(()=>a.scrollTop=a.scrollHeight,60);}
 
 // ======================== STUDIO ========================
 let studioCards = [
-  {id:'ml',  cls:'ml-card',    icon:'🤖', iconBg:'rgba(26,115,232,.12)',  name:'机器学习分析',   desc:'推荐 ML 模型、特征工程与验证策略'},
-  {id:'dl',  cls:'dl-card',    icon:'🧠', iconBg:'rgba(52,168,83,.12)',   name:'深度学习分析',   desc:'评估适用性，推荐网络架构与迁移方案'},
-  {id:'stats',cls:'stats-card',icon:'📐', iconBg:'rgba(245,124,0,.12)',   name:'统计学分析',     desc:'假设检验、回归分析与统计推断'},
   {id:'agent',cls:'agent-card',icon:'🎯', iconBg:'rgba(124,77,255,.12)',  name:'准心智能体',     desc:'基于来源内容的智能决策与规划'},
-  {id:'ecgd', cls:'ecgd-card', icon:'📈', iconBg:'rgba(0,188,212,.12)',   name:'心电图数字化',   desc:'ECG 信号量化、特征提取与标注'},
-  {id:'ecg',  cls:'ecg-card',  icon:'💓', iconBg:'rgba(233,30,99,.12)',   name:'HandECG 分析',  desc:'ECG 指标解读与临床应用价值分析'},
+  {id:'ecgd', cls:'ecgd-card', icon:'📈', iconBg:'rgba(0,188,212,.12)',   name:'心电图特征提取', desc:'ECGOmics/XML 特征提取与批量处理'},
+  {id:'ecgsmart',cls:'ml-card',icon:'🧲', iconBg:'rgba(26,115,232,.12)',  name:'自动数字化',desc:'自动识别导联并生成 CSV（快速）'},
+  {id:'ecg',  cls:'ecg-card',  icon:'💓', iconBg:'rgba(233,30,99,.12)',   name:'手动数字化',  desc:'手动校正波形并导出高质量 CSV（精确）'},
 ];
 let currentResultText = '';
 let currentResultFileName = 'analysis_result.txt';
@@ -1243,6 +1964,8 @@ function upsertEcgomicsCsvSource(fileName, csvText){
   if(!replaced) sources.unshift(srcObj);
 
   if(curNb) curNb.srcs = sources.length;
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
   if(typeof renderSrcs === 'function') renderSrcs();
   if(typeof updateCiSrc === 'function') updateCiSrc();
 }
@@ -1251,10 +1974,9 @@ function renderEcgomicsXmlResult(src, out){
   const rc = document.getElementById('resultContent');
   if(!rc) return;
 
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const base = String((src && src.name) || 'xml').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const sourceName = String((src && src.name) || 'xml');
   const csv = ecgomicsToCsv(out || {});
-  currentResultFileName = `ecgomics_${base}_${ts}.csv`;
+  currentResultFileName = _normalizeCsvNameBySource('', sourceName);
   currentResultText = csv;
   window.__heartosEcgomicsCsvText = csv;
 
@@ -1275,18 +1997,151 @@ function renderEcgomicsXmlResult(src, out){
   try{
     appendAI('ECGOmics 特征提取完成，结果已转换为 CSV 并保存到来源列表。');
   }catch(_){ }
+  return currentResultFileName;
 }
 
-async function runStudio(type){
+async function runStudio(type, opts){
+  opts = opts || {};
   if(!sources.length){openUploadModal();return;}
 
-  // HandECG tool card
+  // HandECG card should respond immediately without router roundtrip.
   if(type==='ecg'){
     studioCards.forEach(c=>{
-      document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id==='ecg');
+      document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
     });
     openEcgOverlay();
     return;
+  }
+
+  if(type==='ecgsmart'){
+    studioCards.forEach(c=>{
+      document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
+    });
+    const rc = document.getElementById('resultContent');
+    document.getElementById('resultPlaceholder').style.display='none';
+    rc.style.display='block';
+    rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>自动数字化处理中，请稍候…</p></div>`;
+    try{
+      let src = pickImageSourceForTool();
+      if(!src) throw new Error('没有可用图像来源，请先上传并勾选 ECG 图片/PDF。');
+      src = await ensureEcgImageSource(src);
+      if(!src || !src.imageDataUrl) throw new Error('当前来源无法转为图像数据。');
+
+      let fileObj = src.fileObj || null;
+      if(!fileObj || !/^image\//i.test(String(fileObj.type||''))){
+        fileObj = dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
+      }
+      if(!fileObj) throw new Error('图像文件构造失败。');
+
+      const fd = new FormData();
+      fd.append('file', fileObj, src.name || fileObj.name || 'ecg_image.png');
+      fd.append('layout_substring', 'standard_6x2');
+      fd.append('return_image', 'true');
+
+      const ctrl = new AbortController();
+      const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
+      let resp = null;
+      let out = {};
+      try{
+        resp = await apiFetch('/api/ai-ecg-digitize', {
+          method:'POST',
+          body: fd,
+          signal: ctrl.signal
+        });
+        out = await resp.json().catch(()=>({}));
+      }finally{
+        clearTimeout(timer);
+      }
+
+      if(!resp || !resp.ok){
+        throw new Error((out && (out.detail || out.msg || out.error)) || ('HTTP ' + (resp ? resp.status : '0')));
+      }
+
+      const data = out && out.upstream ? out.upstream : out;
+      const leadMap = extractLeadMapFromAny(data);
+      if(!leadMap) throw new Error('接口返回中未找到可解析导联数据。');
+      const scored = _scoreLeadMap(leadMap);
+      if((scored && scored.leadCount || 0) < 6){
+        throw new Error('自动数字化识别导联数量过少（<6），请改用手动数字化。');
+      }
+      const csv = leadMapToCsv(leadMap);
+      if(!csv) throw new Error('导联数据转换 CSV 失败。');
+
+      const csvName = _normalizeCsvNameBySource('', src.name || 'ecg');
+      upsertCsvSourceSafe({ fileName: csvName, csv: csv, sourceName: src.name || '' });
+      currentResultFileName = csvName;
+      currentResultText = csv;
+      const returnedImage = _extractReturnedImageDataUrl(data);
+
+      const leadNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+      const distRows = leadNames.map(name => {
+        const n = (leadMap[name] || []).length;
+        return `<li><strong>${esc(name)}</strong>：${n} points</li>`;
+      }).join('');
+      const totalPoints = leadNames.reduce((acc, name)=>acc + ((leadMap[name] || []).length), 0);
+
+      const preview = csv.split(/\r?\n/).slice(0, 80).join('\n');
+      rc.innerHTML =
+        `<h4>自动数字化结果（CSV）</h4>
+         <p><strong>状态：</strong>✅ SUCCESS</p>
+         <p><strong>来源：</strong>${esc(src.name || '未命名')}</p>
+         <p><strong>布局参数：</strong>standard_6x2</p>
+         <p><strong>CSV：</strong>${esc(csvName)}</p>
+         <p><strong>导联数：</strong>${scored.leadCount}</p>
+         <p><strong>总采样点：</strong>${totalPoints}</p>
+         <h4 style="margin-top:10px;">识别分布</h4>
+         <ul style="margin:6px 0 10px 18px;padding:0;line-height:1.7;">${distRows}</ul>
+         <pre style="white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;max-height:360px;overflow:auto;">${esc(preview)}</pre>`;
+      try{
+        appendAI('自动数字化完成，CSV 已按输入文件名保存到来源列表。');
+        if(returnedImage){
+          const w = document.getElementById('msgsList');
+          if(w){
+            const d = document.createElement('div');
+            d.className = 'msg-ai';
+            d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>自动数字化回传图像</strong></p><img src="${returnedImage}" alt="auto-digitize-chat-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>`;
+            w.appendChild(d);
+            scrollChat();
+          }
+        }
+        else{
+          appendAI('自动数字化已完成，但接口未返回可展示图像（仅返回了导联数据/CSV）。');
+        }
+      }catch(_){}
+    }catch(e){
+      const msg = (e && e.name === 'AbortError')
+        ? '请求超时（300秒），请稍后重试。'
+        : (e && e.message ? e.message : String(e));
+      rc.innerHTML = `<div style="padding:20px;color:#dc2626;font-size:13px;"><p><strong>状态：</strong>❌ FAIL</p>自动数字化失败：${esc(msg)}</div>`;
+    }
+    return;
+  }
+
+  // Dispatch routing is optional and should be explicitly enabled.
+  // Direct card clicks use local pipeline for faster response.
+  if(opts.useDispatch === true && !opts.skipDispatch){
+    try{
+      const out = await dispatchAgentUnified(studioDispatchPrompt(type));
+      const toolName = out && out.tool ? String(out.tool) : '';
+      const toolTriggered = !!toolName && toolName !== 'chat_qa';
+      let handled = false;
+      if(out && out.tool){
+        await runToolByAction(String(out.tool), (out.tool_result && out.tool_result.data) ? out.tool_result.data : {});
+        handled = true;
+      }
+      // Tool flows (e.g. ECGOmics) should own the result panel;
+      // avoid overwriting it with router/chat text.
+      if(out && out.reply && !toolTriggered){
+        currentResultText = out.reply;
+        currentResultFileName = `dispatch_${type}_${Date.now()}.txt`;
+        document.getElementById('resultPlaceholder').style.display='none';
+        renderResultText(out.reply);
+        handled = true;
+      }
+      if(handled) return;
+    }catch(_){
+      // fallback to local studio pipeline below
+    }
   }
 
   if(studioRunning) return;
@@ -1305,36 +2160,42 @@ async function runStudio(type){
   if(type==='ecgd'){
     rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>正在调用 ECGOmics 提取 XML 特征，请稍候…</p></div>`;
     try{
-      let xmlSrc = pickXmlSource();
-      if(!xmlSrc) xmlSrc = pickXmlLikeFallbackSource();
-      if(!xmlSrc) throw new Error('未找到 XML 来源。请先上传 .xml 文件并勾选该来源。');
-
-      const xmlText = await readXmlTextFromSource(xmlSrc);
-      if(!xmlText || xmlText.length < 20 || xmlText.indexOf('<') < 0 || xmlText.indexOf('>') < 0) throw new Error('读取到的内容不是有效 XML，请上传 .xml 文件（不要上传 .htm/.html 页面）。');
-
-      const payload = {
-        xmlData: xmlText,
-        inputType: 'xml',
-        zero: 0,
-        gain: 1,
-        filter: 'MeanDecomposition'
-      };
-
-      const resp = await apiFetch('/api/ecgomics/analyze', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-
-      const out = await resp.json().catch(()=>({}));
-      if(!resp.ok){
-        throw new Error(out.detail || out.msg || `HTTP ${resp.status}`);
+      const checkedXml = (sources || []).filter(s => !!s && !!s.checked && isXmlSource(s));
+      const allXml = (sources || []).filter(s => !!s && isXmlSource(s));
+      const xmlList = checkedXml.length ? checkedXml : allXml;
+      if(!xmlList.length){
+        let single = pickXmlLikeFallbackSource();
+        if(single) xmlList.push(single);
       }
-      if(out && typeof out.code !== 'undefined' && Number(out.code) !== 200){
-        throw new Error(out.msg || ('ECGOmics code=' + out.code));
-      }
+      if(!xmlList.length) throw new Error('未找到 XML 来源。请先上传 .xml 文件并勾选该来源。');
 
-      renderEcgomicsXmlResult(xmlSrc, out);
+      let okCount = 0;
+      const reports = [];
+      for(let i=0;i<xmlList.length;i++){
+        const xmlSrc = xmlList[i];
+        const xmlText = await readXmlTextFromSource(xmlSrc);
+        if(!xmlText || xmlText.length < 20 || xmlText.indexOf('<') < 0 || xmlText.indexOf('>') < 0){
+          reports.push({ name: xmlSrc.name || ('source_' + (i+1)), ok:false, msg:'内容不是有效 XML' });
+          continue;
+        }
+        const payload = { xmlData: xmlText, inputType: 'xml', zero: 0, gain: 1, filter: 'MeanDecomposition' };
+        const resp = await apiFetch('/api/ecgomics/analyze', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const out = await resp.json().catch(()=>({}));
+        if(!resp.ok || (out && typeof out.code !== 'undefined' && Number(out.code) !== 200)){
+          reports.push({ name: xmlSrc.name || ('source_' + (i+1)), ok:false, msg:(out.detail || out.msg || ('HTTP ' + resp.status)) });
+          continue;
+        }
+        const csvName = renderEcgomicsXmlResult(xmlSrc, out);
+        okCount += 1;
+        reports.push({ name: xmlSrc.name || ('source_' + (i+1)), ok:true, msg:'SUCCESS', csv: csvName || '' });
+      }
+      rc.style.display='block';
+      const reportHtml = reports.map(r => `<li>${esc(r.name)}：${r.ok ? '✅' : '❌'} ${esc(r.msg)}${r.csv ? (' · CSV: ' + esc(r.csv)) : ''}</li>`).join('');
+      rc.innerHTML = `<h4>ECGOmics 批量处理完成</h4><p>共 ${reports.length} 个文件，成功 ${okCount} 个。</p><ul style="padding-left:18px;margin:8px 0 0;">${reportHtml}</ul>`;
     }catch(e){
       rc.style.display='block';
       rc.innerHTML = `<div style="padding:20px;color:#dc2626;font-size:13px;">ECGOmics 提取失败：${esc(e.message||String(e))}</div>`;
@@ -1347,34 +2208,12 @@ async function runStudio(type){
 
   const srcContent = sources.filter(s=>s.checked).map(s=>s.content||s.name).join('\n\n---\n\n');
   const prompts = {
-    ml:`你是机器学习专家。请基于以下研究内容，生成一份详细的机器学习分析报告，包括：
-1. 数据特征分析（样本量、特征类型、数据挑战）
-2. 推荐模型（至少3种，含适用理由）
-3. 特征工程建议
-4. 验证策略
-5. 注意事项
-用中文回答，格式清晰，使用**加粗**标记关键点。\n\n来源内容：\n${srcContent.slice(0,5000)}`,
-    dl:`你是深度学习专家。请基于以下研究内容，生成一份深度学习适用性分析报告，包括：
-1. 深度学习适用性评估（是否适合，为什么）
-2. 推荐网络架构（含理由）
-3. 迁移学习策略
-4. 数据增强方案（如需要）
-5. 潜在风险与缓解方案
-用中文回答，格式清晰，使用**加粗**标记关键点。\n\n来源内容：\n${srcContent.slice(0,5000)}`,
     ecg:`你是心电图分析专家。请基于以下研究内容，生成一份 HandECG 分析报告，包括：
 1. 相关 ECG 指标解读（如 QTc 等）
 2. HandECG 与传统 ECG 的对比
 3. 信号质量评估建议
 4. 临床应用价值
 5. 与研究内容的关联分析
-用中文回答，格式清晰，使用**加粗**标记关键点。\n\n来源内容：\n${srcContent.slice(0,5000)}`,
-    stats:`你是生物统计学专家。请基于以下研究内容，生成一份统计学分析报告，包括：
-1. 数据分布与描述性统计分析建议
-2. 适用的假设检验方法（含选择理由）
-3. 回归分析策略（线性/Logistic/Cox等）
-4. 样本量估算与效能分析
-5. 多重比较与校正方法
-6. 结果报告规范建议
 用中文回答，格式清晰，使用**加粗**标记关键点。\n\n来源内容：\n${srcContent.slice(0,5000)}`,
     agent:`你是 AI 智能体设计专家。请基于以下研究内容，设计一份"准心智能体"方案，包括：
 1. 智能体目标定义与任务拆解
@@ -1393,8 +2232,8 @@ async function runStudio(type){
     currentResultFileName = `analysis_${type}_${Date.now()}.txt`;
     renderResultText(text);
   } catch(e){
-    const errHtml = !aiConfig.key
-      ? `<div style="padding:20px;font-size:13px;">⚠️ 未配置 API Key。<span style="color:var(--accent);cursor:pointer;text-decoration:underline;" onclick="openApiConfig()">点击配置 AI 模型 →</span></div>`
+    const errHtml = !hasServerApiKey(aiConfig.provider)
+      ? `<div style="padding:20px;font-size:13px;">⚠️ 后端尚未配置该模型的 API Key，请联系管理员写入。</div>`
       : `<div style="padding:20px;color:#dc2626;font-size:13px;">连接 AI 出错：${e.message}</div>`;
     rc.innerHTML = errHtml;
   }
@@ -1481,7 +2320,16 @@ function submitText(){
   addSrcWithProgress(name, 'txt', text, null);
   document.getElementById('textIn').value='';
 }
-function onFileSelect(e){ if(e.target.files.length) readFile(e.target.files[0]); }
+function onFileSelect(e){
+  const files = Array.from((e && e.target && e.target.files) ? e.target.files : []);
+  if(!files.length) return;
+  files.forEach(function(f){ readFile(f); });
+}
+function onFolderSelect(e){
+  const files = Array.from((e && e.target && e.target.files) ? e.target.files : []);
+  if(!files.length) return;
+  files.forEach(function(f){ readFile(f); });
+}
 function dov(e){e.preventDefault();document.getElementById('umoDrop').classList.add('drag');}
 function ddl(e){document.getElementById('umoDrop').classList.remove('drag');}
 function ddr(e){e.preventDefault();document.getElementById('umoDrop').classList.remove('drag');if(e.dataTransfer.files.length)readFile(e.dataTransfer.files[0]);}
@@ -1489,6 +2337,7 @@ function ddr(e){e.preventDefault();document.getElementById('umoDrop').classList.
 function readFile(f){
   const isText = f.type==='text/plain'||/xml/i.test(String(f.type||''))||/\\.xml$/i.test(f.name)||f.name.endsWith('.md')||f.name.endsWith('.txt');
   const isImg = /\.(png|jpg|jpeg|bmp|tiff?|gif)$/i.test(f.name) || f.type.startsWith('image/');
+  const isPdf = /\.pdf$/i.test(f.name) || /pdf/i.test(String(f.type||''));
   if(isText){
     const r = new FileReader();
     r.onload = ev => {
@@ -1500,10 +2349,12 @@ function readFile(f){
     r.readAsText(f);
   } else if(isImg){
     const r = new FileReader();
-    r.onload = ev => addSrcWithProgress(f.name, f.name.split('.').pop(), '[鍥惧儚鏂囦欢锛屽彲鍦?HandECG 宸ュ叿涓墦寮€]', ev.target.result, f);
+    r.onload = ev => addSrcWithProgress(f.name, f.name.split('.').pop(), '[图像文件，可在 HandECG 工具中打开]', ev.target.result, f);
     r.readAsDataURL(f);
+  } else if(isPdf){
+    addSrcWithProgress(f.name, 'pdf', '[PDF 文件，可自动转换第1页后发送到 HandECG]', null, f);
   } else {
-    addSrcWithProgress(f.name, f.name.split('.').pop(), '['+f.name+' 宸蹭笂浼燷', null, f);
+    addSrcWithProgress(f.name, f.name.split('.').pop(), '['+f.name+' 已上传]', null, f);
   }
 }
 
@@ -1534,8 +2385,11 @@ function addSrc(name,type,content,imageDataUrl,rawFile){
   sources.push(srcObj);
   if(srcObj.imageDataUrl || (srcObj.fileObj && /^image\//i.test(String(srcObj.fileObj.type||'')))){
     window.__heartosLastImageSource = srcObj;
+    try{ appendImagePreviewInChat(srcObj); }catch(_){}
   }
   if(curNb) curNb.srcs=sources.length;
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
   closeMo('uploadMo');
   document.getElementById('progWrap').style.display='none';
   document.getElementById('progFill').style.width='0';
@@ -1673,10 +2527,8 @@ let aiConfig = JSON.parse(localStorage.getItem('heartos_ai_cfg')||'{}');
 // defaults
 if(!aiConfig.provider) aiConfig.provider = 'openrouter';
 if(!aiConfig.model) aiConfig.model = 'deepseek/deepseek-chat-v3-5';
-if(!aiConfig.key) aiConfig.key = '';
-// const HEARTOS_BACKEND_BASE_URL =
-//   (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://110.157.241.24:18024').replace(/\/+$/,'');
-
+aiConfig.key = '';
+let aiServerKeyState = {};
 const HEARTOS_BACKEND_BASE_URL =
   (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9000').replace(/\/+$/,'');
 
@@ -1691,12 +2543,14 @@ function getAuthUser(){
 function setAuthSession(token, user){
   if(token) localStorage.setItem('heartos_auth_token', token);
   if(user) localStorage.setItem('heartos_auth_user', JSON.stringify(user));
+  if(token) __authMeCheckedAt = Date.now();
   updateUserAvatarUI();
 }
 
 function clearAuthSession(){
   localStorage.removeItem('heartos_auth_token');
   localStorage.removeItem('heartos_auth_user');
+  __authMeCheckedAt = 0;
   updateUserAvatarUI();
 }
 
@@ -1721,6 +2575,9 @@ function updateUserAvatarUI(){
 let authMode = 'login';
 let authReadyResolve = null;
 let authReadyPromise = null;
+let __authMeCheckedAt = 0;
+let __authMeInflight = null;
+const AUTH_ME_TTL_MS = 120000;
 
 function setAppAuthed(authed){
   var hp = document.getElementById('homePage');
@@ -1772,7 +2629,9 @@ async function submitAuthLogin(){
     setAuthSession(out.token, { user_id: out.user_id, username: out.username, display_name: out.display_name });
     setAppAuthed(true);
     updateUserAvatarUI();
+    try{ await loadAiConfigFromServer(); }catch(_){}
     setAuthMsg('登录成功', false);
+    try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
     if(authReadyResolve){ authReadyResolve(true); authReadyResolve = null; authReadyPromise = null; }
   }catch(e){
     setAuthMsg(e && e.message ? e.message : '认证失败', true);
@@ -1790,19 +2649,34 @@ async function doLoginFlow(force){
 
 async function ensureLogin(){
   var token = getAuthToken();
-  if(token){
+  if(!token){
+    return await doLoginFlow(true);
+  }
+  var now = Date.now();
+  if((now - __authMeCheckedAt) < AUTH_ME_TTL_MS){
+    setAppAuthed(true);
+    return true;
+  }
+  if(__authMeInflight) return await __authMeInflight;
+  __authMeInflight = (async function(){
     try{
       var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
       if(r.ok){
         var me = await r.json();
         setAuthSession(token, { user_id: me.user_id, username: me.username, display_name: me.display_name });
+        __authMeCheckedAt = Date.now();
         setAppAuthed(true);
         return true;
       }
     }catch(_){ }
     clearAuthSession();
+    return await doLoginFlow(true);
+  })();
+  try{
+    return await __authMeInflight;
+  }finally{
+    __authMeInflight = null;
   }
-  return await doLoginFlow(true);
 }
 
 async function onUserAvatarClick(){
@@ -1865,14 +2739,16 @@ function buildHandEcgMeta(src, launchId){
 
 async function apiFetch(path, opts){
   opts = opts || {};
-  var ok = await ensureLogin();
+  var skipAuthCheck = !!opts.__skipAuthCheck;
+  if(Object.prototype.hasOwnProperty.call(opts, '__skipAuthCheck')) delete opts.__skipAuthCheck;
+  var ok = skipAuthCheck ? !!getAuthToken() : await ensureLogin();
   if(!ok) throw new Error('未登录，已取消操作');
   var headers = authHeaders(opts.headers || {});
   var finalOpts = Object.assign({}, opts, { headers: headers });
   var resp = await fetch(apiUrl(path), finalOpts);
   if(resp.status === 401){
     clearAuthSession();
-    await doLoginFlow(true);
+    await ensureLogin();
     finalOpts.headers = authHeaders(opts.headers || {});
     resp = await fetch(apiUrl(path), finalOpts);
   }
@@ -1881,29 +2757,29 @@ async function apiFetch(path, opts){
 
 
 // Unified AI call — returns reply string, throws on error
-async function callAI(system, messages, maxTokens=1000){
+async function callAI(system, messages, maxTokens=1000, overrideKey='', signal=null){
   const p = AI_PROVIDERS[aiConfig.provider];
   if(!p) throw new Error('未选择服务商');
-  if(!aiConfig.key) throw new Error('未配置 API Key');
 
   const body = {
     provider: aiConfig.provider,
     model: aiConfig.model || p.defaultModel,
-    api_key: aiConfig.key,
     system: system || '',
     messages: messages || [],
     max_tokens: maxTokens,
     temperature: 0.2
   };
+  if(overrideKey) body.api_key = String(overrideKey || '').trim();
 
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), 60000);
+  const controller = signal ? null : new AbortController();
+  const effSignal = signal || controller.signal;
+  const timer = setTimeout(()=>{ try{ if(controller) controller.abort(); }catch(_){} }, 60000);
   try{
     const resp = await apiFetch('/api/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body),
-      signal: controller.signal
+      signal: effSignal
     });
 
     if(!resp.ok){
@@ -1929,6 +2805,10 @@ async function callAI(system, messages, maxTokens=1000){
 // API Config UI
 let selectedProvider = aiConfig.provider || 'openrouter';
 
+function hasServerApiKey(provider){
+  return !!aiServerKeyState[String(provider || '')];
+}
+
 function openApiConfig(){
   selectedProvider = aiConfig.provider || 'openrouter';
   // Sync tabs
@@ -1937,8 +2817,8 @@ function openApiConfig(){
   const pKeys = Object.keys(AI_PROVIDERS);
   const idx = pKeys.indexOf(selectedProvider);
   if(tabs[idx]) tabs[idx].classList.add('active');
-  // Fill in saved key
-  document.getElementById('apiKeyInput').value = aiConfig.key||'';
+  // Key is stored on backend only; never prefill to frontend storage.
+  document.getElementById('apiKeyInput').value = '';
   updateProviderUI(selectedProvider);
   updateApiStatus();
   openMo('apiCfgMo');
@@ -1969,7 +2849,7 @@ function updateApiStatus(){
   const pill = document.getElementById('aiStatusPill');
   const pillDot = document.getElementById('aiPillDot');
   const pillTxt = document.getElementById('aiPillText');
-  if(!aiConfig.key){
+  if(!hasServerApiKey(aiConfig.provider)){
     if(bar){ bar.className='api-status idle'; txt.textContent='未配置 API Key'; }
     if(pill){ pillDot.style.background='#f59e0b'; pillTxt.textContent='配置 AI ⚠️'; pill.style.borderColor='#fbbf24'; }
   } else {
@@ -1987,11 +2867,11 @@ async function testApiKey(){
   const txt = document.getElementById('apiStatusText');
   if(!key){ txt.textContent='请先填入 API Key'; bar.className='api-status err'; return; }
   bar.className='api-status idle'; txt.textContent='测试中…';
-  const tmpCfg = {...aiConfig, provider:selectedProvider, key, model};
+  const tmpCfg = {...aiConfig, provider:selectedProvider, model};
   const prev = aiConfig;
   aiConfig = tmpCfg;
   try{
-    await callAI('你是助手。', [{role:'user',content:'回复"ok"'}], 10);
+    await callAI('你是助手。', [{role:'user',content:'回复"ok"'}], 10, key);
     bar.className='api-status ok'; txt.textContent='✅ 连接成功！';
   } catch(e){
     bar.className='api-status err'; txt.textContent='❌ ' + e.message;
@@ -2003,12 +2883,26 @@ function saveApiConfig(){
   const key = document.getElementById('apiKeyInput').value.trim();
   const model = document.getElementById('apiModelSelect').value;
   if(!key){ document.getElementById('apiStatusText').textContent='请填入 API Key'; document.getElementById('apiStatusBar').className='api-status err'; return; }
-  aiConfig = {provider:selectedProvider, key, model};
-  localStorage.setItem('heartos_ai_cfg', JSON.stringify(aiConfig));
-  updateApiStatus();
-  closeMo('apiCfgMo');
-  // Show toast
-  showToast('✅ AI 配置已保存');
+  (async function(){
+    try{
+      const resp = await apiFetch('/api/user/ai-config', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ provider: selectedProvider, api_key: key })
+      });
+      const out = await resp.json().catch(()=>({}));
+      if(!resp.ok) throw new Error(out.detail || `HTTP ${resp.status}`);
+      aiServerKeyState[selectedProvider] = true;
+      aiConfig = {provider:selectedProvider, model};
+      localStorage.setItem('heartos_ai_cfg', JSON.stringify(aiConfig));
+      updateApiStatus();
+      closeMo('apiCfgMo');
+      showToast('✅ API Key 已保存到后端');
+    }catch(e){
+      document.getElementById('apiStatusText').textContent = '保存失败：' + (e && e.message ? e.message : '未知错误');
+      document.getElementById('apiStatusBar').className='api-status err';
+    }
+  })();
 }
 
 function showToast(msg){
@@ -2026,6 +2920,8 @@ async function initAuthBoot(){
   setAppAuthed(false);
   try{
     await ensureLogin();
+    try{ await loadAiConfigFromServer(); }catch(_){}
+    try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     updateUserAvatarUI();
@@ -2072,6 +2968,11 @@ var ecgUploadBusy = false;
 var ecgLastUpload = null;
 var ecgPumpTimer = null;
 var ecgPendingSource = null;
+window.__heartosBlockAutoOpenUntil = 0;
+
+function isEcgAutoOpenBlocked(){
+  return Number(window.__heartosBlockAutoOpenUntil || 0) > Date.now();
+}
 
 function dataUrlToFile(dataUrl, filename){
   var arr = (dataUrl || '').split(',');
@@ -2213,7 +3114,7 @@ function openEcgOverlay(explicitSrc){
           if(tries >= 24){ clearInterval(t); }
         }
       }, 300);
-      toast('HandECG 宸插湪鏂版爣绛鹃〉鎵撳紑', 'warn');
+      toast('HandECG 已在新标签页打开', 'warn');
       return;
     }
 
@@ -2221,7 +3122,7 @@ function openEcgOverlay(explicitSrc){
     var overlay = document.getElementById('ecgOverlay');
     overlay.classList.add('open');
     document.getElementById('ecgBreadcrumb').textContent =
-      (curNb ? curNb.title : 'HeartOS') + ' 鈥?HandECG';
+      (curNb ? curNb.title : 'HeartOS') + ' > HandECG';
 
     var iframe = document.getElementById('ecgIframe');
     var loading = document.getElementById('ecgLoading');
@@ -2255,6 +3156,17 @@ function sendImageToEcg(){
 }
 
 function closeEcgOverlay(){
+  window.__heartosBlockAutoOpenUntil = Date.now() + 8000;
+  if(ecgPumpTimer){ clearInterval(ecgPumpTimer); ecgPumpTimer = null; }
+  ecgPendingSource = null;
+  ecgReady = false;
+  var iframe = document.getElementById('ecgIframe');
+  if(iframe){
+    try{ iframe.onload = null; }catch(_){}
+    try{ iframe.src = 'about:blank'; }catch(_){}
+  }
+  var loading = document.getElementById('ecgLoading');
+  if(loading) loading.style.display = 'none';
   document.getElementById('ecgOverlay').classList.remove('open');
 }
 
@@ -2825,7 +3737,7 @@ document.addEventListener('keydown',function(e){
       var src = explicitSrc || pickBestImageSource();
       if(src) await ensureSourceDataUrl(src);
       if(src && !src.imageDataUrl && typeof window.toast === 'function'){
-        window.toast('?????????????????', 'warn');
+        window.toast('当前来源无法读取图像数据，请重新上传后重试。', 'warn');
       }
       return _openEcgOverlay(src || explicitSrc || null);
     };
@@ -2840,7 +3752,7 @@ document.addEventListener('keydown',function(e){
     }
     if(src) await ensureSourceDataUrl(src);
     if(src && !src.imageDataUrl && typeof window.toast === 'function'){
-      window.toast('???????????HandECG ???????', 'warn');
+      window.toast('该来源暂时无法发送到 HandECG，请检查图片格式。', 'warn');
     }
     if(typeof window.openEcgOverlay === 'function') return window.openEcgOverlay(src || null);
   };
@@ -2979,6 +3891,9 @@ document.addEventListener('keydown',function(e){
     }, 250);
   }
   async function open(explicit){
+    if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
+      return null;
+    }
     var src = pick(explicit || null);
     var o = overlay();
     if(!o) return;
@@ -3064,10 +3979,7 @@ document.addEventListener('keydown',function(e){
     try{
       if(typeof apiUrl === 'function') return apiUrl(path);
     }catch(_){ }
-    // var base = (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || '110.157.241.24:18024').replace(/\/+$/,'');
-    // var base = 'http://110.157.241.24:18024';
-
-    var base = 'http://127.0.0.1:9000';
+    var base = (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9000').replace(/\/+$/,'');
     return base + path;
   }
 
@@ -3153,9 +4065,7 @@ document.addEventListener('keydown',function(e){
   function upsertCsvSource(data){
     var list = getSourcesRef();
     if(!list || !data || !data.csv) return;
-    var fileName = data.fileName || ('handecg_' + Date.now() + '.csv');
-    var lower = String(fileName).toLowerCase();
-    if(!/\.csv$/.test(lower)) fileName += '.csv';
+    var fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
     var csvText = String(data.csv);
     var fileObj = null;
     try{ fileObj = new File([csvText], fileName, { type:'text/csv' }); }catch(_){ }
@@ -3216,10 +4126,11 @@ document.addEventListener('keydown',function(e){
     if(!list) return;
     var row = document.createElement('div');
     row.className = 'msg-ai';
+    var showName = _normalizeCsvNameBySource((data && data.fileName) || '', (data && data.sourceName) || '');
     row.innerHTML =
       '<div class="ai-av">AI</div>' +
       '<div class="ai-body">' +
-        '<p><strong>CSV 已回传到 HeartOS</strong>：' + (data.fileName || 'ecg.csv') + '</p>' +
+        '<p><strong>CSV 已回传到 HeartOS</strong>：' + showName + '</p>' +
         '<p style="font-size:12px;color:#6b7280;">可在来源区找到该文件并参与后续分析。</p>' +
       '</div>';
     list.appendChild(row);
@@ -3373,57 +4284,6 @@ document.addEventListener('keydown',function(e){
     }
   }
 
-  function _resolveCurrentUserId(){
-    try{
-      if(typeof getAuthUser === 'function'){
-        var u = getAuthUser();
-        if(u && u.user_id) return String(u.user_id);
-      }
-    }catch(_){ }
-    try{
-      var raw = localStorage.getItem('heartos_auth_user') || '';
-      if(raw){
-        var obj = JSON.parse(raw);
-        if(obj && obj.user_id) return String(obj.user_id);
-      }
-    }catch(_){ }
-    return '';
-  }
-
-  async function uploadHandEcgSave(d){
-    if(!d || !d.image_base64) return;
-    var headers = { 'Content-Type': 'application/json' };
-    try{
-      if(typeof authHeaders === 'function'){
-        headers = authHeaders(headers);
-      }
-    }catch(_){ }
-    var body = {
-      user_id: _resolveCurrentUserId(),
-      image_base64: String(d.image_base64 || ''),
-      image_mime: String(d.image_mime || 'image/png'),
-      image_name: String(d.image_name || d.fileName || ''),
-      file_name: String(d.fileName || ''),
-      data: d.data || {},
-    };
-    try{
-      var resp = await fetch(backendApi('/api/handecg/save'), {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(body),
-      });
-      if(!resp.ok){
-        var txt = '';
-        try{ txt = (await resp.json()).detail || ''; }catch(_){ txt = await resp.text(); }
-        console.warn('[handecg-save] failed', resp.status, txt);
-        return;
-      }
-      console.log('[handecg-save] ok');
-    }catch(e){
-      console.warn('[handecg-save] error', e);
-    }
-  }
-
   window.addEventListener('message', function(evt){
     var d = evt.data || {};
     var t = d.type || '';
@@ -3436,10 +4296,6 @@ document.addEventListener('keydown',function(e){
     if(t === 'HEARTOS_ECG_CSV'){
       upsertCsvSource(d);
       appendCsvMessage(d);
-      return;
-    }
-    if(t === 'HEARTOS_HANDECG_SAVE'){
-      uploadHandEcgSave(d);
       return;
     }
   });

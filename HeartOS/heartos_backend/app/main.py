@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import re
 import uuid
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -25,6 +26,7 @@ from .auth import (
 from .config import settings
 from .providers import AGENT_SYSTEM_PROMPTS, PROVIDERS
 from .schemas import (
+    AIEcgDigitizeRequest,
     AgentRunRequest,
     AgentRunResponse,
     ChatRequest,
@@ -423,6 +425,214 @@ async def handecg_save(
     return data
 
 
+@app.post("/api/ai-ecg-digitize")
+async def ai_ecg_digitize(
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    upstream_url = (settings.ai_ecg_digitize_url or "").strip()
+    if not upstream_url:
+        raise HTTPException(status_code=500, detail="未配置 AI 心电图数字化地址 APP_AI_ECG_DIGITIZE_URL")
+
+    image_base64 = ""
+    image_mime = "image/png"
+    image_name = "ecg_image.png"
+    options: dict[str, Any] = {}
+
+    ctype = (request.headers.get("content-type") or "").lower()
+    parsed_form = None
+    try:
+        parsed_form = await request.form()
+    except Exception:
+        parsed_form = None
+
+    if ("multipart/form-data" in ctype) or (parsed_form is not None and "file" in parsed_form):
+        form = parsed_form or await request.form()
+        file_item = form.get("file")
+        # Be tolerant here: depending on stack, this may be FastAPI UploadFile,
+        # Starlette UploadFile, or a bytes-like object.
+        if file_item is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"missing required multipart field: file; got fields={list(form.keys())}",
+            )
+
+        raw: bytes
+        if hasattr(file_item, "read"):
+            raw = await file_item.read()
+        elif isinstance(file_item, (bytes, bytearray)):
+            raw = bytes(file_item)
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail=f"multipart field 'file' has unsupported type: {type(file_item).__name__}",
+            )
+
+        if not raw:
+            raise HTTPException(status_code=422, detail="uploaded file is empty")
+        image_base64 = base64.b64encode(raw).decode("ascii")
+        image_mime = str(getattr(file_item, "content_type", "") or "image/png")
+        image_name = str(getattr(file_item, "filename", "") or "ecg_image.png")
+
+        if form.get("image_name"):
+            image_name = str(form.get("image_name") or image_name)
+
+        raw_options = form.get("options")
+        if raw_options:
+            try:
+                parsed_options = json.loads(str(raw_options))
+                if isinstance(parsed_options, dict):
+                    options.update(parsed_options)
+            except Exception:
+                pass
+
+        reserved = {"file", "image_name", "file_name", "user_id", "username", "options"}
+        for k, v in form.items():
+            key = str(k)
+            if key in reserved:
+                continue
+            sval = str(v)
+            low = sval.strip().lower()
+            if low in {"true", "false"}:
+                options[key] = (low == "true")
+            else:
+                options[key] = sval
+    else:
+        try:
+            body = await request.json()
+        except Exception:
+            raise HTTPException(status_code=422, detail="invalid json body")
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=422, detail="invalid json body")
+        image_base64 = str(body.get("image_base64") or "")
+        image_mime = str(body.get("image_mime") or "image/png")
+        image_name = str(body.get("image_name") or "ecg_image.png")
+        options = body.get("options") if isinstance(body.get("options"), dict) else {}
+
+        if not image_base64:
+            raise HTTPException(status_code=422, detail="missing image_base64 in json body")
+
+    payload: dict[str, Any] = {
+        "image_base64": image_base64,
+        "image_mime": image_mime,
+        "image_name": image_name,
+        "options": options or {},
+        "user": {"id": user.get("id"), "username": user.get("username")},
+    }
+    data_url = f"data:{image_mime or 'image/png'};base64,{image_base64}"
+    candidates: list[dict[str, Any]] = [
+        payload,
+        {
+            "image": data_url,
+            "image_name": image_name,
+            "file_name": image_name,
+            "options": options or {},
+            "user_id": str(user.get("id") or ""),
+        },
+        {
+            "img_base64": image_base64,
+            "mime": image_mime,
+            "filename": image_name,
+            "options": options or {},
+        },
+    ]
+
+    last_status = 502
+    last_text = ""
+    last_err = ""
+    out: Any = None
+
+    # Preferred mode: multipart/form-data with required "file" field
+    try:
+        raw_bytes = base64.b64decode(image_base64.encode("utf-8"), validate=False)
+    except Exception:
+        raw_bytes = b""
+    if raw_bytes:
+        timeout = httpx.Timeout(settings.http_timeout)
+        limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
+        for attempt in range(settings.http_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+                    files = {
+                        "file": (
+                            image_name or "ecg_image.png",
+                            raw_bytes,
+                            image_mime or "image/png",
+                        )
+                    }
+                    data = {
+                        "image_name": image_name or "",
+                        "file_name": image_name or "",
+                        "user_id": str(user.get("id") or ""),
+                        "username": str(user.get("username") or ""),
+                        "options": json.dumps(options or {}, ensure_ascii=False),
+                    }
+                    # Compatibility: many upstream services expect options as top-level form fields.
+                    for k, v in (options or {}).items():
+                        if k in data:
+                            continue
+                        if isinstance(v, bool):
+                            data[str(k)] = "true" if v else "false"
+                        else:
+                            data[str(k)] = str(v)
+                    resp = await client.post(upstream_url, data=data, files=files)
+                if resp.status_code >= 400:
+                    last_status = resp.status_code
+                    last_text = (resp.text or "")[:800]
+                else:
+                    try:
+                        out = resp.json()
+                    except Exception:
+                        out = {"raw": resp.text}
+                    break
+            except Exception as e:  # noqa: BLE001
+                last_err = repr(e)
+                if attempt < settings.http_retries:
+                    await asyncio.sleep(0.3 * (attempt + 1))
+                    continue
+            if out is not None:
+                break
+
+    if out is not None:
+        if isinstance(out, dict):
+            out.setdefault("_meta", {})
+            out["_meta"]["user_id"] = user.get("id")
+            out["_meta"]["username"] = user.get("username")
+        return {"ok": True, "upstream": out}
+
+    # Fallback mode: JSON body variants
+    for body in candidates:
+        try:
+            headers = {"Content-Type": "application/json"}
+            resp = await post_with_retry(upstream_url, headers, body)
+            if resp.status_code >= 400:
+                last_status = resp.status_code
+                last_text = (resp.text or "")[:800]
+                continue
+            try:
+                out = resp.json()
+            except Exception:
+                out = {"raw": resp.text}
+            break
+        except Exception as e:  # noqa: BLE001
+            last_err = repr(e)
+            continue
+
+    if out is None:
+        detail = f"AI 心电图数字化失败 upstream={upstream_url}"
+        if last_text:
+            detail += f" resp={last_text}"
+        if last_err:
+            detail += f" err={last_err}"
+        raise HTTPException(status_code=last_status, detail=detail[:1500])
+
+    if isinstance(out, dict):
+        out.setdefault("_meta", {})
+        out["_meta"]["user_id"] = user.get("id")
+        out["_meta"]["username"] = user.get("username")
+    return {"ok": True, "upstream": out}
+
+
 @app.post("/api/files/upload")
 async def upload_file(
     file: UploadFile = File(...),
@@ -469,6 +679,31 @@ async def get_file(file_id: str, user: dict[str, Any] = Depends(get_current_user
         raise HTTPException(status_code=403, detail="forbidden")
 
     return FileResponse(path=str(p), filename=p.name)
+
+
+@app.delete("/api/files/{file_id}")
+async def delete_file(file_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    p = (UPLOAD_DIR / file_id).resolve()
+    if not str(p).startswith(str(UPLOAD_DIR)):
+        raise HTTPException(status_code=400, detail="invalid file path")
+    if not p.exists() or not p.is_file():
+        raise HTTPException(status_code=404, detail="file not found")
+
+    meta = _load_file_meta()
+    item = meta.get(file_id)
+    if item and str(item.get("user_id")) != str(user.get("id")):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        p.unlink()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"delete failed: {e}") from e
+
+    if file_id in meta:
+        del meta[file_id]
+        _save_file_meta(meta)
+
+    return {"ok": True, "id": file_id}
 
 
 @app.get("/api/files")

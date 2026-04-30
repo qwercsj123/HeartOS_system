@@ -886,7 +886,6 @@ const LAYOUT_PRESETS = {
 let state = {
   image: null, imageW: 0, imageH: 0,
   originalImage: null, originalImageW: 0, originalImageH: 0,
-  originalImageDataUrl: '', originalImageMime: '', originalImageName: '',
   rotation: 0, scale: 1.0,
   boxes: {},           // lead -> {x1,y1,x2,y2} image coords
   selectedLead: null,
@@ -1592,9 +1591,6 @@ function loadImage(file) {
       state.originalImage = img;
       state.originalImageW = img.naturalWidth;
       state.originalImageH = img.naturalHeight;
-      state.originalImageDataUrl = String(e.target.result || '');
-      state.originalImageMime = (file && file.type) || 'image/png';
-      state.originalImageName = (file && file.name) || '';
       state.boxes = {}; state.selectedLead = null;
       state.extractedMV = null; state.extractedSignals = null;
       state.rotation = 0;
@@ -3521,52 +3517,6 @@ async function saveCSV() {
   }catch(e){
     console.warn('emitCSVToHeartOS error', e);
   }
-  try{
-    emitSaveToHeartOS(fileName, presentLeads, fs, maxN);
-  }catch(e){
-    console.warn('emitSaveToHeartOS error', e);
-  }
-}
-
-function _stripDataUrlPrefix(dataUrl){
-  const s = String(dataUrl || '');
-  const idx = s.indexOf('base64,');
-  return idx >= 0 ? s.slice(idx + 'base64,'.length) : s;
-}
-
-function _serializeLeadsForSave(presentLeads){
-  const leads = {};
-  const arr = Array.isArray(presentLeads) ? presentLeads : [];
-  for (let i = 0; i < arr.length; i++) {
-    const lead = arr[i];
-    const buf = state.extractedMV && state.extractedMV[lead];
-    if (!buf) continue;
-    const out = new Array(buf.length);
-    for (let j = 0; j < buf.length; j++) {
-      const v = Number(buf[j]);
-      out[j] = Number.isFinite(v) ? Number(v.toFixed(4)) : 0;
-    }
-    leads[lead] = out;
-  }
-  return leads;
-}
-
-function emitSaveToHeartOS(fileName, presentLeads, fs, maxN){
-  const payload = {
-    type: 'HEARTOS_HANDECG_SAVE',
-    tool: 'handecg',
-    fileName: fileName || 'ecg.csv',
-    image_base64: _stripDataUrlPrefix(state.originalImageDataUrl),
-    image_mime: state.originalImageMime || 'image/png',
-    image_name: state.originalImageName || '',
-    data: {
-      sampleRate: fs || 500,
-      pointsPerLead: maxN || 0,
-      leads: _serializeLeadsForSave(presentLeads),
-    },
-    ts: Date.now(),
-  };
-  try { parent.postMessage(payload, '*'); } catch (_) {}
 }
 
 function downsampleSignal(sig, limit) {

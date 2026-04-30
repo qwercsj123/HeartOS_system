@@ -16,6 +16,7 @@
       APP_UPLOAD_DIR: /app/data/uploads
       APP_PUBLIC_BASE_URL: http://127.0.0.1:9000
       APP_ECGOMICS_URL: http://110.157.241.24:18023/ECGOmics
+      APP_AI_ECG_DIGITIZE_URL: http://110.157.241.24:18022/digitize
     volumes:
       - ./data:/app/data
     restart: unless-stopped

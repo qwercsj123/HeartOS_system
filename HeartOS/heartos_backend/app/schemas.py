@@ -92,3 +92,10 @@ class HandEcgSaveRequest(BaseModel):
     image_name: str = ""
     file_name: str = ""
     data: dict[str, Any] = Field(default_factory=dict)
+
+
+class AIEcgDigitizeRequest(BaseModel):
+    image_base64: str = Field(min_length=1)
+    image_mime: str = "image/png"
+    image_name: str = ""
+    options: dict[str, Any] = Field(default_factory=dict)

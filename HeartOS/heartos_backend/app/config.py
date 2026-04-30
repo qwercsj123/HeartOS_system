@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     public_base_url: str = Field(default="http://127.0.0.1:9000")
     max_upload_mb: int = Field(default=20)
     ecgomics_url: str = Field(default="http://110.157.241.24:18023/ECGOmics")
+    ai_ecg_digitize_url: str = Field(default="")
 
     auth_secret: str = Field(default="heartos-dev-secret-change-me")
     auth_expire_hours: int = Field(default=24)
