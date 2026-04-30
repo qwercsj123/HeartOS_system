@@ -1674,8 +1674,11 @@ let aiConfig = JSON.parse(localStorage.getItem('heartos_ai_cfg')||'{}');
 if(!aiConfig.provider) aiConfig.provider = 'openrouter';
 if(!aiConfig.model) aiConfig.model = 'deepseek/deepseek-chat-v3-5';
 if(!aiConfig.key) aiConfig.key = '';
+// const HEARTOS_BACKEND_BASE_URL =
+//   (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://110.157.241.24:18024').replace(/\/+$/,'');
+
 const HEARTOS_BACKEND_BASE_URL =
-  (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://110.157.241.24:18024').replace(/\/+$/,'');
+  (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9000').replace(/\/+$/,'');
 
 function apiUrl(path){
   return HEARTOS_BACKEND_BASE_URL + path;
@@ -3062,7 +3065,9 @@ document.addEventListener('keydown',function(e){
       if(typeof apiUrl === 'function') return apiUrl(path);
     }catch(_){ }
     // var base = (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || '110.157.241.24:18024').replace(/\/+$/,'');
-    var base = 'http://110.157.241.24:18024';
+    // var base = 'http://110.157.241.24:18024';
+
+    var base = 'http://127.0.0.1:9000';
     return base + path;
   }
 
