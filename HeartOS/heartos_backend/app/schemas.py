@@ -14,9 +14,9 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    provider: ProviderName
-    model: str
-    api_key: str = Field(min_length=1)
+    provider: ProviderName = "zhipu"
+    model: str = ""
+    api_key: str = ""
     system: str = ""
     messages: list[ChatMessage]
     max_tokens: int = 1000
@@ -35,9 +35,9 @@ class ChatResponse(BaseModel):
 
 class AgentRunRequest(BaseModel):
     agent_id: str
-    api_key: str = Field(min_length=1)
-    provider: ProviderName
-    model: str
+    api_key: str = ""
+    provider: ProviderName = "zhipu"
+    model: str = ""
     messages: list[ChatMessage]
     max_tokens: int = 1000
 
@@ -99,3 +99,21 @@ class AIEcgDigitizeRequest(BaseModel):
     image_mime: str = "image/png"
     image_name: str = ""
     options: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentAutoRunRequest(BaseModel):
+    message: str = Field(min_length=1)
+    provider: ProviderName = "zhipu"
+    model: str = ""
+    api_key: str = ""
+    max_tokens: int = 1000
+    temperature: float = 0.2
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentAutoRunResponse(BaseModel):
+    intent: str
+    route: str
+    target: str
+    reply: str
+    action: dict[str, Any] | None = None

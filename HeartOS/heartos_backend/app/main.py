@@ -24,9 +24,12 @@ from .auth import (
     verify_user,
 )
 from .config import settings
-from .providers import AGENT_SYSTEM_PROMPTS, PROVIDERS
+from .llm import build_default_gateway
+from .providers import AGENT_SYSTEM_PROMPTS
 from .schemas import (
     AIEcgDigitizeRequest,
+    AgentAutoRunRequest,
+    AgentAutoRunResponse,
     AgentRunRequest,
     AgentRunResponse,
     ChatRequest,
@@ -53,8 +56,11 @@ UPLOAD_DIR = Path(settings.upload_dir).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_BYTES = max(1, settings.max_upload_mb) * 1024 * 1024
 FILE_META_PATH = (UPLOAD_DIR / ".meta.json").resolve()
+LLM_GATEWAY = build_default_gateway()
 
 NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json").resolve()
+NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
 
 
 def _load_file_meta() -> dict[str, Any]:
@@ -68,6 +74,82 @@ def _load_file_meta() -> dict[str, Any]:
 
 def _save_file_meta(meta: dict[str, Any]) -> None:
     FILE_META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_json_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        out = json.loads(path.read_text(encoding="utf-8"))
+        return out if isinstance(out, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _extract_json_object(text: str) -> dict[str, Any]:
+    s = (text or "").strip()
+    if not s:
+        return {}
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        pass
+
+    start = s.find("{")
+    end = s.rfind("}")
+    if start >= 0 and end > start:
+        sub = s[start : end + 1]
+        try:
+            obj = json.loads(sub)
+            return obj if isinstance(obj, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+async def _classify_intent_with_zhipu(
+    *,
+    message: str,
+    context: dict[str, Any],
+    user: dict[str, Any],
+    api_key: str,
+) -> dict[str, Any]:
+    system = (
+        "你是后端路由器。请仅输出 JSON，不要输出其它文本。"
+        "字段: intent, route, target, reason, need_fields。"
+        "intent 只能是: ecg_digitize, ecg_manual_digitize, ecgomics_analyze, report_generate, rag_search, agent_run, chat。"
+        "route 只能是: api, agent, model。"
+        "target 取值示例: /api/ai-ecg-digitize, /api/ecgomics/analyze, /tool/handecg/manual, /tool/report/generate, /tool/rag/search, ecg, ml, dl, stats, zhipu。"
+        "如果用户明确要求手动数字化，返回 ecg_manual_digitize + /tool/handecg/manual。"
+        "如果用户明确要求自动数字化，返回 ecg_digitize + /api/ai-ecg-digitize。"
+        "如果用户在问模型知识问答，使用 chat。"
+    )
+    input_payload = {
+        "message": message,
+        "context": context or {},
+    }
+    out = await LLM_GATEWAY.chat(
+        provider_key="zhipu",
+        model=settings.llm_default_model or "glm-4-flash",
+        system=system,
+        messages=[{"role": "user", "content": json.dumps(input_payload, ensure_ascii=False)}],
+        max_tokens=300,
+        temperature=0.0,
+        user=user,
+        override_api_key=api_key or "",
+        timeout_seconds=settings.http_timeout,
+        retries=settings.http_retries,
+    )
+    parsed = _extract_json_object(out.get("reply", ""))
+    if not parsed:
+        return {"intent": "chat", "route": "model", "target": "zhipu", "reason": "fallback", "need_fields": []}
+    return parsed
 
 
 def get_current_user(
@@ -94,20 +176,6 @@ def get_current_user(
     }
 
 
-def build_payload(req: ChatRequest, system_override: str | None = None) -> dict[str, Any]:
-    msgs: list[dict[str, str]] = []
-    system_text = system_override if system_override is not None else req.system
-    if system_text:
-        msgs.append({"role": "system", "content": system_text})
-    msgs.extend([{"role": m.role, "content": m.content} for m in req.messages])
-    return {
-        "model": req.model or PROVIDERS[req.provider].default_model,
-        "messages": msgs,
-        "max_tokens": req.max_tokens,
-        "temperature": req.temperature,
-    }
-
-
 async def post_with_retry(url: str, headers: dict[str, str], payload: dict[str, Any]) -> httpx.Response:
     timeout = httpx.Timeout(settings.http_timeout)
     limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
@@ -125,15 +193,6 @@ async def post_with_retry(url: str, headers: dict[str, str], payload: dict[str, 
             break
 
     raise HTTPException(status_code=502, detail=f"Upstream request failed: {last_err}")
-
-
-def parse_reply(data: dict[str, Any]) -> str:
-    return (
-        data.get("choices", [{}])[0]
-        .get("message", {})
-        .get("content", "")
-        .strip()
-    )
 
 
 def _extract_numbers_from_text(text: str) -> list[float]:
@@ -268,39 +327,120 @@ async def me(user: dict[str, Any] = Depends(get_current_user)) -> MeResponse:
     return MeResponse(user_id=str(user.get("id")), username=str(user.get("username")), display_name=str(user.get("display_name")))
 
 
+@app.get("/api/user/ai-config")
+async def get_ai_config(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    db = _load_json_file(AI_CONFIG_PATH)
+    user_items = db.get(uid, {})
+    if not isinstance(user_items, dict):
+        user_items = {}
+
+    items = []
+    for provider, cfg in user_items.items():
+        if not isinstance(cfg, dict):
+            continue
+        items.append(
+            {
+                "provider": str(provider),
+                "has_key": bool(str(cfg.get("api_key") or "").strip()),
+            }
+        )
+    return {"items": items}
+
+
+@app.post("/api/user/ai-config")
+async def save_ai_config(payload: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    provider = str(payload.get("provider") or "").strip().lower()
+    api_key = str(payload.get("api_key") or "").strip()
+    if not provider:
+        raise HTTPException(status_code=422, detail="provider is required")
+    if not api_key:
+        raise HTTPException(status_code=422, detail="api_key is required")
+
+    uid = str(user.get("id") or "")
+    db = _load_json_file(AI_CONFIG_PATH)
+    if not isinstance(db.get(uid), dict):
+        db[uid] = {}
+    db[uid][provider] = {"api_key": api_key}
+    _save_json_file(AI_CONFIG_PATH, db)
+    return {"ok": True, "provider": provider, "has_key": True}
+
+
+def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
+    nid = str(raw.get("id") or "").strip()
+    if not nid:
+        raise HTTPException(status_code=422, detail="notebook id is required")
+    sources = raw.get("sources")
+    msgs = raw.get("msgs")
+    return {
+        "id": nid,
+        "title": str(raw.get("title") or "New Conversation"),
+        "icon": str(raw.get("icon") or "📔"),
+        "color": str(raw.get("color") or "#e8f0fe"),
+        "date": str(raw.get("date") or ""),
+        "sources": sources if isinstance(sources, list) else [],
+        "msgs": msgs if isinstance(msgs, list) else [],
+    }
+
+
+@app.get("/api/notebooks")
+async def list_notebooks(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    db = _load_json_file(NOTEBOOKS_PATH)
+    items = db.get(uid, [])
+    if not isinstance(items, list):
+        items = []
+    return {"items": items}
+
+
+@app.post("/api/notebooks")
+async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    item = _normalize_notebook_item(payload if isinstance(payload, dict) else {})
+
+    db = _load_json_file(NOTEBOOKS_PATH)
+    items = db.get(uid, [])
+    if not isinstance(items, list):
+        items = []
+
+    replaced = False
+    for i, existing in enumerate(items):
+        if isinstance(existing, dict) and str(existing.get("id")) == item["id"]:
+            items[i] = item
+            replaced = True
+            break
+    if not replaced:
+        items.insert(0, item)
+
+    db[uid] = items
+    _save_json_file(NOTEBOOKS_PATH, db)
+    return {"ok": True, "id": item["id"]}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, user: dict[str, Any] = Depends(get_current_user)) -> ChatResponse:
-    provider = PROVIDERS.get(req.provider)
-    if not provider:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {req.provider}")
+    provider = (req.provider or settings.llm_default_provider).strip().lower()
+    model = (req.model or settings.llm_default_model).strip()
+    msg_list = [{"role": m.role, "content": m.content} for m in req.messages]
 
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {req.api_key}"}
-    if req.provider == "openrouter":
-        headers["HTTP-Referer"] = settings.public_base_url
-        headers["X-Title"] = "HeartOS"
-
-    payload = build_payload(req)
-    payload["user"] = {"id": user.get("id"), "username": user.get("username")}
-
-    resp = await post_with_retry(provider.url, headers, payload)
-    if resp.status_code >= 400:
-        try:
-            err = resp.json()
-        except Exception:
-            err = {"error": {"message": resp.text}}
-        msg = err.get("error", {}).get("message", f"HTTP {resp.status_code}")
-        raise HTTPException(status_code=resp.status_code, detail=msg)
-
-    data = resp.json()
-    reply = parse_reply(data)
-    if not reply:
-        raise HTTPException(status_code=502, detail="Empty response from provider")
+    result = await LLM_GATEWAY.chat(
+        provider_key=provider,
+        model=model,
+        system=req.system or "",
+        messages=msg_list,
+        max_tokens=req.max_tokens,
+        temperature=req.temperature,
+        user=user,
+        override_api_key=req.api_key or "",
+        timeout_seconds=settings.http_timeout,
+        retries=settings.http_retries,
+    )
 
     return ChatResponse(
-        reply=reply,
-        provider=req.provider,
-        model=req.model,
-        request_id=resp.headers.get("x-request-id"),
+        reply=result["reply"],
+        provider=provider,
+        model=result["model"],
+        request_id=result.get("request_id"),
         raw=None,
         user_id=str(user.get("id")),
         username=str(user.get("username")),
@@ -324,6 +464,100 @@ async def run_agent(agent_id: str, req: AgentRunRequest, user: dict[str, Any] = 
     )
     chat_resp = await chat(chat_req, user)
     return AgentRunResponse(agent_id=agent_id, reply=chat_resp.reply, provider=chat_resp.provider, model=chat_resp.model)
+
+
+@app.post("/api/agent/auto-run", response_model=AgentAutoRunResponse)
+async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depends(get_current_user)) -> AgentAutoRunResponse:
+    msg_text = (req.message or "").strip().lower()
+    has_image = bool((req.context or {}).get("has_image"))
+    has_xml = bool((req.context or {}).get("has_xml"))
+
+    # Route B: always perform LLM intent extraction first for chat input.
+    try:
+        route_plan = await _classify_intent_with_zhipu(
+            message=req.message,
+            context=req.context,
+            user=user,
+            api_key=req.api_key,
+        )
+    except Exception:
+        # Graceful fallback only when LLM routing itself fails.
+        if "手动" in msg_text and "数字化" in msg_text:
+            route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
+        elif "自动" in msg_text and "数字化" in msg_text:
+            route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
+        elif "ecgomics" in msg_text or has_xml:
+            route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
+        else:
+            route_plan = {"intent": "chat", "route": "model", "target": "zhipu"}
+
+    intent = str(route_plan.get("intent") or "chat")
+    route = str(route_plan.get("route") or "model")
+    target = str(route_plan.get("target") or "zhipu")
+
+    if intent == "ecg_manual_digitize" or target == "/tool/handecg/manual":
+        return AgentAutoRunResponse(
+            intent="ecg_manual_digitize",
+            route="api",
+            target="/tool/handecg/manual",
+            reply="已识别为手动数字化任务，准备打开 HandECG 手动数字化工具。",
+            action={"endpoint": "/tool/handecg/manual", "method": "OPEN"},
+        )
+
+    if intent == "ecg_digitize" or target == "/api/ai-ecg-digitize":
+        return AgentAutoRunResponse(
+            intent="ecg_digitize",
+            route="api",
+            target="/api/ai-ecg-digitize",
+            reply="已识别为自动数字化任务，请调用 /api/ai-ecg-digitize 并提交图像文件或 image_base64。",
+            action={"endpoint": "/api/ai-ecg-digitize", "method": "POST", "required": ["file 或 image_base64"]},
+        )
+
+    if intent == "ecgomics_analyze" or target == "/api/ecgomics/analyze":
+        return AgentAutoRunResponse(
+            intent="ecgomics_analyze",
+            route="api",
+            target="/api/ecgomics/analyze",
+            reply="已识别为 ECGOmics 分析任务，请调用 /api/ecgomics/analyze 并提交 raw/xml 数据。",
+            action={"endpoint": "/api/ecgomics/analyze", "method": "POST", "required": ["inputType + 数据体"]},
+        )
+
+    if route == "agent" or intent == "agent_run":
+        agent_id = target if target in AGENT_SYSTEM_PROMPTS else "ecg"
+        agent_req = AgentRunRequest(
+            agent_id=agent_id,
+            api_key=req.api_key,
+            provider=req.provider,
+            model=req.model,
+            messages=[{"role": "user", "content": req.message}],
+            max_tokens=req.max_tokens,
+        )
+        ran = await run_agent(agent_id, agent_req, user)
+        return AgentAutoRunResponse(
+            intent="agent_run",
+            route="agent",
+            target=agent_id,
+            reply=ran.reply,
+            action={"agent_id": agent_id, "provider": ran.provider, "model": ran.model},
+        )
+
+    chat_req = ChatRequest(
+        provider=req.provider,
+        model=req.model,
+        api_key=req.api_key,
+        system="",
+        messages=[{"role": "user", "content": req.message}],
+        max_tokens=req.max_tokens,
+        temperature=req.temperature,
+    )
+    chat_resp = await chat(chat_req, user)
+    return AgentAutoRunResponse(
+        intent="chat",
+        route="model",
+        target=chat_resp.provider,
+        reply=chat_resp.reply,
+        action={"provider": chat_resp.provider, "model": chat_resp.model},
+    )
 
 
 @app.post("/api/ecgomics/analyze")

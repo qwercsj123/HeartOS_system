@@ -1,11 +1,14 @@
 ﻿from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="APP_")
+    _BASE_DIR = Path(__file__).resolve().parent.parent
+    model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env'), env_prefix='APP_', extra='ignore')
 
     name: str = Field(default="HeartOS Backend")
     env: str = Field(default="prod")
@@ -19,6 +22,13 @@ class Settings(BaseSettings):
     max_upload_mb: int = Field(default=20)
     ecgomics_url: str = Field(default="http://110.157.241.24:18023/ECGOmics")
     ai_ecg_digitize_url: str = Field(default="")
+    llm_default_provider: str = Field(default="zhipu")
+    llm_default_model: str = Field(default="glm-4-flash")
+    llm_zhipu_api_key: str = Field(default="")
+    llm_openrouter_api_key: str = Field(default="")
+    llm_deepseek_api_key: str = Field(default="")
+    llm_qwen_api_key: str = Field(default="")
+    llm_groq_api_key: str = Field(default="")
 
     auth_secret: str = Field(default="heartos-dev-secret-change-me")
     auth_expire_hours: int = Field(default=24)
@@ -49,3 +59,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+

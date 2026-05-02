@@ -674,7 +674,7 @@ let sources = [];
 let msgs = [];
 let busy = false;
 let chatAbortController = null;
-const USE_CHAT_DISPATCH = false;
+const USE_CHAT_DISPATCH = true;
 window.__heartosLastImageSource = null;
 let __nbLoaded = false;
 let __nbSaveTimer = null;
@@ -1518,16 +1518,35 @@ function buildDispatchSources(){
 }
 
 async function dispatchAgentUnified(userInput, signal){
+  function isImageLikeSourceLocal(src){
+    if(!src) return false;
+    if(typeof src.imageDataUrl === 'string' && src.imageDataUrl.indexOf('data:image') === 0) return true;
+    var t = String(src.type || '').toLowerCase();
+    if(['png','jpg','jpeg','bmp','tiff','gif','webp','img','image'].indexOf(t) >= 0) return true;
+    var f = src.fileObj;
+    if(!f) return false;
+    try{
+      if(typeof f.type === 'string' && /^image\//i.test(f.type)) return true;
+      return /\.(png|jpe?g|bmp|tiff?|gif|webp)$/i.test(String(f.name || src.name || ''));
+    }catch(_){ return false; }
+  }
+  var checked = (sources || []).filter(s => !!s && !!s.checked);
+  var hasImage = checked.some(s => isImageLikeSourceLocal(s));
+  var hasXml = checked.some(s => isXmlSource(s));
   const payload = {
-    user_input: userInput,
+    message: userInput,
     api_key: '',
     provider: 'zhipu',
     model: (aiConfig && /glm/i.test(String(aiConfig.model||''))) ? aiConfig.model : 'glm-4-flash',
-    conversation_id: (window.__heartosConvId || ''),
-    message_id: ('msg_' + Date.now()),
-    sources: buildDispatchSources()
+    context: {
+      conversation_id: (window.__heartosConvId || ''),
+      message_id: ('msg_' + Date.now()),
+      sources: buildDispatchSources(),
+      has_image: hasImage,
+      has_xml: hasXml
+    }
   };
-  const resp = await apiFetch('/api/agent/dispatch', {
+  const resp = await apiFetch('/api/agent/auto-run', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload),
@@ -1609,6 +1628,49 @@ async function sendMsg(){
   if(USE_CHAT_DISPATCH){
     try{
       const out = await dispatchAgentUnified(q, chatAbortController.signal);
+      var action = out && out.action ? out.action : null;
+      var endpoint = action && action.endpoint ? String(action.endpoint) : '';
+
+      if(endpoint === '/api/ai-ecg-digitize'){
+        await runStudio('ecgsmart', { skipDispatch: true });
+        removeTyping();
+        var msg1 = out.reply || '已触发自动数字化流程。';
+        appendAI(msg1);
+        msgs.push({role:'user',content:q},{role:'assistant',content:msg1});
+        syncCurrentNotebookState();
+        scheduleSaveCurrentNotebook(false);
+        busy = false;
+        chatAbortController = null;
+        return;
+      }
+
+      if(endpoint === '/api/ecgomics/analyze'){
+        await runStudio('ecgd', { skipDispatch: true });
+        removeTyping();
+        var msg2 = out.reply || '已触发 ECGOmics 分析流程。';
+        appendAI(msg2);
+        msgs.push({role:'user',content:q},{role:'assistant',content:msg2});
+        syncCurrentNotebookState();
+        scheduleSaveCurrentNotebook(false);
+        busy = false;
+        chatAbortController = null;
+        return;
+      }
+
+      if(endpoint === '/tool/handecg/manual'){
+        await openEcgOverlay();
+        removeTyping();
+        var msg3 = out.reply || '已打开 HandECG 手动数字化工具。';
+        appendAI(msg3);
+        msgs.push({role:'user',content:q},{role:'assistant',content:msg3});
+        syncCurrentNotebookState();
+        scheduleSaveCurrentNotebook(false);
+        busy = false;
+        chatAbortController = null;
+        return;
+      }
+
+      // Backward compatibility for old dispatch response format
       if(out && out.tool && out.tool !== 'chat_qa'){
         await runToolByAction(String(out.tool), (out.tool_result && out.tool_result.data) ? out.tool_result.data : {});
         removeTyping();
@@ -1630,8 +1692,16 @@ async function sendMsg(){
         chatAbortController = null;
         return;
       }
-    }catch(_){
-      // fallback to local flow below
+    }catch(e){
+      removeTyping();
+      var emsg = (e && e.message) ? e.message : String(e || 'dispatch error');
+      appendAI('自动路由调用失败：' + emsg);
+      msgs.push({role:'user',content:q},{role:'assistant',content:('自动路由调用失败：' + emsg)});
+      syncCurrentNotebookState();
+      scheduleSaveCurrentNotebook(false);
+      busy = false;
+      chatAbortController = null;
+      return;
     }
   }
 
@@ -2612,6 +2682,8 @@ function toggleAuthMode(){
 }
 
 async function submitAuthLogin(){
+  var ctl = null;
+  var tm = null;
   try{
     var u = (document.getElementById('authUsername').value || '').trim();
     var p = (document.getElementById('authPassword').value || '').trim();
@@ -2619,11 +2691,15 @@ async function submitAuthLogin(){
     var url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
     var body = { username: u, password: p };
     if(authMode === 'register') body.display_name = (document.getElementById('authDisplayName').value || '').trim();
+    ctl = new AbortController();
+    tm = setTimeout(function(){ try{ ctl.abort('auth-timeout'); }catch(_){} }, 12000);
     var resp = await fetch(apiUrl(url), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: ctl.signal
     });
+    clearTimeout(tm); tm = null;
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '认证失败');
     setAuthSession(out.token, { user_id: out.user_id, username: out.username, display_name: out.display_name });
@@ -2634,7 +2710,14 @@ async function submitAuthLogin(){
     try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
     if(authReadyResolve){ authReadyResolve(true); authReadyResolve = null; authReadyPromise = null; }
   }catch(e){
-    setAuthMsg(e && e.message ? e.message : '认证失败', true);
+    if(tm){ clearTimeout(tm); tm = null; }
+    var msg = '认证失败';
+    if(e && (e.name === 'AbortError' || String(e.message||'').indexOf('aborted') >= 0)){
+      msg = '登录超时，请检查后端服务或认证模式（建议本地开发使用 APP_AUTH_MODE=local）';
+    }else if(e && e.message){
+      msg = e.message;
+    }
+    setAuthMsg(msg, true);
   }
 }
 
@@ -3761,6 +3844,37 @@ document.addEventListener('keydown',function(e){
 <script id="heartos-handecg-final-override-v1">
 (function(){
   var BASE = (window.HAND_ECG_BASE_URL || './ecg_digitizer_enhanced.html').trim();
+  async function resolveHandEcgUrl(){
+    var candidates = [];
+    function add(u){
+      if(!u) return;
+      var s = String(u).trim();
+      if(!s) return;
+      if(candidates.indexOf(s) < 0) candidates.push(s);
+    }
+    add(window.HAND_ECG_BASE_URL || '');
+    add(BASE);
+    add('./ecg_digitizer_enhanced.html');
+    add('/ecg_digitizer_enhanced.html');
+    try{
+      var here = new URL(window.location.href);
+      add(here.origin + '/ecg_digitizer_enhanced.html');
+      add('http://127.0.0.1:8080/ecg_digitizer_enhanced.html');
+    }catch(_){}
+
+    for(var i=0;i<candidates.length;i++){
+      var url = candidates[i];
+      try{
+        var abs = new URL(url, window.location.href).toString();
+        var resp = await fetch(abs, { method:'GET', cache:'no-store' });
+        if(resp && resp.ok){
+          BASE = abs;
+          return abs;
+        }
+      }catch(_){}
+    }
+    return new URL(BASE, window.location.href).toString();
+  }
   var pump = null;
   var active = null;
   var imported = false;
@@ -3897,7 +4011,7 @@ document.addEventListener('keydown',function(e){
     var src = pick(explicit || null);
     var o = overlay();
     if(!o) return;
-    var u = BASE;
+    var u = await resolveHandEcgUrl();
     try{
       var uu = new URL(BASE, window.location.href);
       uu.searchParams.set('filename', src.name || 'ecg_image.png');
