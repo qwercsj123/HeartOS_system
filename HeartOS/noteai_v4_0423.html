@@ -23,8 +23,9 @@
   --sh3:0 12px 40px rgba(16,24,40,.12),0 4px 12px rgba(16,24,40,.07);
   --r:10px;--r2:8px;--r3:20px;--r4:6px;
 }
+html,body{height:100%;overflow:hidden;}
 body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
-.page{display:none;min-height:100vh;flex-direction:column;}
+.page{display:none;height:100vh;min-height:0;overflow:hidden;flex-direction:column;}
 .page.active{display:flex;}
 
 /* TOPBAR */
@@ -44,7 +45,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .tb-btn.primary:hover{background:#1d4ed8;}
 
 /* HOME */
-.home-content{flex:1;padding:40px 56px;max-width:1200px;margin:0 auto;width:100%;}
+.home-content{flex:1;overflow-y:auto;padding:40px 56px;max-width:1200px;margin:0 auto;width:100%;}
 .home-filter{display:flex;align-items:center;gap:8px;margin-bottom:32px;flex-wrap:wrap;}
 .ftab{padding:6px 14px;border-radius:var(--r3);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;background:transparent;color:var(--text3);transition:all .15s;font-weight:500;}
 .ftab:hover{background:var(--bg2);color:var(--text2);}
@@ -155,6 +156,9 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .send-b{width:30px;height:30px;border-radius:var(--r4);border:none;background:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
 .send-b:hover{background:#1d4ed8;transform:scale(1.06);}
 .send-b svg{fill:#fff;width:13px;height:13px;}
+.send-b.stop{background:#dc2626;}
+.send-b.stop:hover{background:#b91c1c;}
+.send-b.stop svg{width:11px;height:11px;}
 .chat-hint{font-size:11px;color:var(--text3);text-align:center;margin-top:7px;}
 
 /* STUDIO */
@@ -360,7 +364,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 </style>
 </head>
 <body>
-<div id="authGate" class="auth-gate auth-hidden">
+<div id="authGate" class="auth-gate">
   <div class="auth-card">
     <div class="auth-title">HeartOS 登录</div>
     <div class="auth-sub">请先登录后再使用系统功能</div>
@@ -474,7 +478,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
           <textarea id="chatInput" placeholder="开始输入…" rows="1"
             onkeydown="handleKey(event)" oninput="autoRes(this)"></textarea>
           <span class="ci-src" id="ciSrc">0 个来源</span>
-          <button class="send-b" onclick="sendMsg()">
+          <button class="send-b" id="chatSendBtn" onclick="sendMsg()" title="发送">
             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
@@ -674,10 +678,40 @@ let sources = [];
 let msgs = [];
 let busy = false;
 let chatAbortController = null;
+let activeToolAbortController = null;
 const USE_CHAT_DISPATCH = true;
 window.__heartosLastImageSource = null;
 let __nbLoaded = false;
 let __nbSaveTimer = null;
+
+function updateChatSendButton(){
+  const btn = document.getElementById('chatSendBtn');
+  if(!btn) return;
+  if(busy){
+    btn.classList.add('stop');
+    btn.title = '暂停/中断';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg>';
+  }else{
+    btn.classList.remove('stop');
+    btn.title = '发送';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
+  }
+}
+
+function setChatBusy(next){
+  busy = !!next;
+  updateChatSendButton();
+}
+
+function cancelActiveChatWork(){
+  try{ if(chatAbortController) chatAbortController.abort(); }catch(_){}
+  try{ if(activeToolAbortController) activeToolAbortController.abort(); }catch(_){}
+}
+
+function isAbortLikeError(e){
+  var msg = String((e && e.message) || e || '');
+  return !!(e && e.name === 'AbortError') || /aborted|abort|signal is aborted/i.test(msg);
+}
 
 
 // ======================== HOME ========================
@@ -1056,11 +1090,13 @@ function pickImageSourceForTool(){
   if(Array.isArray(sources)){
     for(var i=0;i<sources.length;i++){
       var s = sources[i];
-      if(s && s.checked && (s.imageDataUrl || (s.fileObj && /^image\//i.test(String(s.fileObj.type||''))))) return s;
-    }
-    for(var j=0;j<sources.length;j++){
-      var s2 = sources[j];
-      if(s2 && (s2.imageDataUrl || (s2.fileObj && /^image\//i.test(String(s2.fileObj.type||''))))) return s2;
+      if(!s || !s.checked) continue;
+      var type = String(s.type || '').toLowerCase();
+      var name = String(s.name || '');
+      var fileType = s.fileObj ? String(s.fileObj.type || '') : '';
+      var isImage = !!s.imageDataUrl || (s.fileObj && /^image\//i.test(fileType));
+      var isPdf = type === 'pdf' || /\.pdf$/i.test(name) || /pdf/i.test(fileType);
+      if(isImage || isPdf) return s;
     }
   }
   return null;
@@ -1612,7 +1648,7 @@ async function routeByLLM(userText){
 
 async function sendMsg(){
   if(busy){
-    try{ if(chatAbortController) chatAbortController.abort(); }catch(_){}
+    cancelActiveChatWork();
     return;
   }
   const inp = document.getElementById('chatInput');
@@ -1622,7 +1658,7 @@ async function sendMsg(){
   document.getElementById('chatEmpty').querySelector('.chat-empty')?.remove();
   appendUser(q);
   showTyping();
-  busy = true;
+  setChatBusy(true);
   chatAbortController = new AbortController();
 
   if(USE_CHAT_DISPATCH){
@@ -1639,7 +1675,7 @@ async function sendMsg(){
         msgs.push({role:'user',content:q},{role:'assistant',content:msg1});
         syncCurrentNotebookState();
         scheduleSaveCurrentNotebook(false);
-        busy = false;
+        setChatBusy(false);
         chatAbortController = null;
         return;
       }
@@ -1652,7 +1688,7 @@ async function sendMsg(){
         msgs.push({role:'user',content:q},{role:'assistant',content:msg2});
         syncCurrentNotebookState();
         scheduleSaveCurrentNotebook(false);
-        busy = false;
+        setChatBusy(false);
         chatAbortController = null;
         return;
       }
@@ -1665,7 +1701,7 @@ async function sendMsg(){
         msgs.push({role:'user',content:q},{role:'assistant',content:msg3});
         syncCurrentNotebookState();
         scheduleSaveCurrentNotebook(false);
-        busy = false;
+        setChatBusy(false);
         chatAbortController = null;
         return;
       }
@@ -1678,7 +1714,7 @@ async function sendMsg(){
         msgs.push({role:'user',content:q},{role:'assistant',content:(out.reply || ('已触发工具：' + out.tool))});
         syncCurrentNotebookState();
         scheduleSaveCurrentNotebook(false);
-        busy = false;
+        setChatBusy(false);
         chatAbortController = null;
         return;
       }
@@ -1688,18 +1724,23 @@ async function sendMsg(){
         msgs.push({role:'user',content:q},{role:'assistant',content:out.reply});
         syncCurrentNotebookState();
         scheduleSaveCurrentNotebook(false);
-        busy = false;
+        setChatBusy(false);
         chatAbortController = null;
         return;
       }
     }catch(e){
       removeTyping();
+      if(isAbortLikeError(e)){
+        setChatBusy(false);
+        chatAbortController = null;
+        return;
+      }
       var emsg = (e && e.message) ? e.message : String(e || 'dispatch error');
       appendAI('自动路由调用失败：' + emsg);
       msgs.push({role:'user',content:q},{role:'assistant',content:('自动路由调用失败：' + emsg)});
       syncCurrentNotebookState();
       scheduleSaveCurrentNotebook(false);
-      busy = false;
+      setChatBusy(false);
       chatAbortController = null;
       return;
     }
@@ -1723,10 +1764,12 @@ async function sendMsg(){
     scheduleSaveCurrentNotebook(false);
   }catch(e){
     removeTyping();
-    const errMsg = (e && e.name === 'AbortError') ? '已中断当前回复。' : ('连接 AI 出错：' + e.message);
-    appendAI(errMsg);
+    if(!isAbortLikeError(e)){
+      const errMsg = '连接 AI 出错：' + e.message;
+      appendAI(errMsg);
+    }
   }
-  busy = false;
+  setChatBusy(false);
   chatAbortController = null;
 }
 
@@ -2109,6 +2152,7 @@ async function runStudio(type, opts){
       fd.append('return_image', 'true');
 
       const ctrl = new AbortController();
+      activeToolAbortController = ctrl;
       const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
       let resp = null;
       let out = {};
@@ -2121,6 +2165,7 @@ async function runStudio(type, opts){
         out = await resp.json().catch(()=>({}));
       }finally{
         clearTimeout(timer);
+        if(activeToolAbortController === ctrl) activeToolAbortController = null;
       }
 
       if(!resp || !resp.ok){
@@ -2703,11 +2748,11 @@ async function submitAuthLogin(){
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '认证失败');
     setAuthSession(out.token, { user_id: out.user_id, username: out.username, display_name: out.display_name });
-    setAppAuthed(true);
     updateUserAvatarUI();
     try{ await loadAiConfigFromServer(); }catch(_){}
     setAuthMsg('登录成功', false);
     try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
+    setAppAuthed(true);
     if(authReadyResolve){ authReadyResolve(true); authReadyResolve = null; authReadyPromise = null; }
   }catch(e){
     if(tm){ clearTimeout(tm); tm = null; }
@@ -3005,6 +3050,7 @@ async function initAuthBoot(){
     await ensureLogin();
     try{ await loadAiConfigFromServer(); }catch(_){}
     try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
+    setAppAuthed(true);
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     updateUserAvatarUI();
