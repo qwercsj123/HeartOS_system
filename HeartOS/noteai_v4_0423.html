@@ -2640,8 +2640,8 @@ const AI_PROVIDERS = {
 
 let aiConfig = JSON.parse(localStorage.getItem('heartos_ai_cfg')||'{}');
 // defaults
-if(!aiConfig.provider) aiConfig.provider = 'openrouter';
-if(!aiConfig.model) aiConfig.model = 'deepseek/deepseek-chat-v3-5';
+if(!aiConfig.provider) aiConfig.provider = 'zhipu';
+if(!aiConfig.model) aiConfig.model = 'glm-4-flash';
 aiConfig.key = '';
 let aiServerKeyState = {};
 const HEARTOS_BACKEND_BASE_URL =
@@ -4297,6 +4297,103 @@ document.addEventListener('keydown',function(e){
     scrollChatBottom();
   }
 
+  function pickHandEcgImageSource(){
+    var last = window.__heartosLastImageSource;
+    if(last && typeof last.imageDataUrl === 'string' && last.imageDataUrl.indexOf('data:image') === 0){
+      return last;
+    }
+    var list = getSourcesRef() || [];
+    for(var i=0;i<list.length;i++){
+      var s = list[i];
+      if(s && s.checked && typeof s.imageDataUrl === 'string' && s.imageDataUrl.indexOf('data:image') === 0){
+        return s;
+      }
+    }
+    for(var j=0;j<list.length;j++){
+      var s2 = list[j];
+      if(s2 && typeof s2.imageDataUrl === 'string' && s2.imageDataUrl.indexOf('data:image') === 0){
+        return s2;
+      }
+    }
+    return null;
+  }
+
+  async function persistHandEcgCsv(data){
+    if(!data || !data.csv) return;
+    var fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
+    var imgSrc = pickHandEcgImageSource();
+    var imageDataUrl = (imgSrc && imgSrc.imageDataUrl) ? String(imgSrc.imageDataUrl) : '';
+    var parsed = { mime: 'image/png', base64: '' };
+    if(imageDataUrl && typeof _parseDataUrl === 'function'){
+      try{ parsed = _parseDataUrl(imageDataUrl) || parsed; }catch(_){ }
+    }
+    if(!parsed.base64){
+      // 1x1 transparent PNG (base64), used only when no source image is available.
+      parsed.base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFgwJ/l5L7WQAAAABJRU5ErkJggg==';
+      parsed.mime = 'image/png';
+    }
+
+    function csvToLeadMap(csvText){
+      var text = String(csvText || '').trim();
+      if(!text) return {};
+      var lines = text.split(/\r?\n/).filter(function(x){ return !!String(x || '').trim(); });
+      if(lines.length < 2) return {};
+      var header = lines[0].split(',').map(function(x){ return String(x || '').trim(); });
+      if(header.length < 2) return {};
+      var leadNames = header.slice(1);
+      var leadMap = {};
+      for(var i=0;i<leadNames.length;i++){
+        var ln = String(leadNames[i] || '').trim();
+        if(ln) leadMap[ln] = [];
+      }
+      for(var r=1;r<lines.length;r++){
+        var cols = lines[r].split(',');
+        for(var c=1;c<header.length;c++){
+          var name = String(header[c] || '').trim();
+          if(!name || !Object.prototype.hasOwnProperty.call(leadMap, name)) continue;
+          var raw = (cols[c] == null) ? '' : String(cols[c]).trim();
+          if(!raw) continue;
+          var v = Number(raw);
+          if(Number.isFinite(v)) leadMap[name].push(v);
+        }
+      }
+      return leadMap;
+    }
+
+    var leadMap = csvToLeadMap(data.csv);
+    var payload = {
+      user_id: '',
+      image_base64: String(parsed.base64 || ''),
+      file_name: fileName || 'ecg.csv',
+      data: {
+        sampleRate: Number(data.fs) || 500,
+        leads: leadMap
+      }
+    };
+
+    try{
+      var url = (typeof apiUrl === 'function') ? apiUrl('/api/handecg/save') : backendApi('/api/handecg/save');
+      var headers = { 'Content-Type': 'application/json' };
+      try{
+        if(typeof authHeaders === 'function'){
+          headers = authHeaders(headers);
+        }
+      }catch(_){ }
+      var resp = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+      if(!resp.ok){
+        var err = await resp.json().catch(function(){ return {}; });
+        throw new Error(err.detail || ('HTTP ' + resp.status));
+      }
+      console.log('[heartos-final] HandECG CSV saved upstream:', payload.file_name);
+    }catch(e){
+      console.warn('[heartos-final] HandECG CSV upstream save failed:', e);
+    }
+  }
+
   function pickBestLead(data){
     var fs = Number(data && data.fs) || 500;
     var waveforms = (data && data.waveforms) || {};
@@ -4456,6 +4553,7 @@ document.addEventListener('keydown',function(e){
     if(t === 'HEARTOS_ECG_CSV'){
       upsertCsvSource(d);
       appendCsvMessage(d);
+      persistHandEcgCsv(d);
       return;
     }
   });
