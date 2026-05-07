@@ -8,30 +8,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-  --bg: #ffffff;
+  --bg: #f7f9fc;
   --surface: #ffffff;
-  --surface2: #ffffff;
-  --surface3: #ffffff;
-  --border: #eaecf0;
-  --border2: #d0d5dd;
+  --surface2: #f3f6fa;
+  --surface3: #eef3f8;
+  --border: #d8e0ea;
+  --border2: #b9c4d3;
   --accent: #2563eb;
   --accent2: #1d4ed8;
   --accent-dim: rgba(37,99,235,0.12);
   --accent-dim2: rgba(37,99,235,0.06);
   --red: #f87171;
   --red-dim: rgba(248,113,113,0.15);
-  --amber: #fbbf24;
-  --amber-dim: rgba(251,191,36,0.12);
-  --blue: #60a5fa;
+  --amber: #f59e0b;
+  --amber-dim: rgba(245,158,11,0.14);
+  --blue: #2563eb;
   --text: #101828;
-  --text2: #475467;
-  --text3: #94a3b8;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.08);
-  --ring: 0 0 0 3px rgba(37,99,235,0.12);
-  --ui: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  --text2: #26364a;
+  --text3: #66758a;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.12);
+  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.12);
+  --ring: 0 0 0 3px rgba(37,99,235,0.18);
+  --ui: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
   --mono: 'JetBrains Mono', monospace;
-  --serif: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  --serif: var(--ui);
   --panel: 268px;
   --header: 56px;
 }
@@ -45,13 +45,16 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 400;
+  -webkit-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
 }
 
 /* ── HEADER ── */
 header {
   height: var(--header);
-  background: #ffffff;
+  background: #fbfcfe;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -68,7 +71,7 @@ header {
   white-space: nowrap;
 }
 .logo span {
-  color: var(--text3);
+  color: var(--text2);
   font-family: var(--ui);
   font-size: 12px;
   margin-left: 8px;
@@ -83,7 +86,7 @@ header {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 12px;
   font-size: 14px;
-  color: var(--text3);
+  color: var(--text2);
   border-bottom: 2px solid transparent;
   cursor: default;
   transition: all 0.2s;
@@ -92,8 +95,8 @@ header {
 .step .step-num {
   width: 22px; height: 22px;
   border-radius: 50%;
-  background: var(--border2);
-  color: var(--text3);
+  background: #dce4ef;
+  color: var(--text2);
   font-size: 12px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -102,7 +105,7 @@ header {
 .step.active .step-num { background: var(--accent); color: #ffffff; }
 .step.done { color: var(--text2); }
 .step.done .step-num { background: var(--accent-dim); color: var(--accent); }
-.step-arrow { color: var(--text3); font-size: 10px; }
+.step-arrow { color: var(--text2); font-size: 10px; }
 
 /* ── BUTTONS ── */
 .btn {
@@ -110,11 +113,11 @@ header {
   padding: 7px 13px;
   border-radius: 10px; border: 1px solid var(--border2);
   background: #ffffff; color: var(--text2);
-  font-family: var(--ui); font-size: 14px; font-weight: 500;
+  font-family: var(--ui); font-size: 14px; font-weight: 600;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
   box-shadow: var(--shadow-sm);
 }
-.btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim2); transform: translateY(-1px); }
+.btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim2); }
 .btn.primary { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
 .btn.primary:hover { background: var(--accent2); }
 .btn.secondary { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
@@ -122,7 +125,7 @@ header {
 .btn.danger { border-color: var(--red); color: var(--red); background: var(--red-dim); }
 .btn.ghost { background: transparent; border-color: transparent; }
 .btn.ghost:hover { border-color: var(--border2); background: var(--surface2); }
-.btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.btn:disabled { opacity: 0.48; cursor: not-allowed; pointer-events: none; }
 .btn-icon { padding: 5px 8px; }
 
 /* ── LAYOUT ── */
@@ -131,7 +134,7 @@ header {
 /* ── SIDEBAR ── */
 .sidebar {
   width: var(--panel);
-  background: #ffffff;
+  background: #fbfcfe;
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow-y: auto; overflow-x: hidden; flex-shrink: 0;
@@ -139,7 +142,8 @@ header {
 .sidebar-section { border-bottom: 1px solid var(--border); padding: 12px 14px; }
 .sidebar-section.grow { flex: 0 0 auto; overflow: visible; }
 .section-title {
-  font-size: 11px; color: var(--text3);
+  font-size: 11px; color: var(--text2);
+  font-weight: 700;
   letter-spacing: 1.5px; text-transform: uppercase;
   margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
 }
@@ -159,7 +163,7 @@ header {
 
 /* ── PARAMS ── */
 .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.param-item label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+.param-item label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; font-weight: 600; }
 .param-item input, .param-item select {
   width: 100%; background: #ffffff;
   border: 1px solid var(--border2); border-radius: 8px;
@@ -175,7 +179,7 @@ header {
 
 /* ── TABS ── */
 .tabs { display: flex; gap: 1px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 7px; }
-.tab { flex: 1; padding: 5px 4px; text-align: center; font-size: 10px; cursor: pointer; color: var(--text3); background: var(--surface2); transition: all 0.15s; }
+.tab { flex: 1; padding: 5px 4px; text-align: center; font-size: 10px; cursor: pointer; color: var(--text2); background: var(--surface2); transition: all 0.15s; }
 .tab.active { background: #ffffff; color: var(--accent); font-weight: 600; }
 
 /* ── LEAD LIST ── */
@@ -190,7 +194,7 @@ header {
 .lead-item.active { border-color: var(--accent); background: var(--accent-dim); }
 .lead-item.active .lead-name { color: var(--accent); }
 .lead-name { font-size: 12px; font-weight: 600; color: var(--text2); width: 34px; flex-shrink: 0; }
-.lead-status { font-size: 10px; color: var(--text3); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lead-status { font-size: 10px; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lead-del { opacity: 0; color: var(--red); cursor: pointer; font-size: 11px; padding: 0 2px; transition: opacity 0.15s; }
 .lead-item:hover .lead-del { opacity: 1; }
 .badge { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
@@ -202,12 +206,13 @@ header {
 
 /* Tab bar between canvas and preview */
 .view-tabs {
-  display: flex; background: #ffffff; border-bottom: 1px solid var(--border);
+  display: flex; background: #fbfcfe; border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .view-tab {
   padding: 10px 18px; font-size: 13px; cursor: pointer;
-  color: var(--text3); border-bottom: 2px solid transparent;
+  color: var(--text2); border-bottom: 2px solid transparent;
+  font-weight: 600;
   transition: all 0.15s;
 }
 .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -215,7 +220,7 @@ header {
 
 .canvas-wrap {
   flex: 1; overflow: auto; position: relative;
-  background: #ffffff;
+  background: var(--bg);
   display: flex; align-items: flex-start; justify-content: flex-start;
   padding: 18px;
 }
@@ -225,10 +230,14 @@ header {
   border-radius: 14px;
   overflow: hidden;
   box-shadow: var(--shadow-md);
-  border: 1px solid #dbe5f3;
+  border: 1px solid #aeb8c7;
   background: #ffffff;
 }
-#ecgCanvas { display: block; image-rendering: crisp-edges; }
+#ecgCanvas {
+  display: block;
+  image-rendering: auto;
+  filter: contrast(1.12) saturate(0.98);
+}
 #overlayCanvas {
   position: absolute; top: 0; left: 0;
   pointer-events: auto; cursor: crosshair;
@@ -251,7 +260,7 @@ header {
 .preview-header-title { font-size: 11px; color: var(--text2); flex: 1; }
 .preview-header .quality-badge {
   font-size: 10px; padding: 3px 8px; border-radius: 3px;
-  border: 1px solid var(--border2); color: var(--text3);
+  border: 1px solid var(--border2); color: var(--text2);
 }
 .preview-header .quality-badge.good { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .preview-header .quality-badge.warn { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
@@ -281,7 +290,7 @@ header {
   border-bottom: 1px solid var(--border);
 }
 .preview-card-lead { font-size: 10px; font-weight: 700; color: var(--accent); width: 32px; }
-.preview-card-info { font-size: 9px; color: var(--text3); flex: 1; }
+.preview-card-info { font-size: 9px; color: var(--text2); flex: 1; }
 .preview-card-status { font-size: 9px; }
 .preview-card-status.ok { color: var(--accent); }
 .preview-card-status.warn { color: var(--amber); }
@@ -295,10 +304,10 @@ header {
   border: 1px solid var(--border); padding: 10px 12px;
   flex-shrink: 0;
 }
-.extract-controls-title { font-size: 9px; color: var(--text3); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+.extract-controls-title { font-size: 9px; color: var(--text2); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
 .extract-params { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
 .extract-param { display: flex; flex-direction: column; gap: 3px; }
-.extract-param label { font-size: 9px; color: var(--text3); }
+.extract-param label { font-size: 9px; color: var(--text2); font-weight: 600; }
 .extract-param input, .extract-param select {
   background: var(--surface3); border: 1px solid var(--border2);
   border-radius: 3px; color: var(--text); font-family: var(--mono);
@@ -319,15 +328,15 @@ header {
   transition: all 0.15s;
 }
 .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
-.zoom-label { text-align: center; font-size: 9px; color: var(--text3); }
+.zoom-label { text-align: center; font-size: 9px; color: var(--text2); }
 
 /* ── STATUS BAR ── */
 .statusbar {
-  height: 28px; background: #ffffff;
+  height: 28px; background: #fbfcfe;
   border-top: 1px solid var(--border);
   display: flex; align-items: center;
   padding: 0 12px; gap: 14px; font-size: 11px;
-  color: var(--text3); flex-shrink: 0;
+  color: var(--text2); flex-shrink: 0;
 }
 .statusbar .sep { color: var(--border2); }
 .statusbar .hl { color: var(--accent); }
@@ -345,6 +354,46 @@ header {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: var(--red); color: var(--red); }
 .toast.warn  { border-color: var(--amber); color: var(--amber); }
+
+.required-steps {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  font-size: 10px;
+  color: var(--text2);
+  line-height: 1.65;
+}
+.required-step {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.required-step .mark {
+  width: 13px;
+  color: var(--text3);
+  flex: 0 0 13px;
+}
+.required-step.done { color: var(--text2); }
+.required-step.done .mark { color: var(--accent); }
+.required-step.blocked { color: var(--amber); }
+.required-step.blocked .mark { color: var(--amber); }
+
+#calibSummary,
+#calibStatus,
+#layoutDesc,
+#selectedLeadInfo,
+#requiredSteps,
+.lead-status,
+.preview-card-info,
+.preview-card-status,
+.extract-controls-title,
+.extract-param label,
+.statusbar,
+.hint {
+  font-size: 11px !important;
+}
 
 /* ── INFO BOX ── */
 .info-box {
@@ -364,6 +413,10 @@ header {
 .empty-state .big-icon { font-size: 44px; opacity: 0.25; }
 .empty-state h2 { font-family: var(--serif); font-style: italic; font-size: 18px; color: var(--text2); opacity: 0.4; }
 .empty-state p { font-size: 10px; opacity: 0.4; }
+
+[style*="var(--text3)"] { color: var(--text2) !important; }
+[style*="opacity:0.6"] { opacity: 0.85 !important; }
+[style*="opacity:0.8"] { opacity: 1 !important; }
 
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -483,15 +536,19 @@ header {
     </div>
     <span class="step-arrow">›</span>
     <div class="step" id="step2">
-      <span class="step-num">2</span> 标注区域
+      <span class="step-num">2</span> 网格标定
     </div>
     <span class="step-arrow">›</span>
     <div class="step" id="step3">
-      <span class="step-num">3</span> 提取预览
+      <span class="step-num">3</span> 标注区域
     </div>
     <span class="step-arrow">›</span>
     <div class="step" id="step4">
-      <span class="step-num">4</span> 保存 CSV
+      <span class="step-num">4</span> 提取预览
+    </div>
+    <span class="step-arrow">›</span>
+    <div class="step" id="step5">
+      <span class="step-num">5</span> 保存 CSV
     </div>
   </div>
 
@@ -515,11 +572,8 @@ header {
   <div class="sidebar">
 
     <div class="sidebar-section">
-      <div class="section-title">图像 / 参数</div>
-      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-        <div class="icon">🫀</div>
-        <p><strong>点击或拖拽</strong>上传图像<br>支持多选批量处理</p>
-      </div>
+      <div class="section-title">操作步骤</div>
+      <div class="required-steps" id="requiredSteps"></div>
       <input type="file" id="fileInput" accept="image/*" multiple>
     </div>
 
@@ -537,7 +591,7 @@ header {
       <div class="batch-queue" id="batchQueue"></div>
     </div>
 <div class="sidebar-section">
-      <div class="section-title">旋转校正</div>
+      <div class="section-title" id="perspectiveSectionTitle">旋转校正</div>
       <div class="rotation-wrap" style="display:none">
         <input type="range" id="rotSlider" min="-15" max="15" step="0.1" value="0" oninput="onRotate(this.value)">
         <div class="rot-val" id="rotVal">0.0°</div>
@@ -566,11 +620,11 @@ header {
           <label>增益 mm/mV</label>
           <input type="number" id="paramGain" value="10" min="1" max="40">
         </div>
-        <div class="param-item">
+        <div class="param-item" style="display:none">
           <label>图像 DPI</label>
           <input type="number" id="paramDPI" value="96" min="72" max="600">
         </div>
-        <div class="param-item">
+        <div class="param-item" style="display:none">
           <label>输出 Hz</label>
           <input type="number" id="paramFS" value="500" min="100" max="2000">
         </div>
@@ -580,9 +634,10 @@ header {
       <div class="section-title">网格标定</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn" id="btnGridAuto" onclick="autoDetectGridCalibration()" disabled
-          style="font-size:10px;border-color:var(--blue);color:var(--blue)">自动识别网格</button>
-        <button class="btn" id="btnGridManualX" onclick="startManualCalibration('x')" disabled style="font-size:10px">手动横向两点</button>
-        <button class="btn" id="btnGridManualY" onclick="startManualCalibration('y')" disabled style="font-size:10px">手动纵向两点</button>
+          style="display:none;font-size:10px;border-color:var(--blue);color:var(--blue)">自动识别网格</button>
+        <button class="btn secondary" id="btnGridGuide" onclick="startGuidedGridCalibration()" disabled style="font-size:10px">开始网格标定</button>
+        <button class="btn" id="btnGridManualX" onclick="startManualCalibration('x')" disabled style="display:none;font-size:10px">手动横向两点</button>
+        <button class="btn" id="btnGridManualY" onclick="startManualCalibration('y')" disabled style="display:none;font-size:10px">手动纵向两点</button>
         <button class="btn" id="btnGridClear" onclick="clearGridCalibration()" disabled style="font-size:10px">清除标定</button>
       </div>
       <div class="param-grid" style="margin-top:8px">
@@ -604,7 +659,7 @@ header {
         </div>
       </div>
       <div id="calibSummary" style="font-size:9px;color:var(--text3);line-height:1.7;margin-top:6px">
-        未标定，当前按 DPI 参数换算时间和振幅。
+        请先完成横向和纵向 5 个大格标定。
       </div>
       <div id="calibStatus" style="font-size:9px;color:var(--text3);line-height:1.6;margin-top:4px">
         可先自动识别；如果失败，在主图上点两点完成横向/纵向标定。建议沿小格或 5 mm 大格取点。
@@ -622,7 +677,7 @@ header {
         GE / Philips 标准格式<br>I·aVR·V1·V4 / II·aVL·V2·V5 / III·aVF·V3·V6
       </div>
       <button class="btn" id="btnAutoDetect" onclick="autoDetectLeads()" disabled
-        style="width:100%;margin-top:6px;font-size:10px;border-color:var(--blue);color:var(--blue)">
+        style="display:none;width:100%;margin-top:6px;font-size:10px;border-color:var(--blue);color:var(--blue)">
         ⚡ 自动检测导联区域
       </button>
       <div id="autoDetectStatus" style="font-size:9px;color:var(--text3);margin-top:4px;display:none"></div>
@@ -923,6 +978,7 @@ state.saveConfig = {
   dirHandle: null,
   dirName: '浏览器默认下载目录',
   fileName: 'ecg.csv',
+  sourceName: '',
   lastSavedLabel: '',
 };
 
@@ -948,7 +1004,7 @@ function initCalibrationUI() {
   const autoBtn = document.getElementById('btnGridAuto');
   const xBtn = document.getElementById('btnGridManualX');
   const yBtn = document.getElementById('btnGridManualY');
-  const perspectiveTitle = document.querySelectorAll('.section-title')[3];
+  const perspectiveTitle = document.getElementById('perspectiveSectionTitle');
   if (xSelect?.previousElementSibling) xSelect.previousElementSibling.textContent = '横向选几个大格';
   if (ySelect?.previousElementSibling) ySelect.previousElementSibling.textContent = '纵向选几个大格';
   if (xSelect) {
@@ -994,7 +1050,7 @@ function initCalibrationUI() {
     });
   }
   if (saveLabel) saveLabel.style.display = 'none';
-  ['paramDPI', 'calibDistX', 'calibDistY'].forEach(id => {
+  ['paramSpeed', 'paramGain', 'paramDPI', 'calibDistX', 'calibDistY'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('input', () => {
@@ -1017,7 +1073,7 @@ function resetCalibrationState(keepStatus=false) {
     source: 'dpi',
   };
   updateCalibrationUI();
-  if (!keepStatus) setCalibrationStatus('未标定，当前按 DPI 参数换算。', 'var(--text3)');
+  if (!keepStatus) setCalibrationStatus('请先完成横向和纵向 5 个大格标定。', 'var(--text3)');
 }
 
 function setCalibrationStatus(msg, color='var(--text3)') {
@@ -1028,7 +1084,10 @@ function setCalibrationStatus(msg, color='var(--text3)') {
 }
 
 function makeDefaultCSVFileName() {
-  const baseName = batch.files.length > 1 && batch.current >= 0
+  const sourceName = state.saveConfig.sourceName || '';
+  const baseName = sourceName
+    ? sourceName.replace(/\.[^.]+$/,'')
+    : batch.files.length > 1 && batch.current >= 0
     ? batch.files[batch.current].name.replace(/\.[^.]+$/,'')
     : `ecg_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}`;
   return baseName + '.csv';
@@ -1098,7 +1157,7 @@ function isCalibrationReady() {
 
 function updateCalibrationUI() {
   const hasImage = !!state.image;
-  ['btnGridAuto', 'btnGridManualX', 'btnGridManualY', 'btnGridClear'].forEach(id => {
+  ['btnGridAuto', 'btnGridManualX', 'btnGridManualY', 'btnGridClear', 'btnGridGuide'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.disabled = !hasImage;
@@ -1106,15 +1165,12 @@ function updateCalibrationUI() {
 
   const summary = document.getElementById('calibSummary');
   if (!summary) return;
-  const dpi = parseFloat(document.getElementById('paramDPI').value) || 96;
-  const fallback = dpi / 25.4;
-  const sx = state.calibration.pxPerMmX || fallback;
-  const sy = state.calibration.pxPerMmY || fallback;
+  const sx = state.calibration.pxPerMmX;
+  const sy = state.calibration.pxPerMmY;
   const bits = [];
-  bits.push(`横向 ${sx.toFixed(2)} px/mm`);
-  bits.push(`纵向 ${sy.toFixed(2)} px/mm`);
-  bits.push(`等效 DPI ${Math.round(((sx + sy) / 2) * 25.4)}`);
-  let sourceText = '来源：DPI 参数';
+  bits.push(sx ? `横向 ${sx.toFixed(2)} px/mm` : '横向未标定');
+  bits.push(sy ? `纵向 ${sy.toFixed(2)} px/mm` : '纵向未标定');
+  let sourceText = '来源：手动两点标定';
   if (state.calibration.source === 'auto') sourceText = '来源：自动识别网格';
   else if (state.calibration.source === 'manual') sourceText = '来源：手动两点标定';
   else if (state.calibration.source === 'mixed') sourceText = '来源：自动 + 手动混合';
@@ -1130,6 +1186,16 @@ function getCalibrationRegion() {
   return { x1: 0, y1: 0, x2: state.imageW, y2: state.imageH, label: '整张图像' };
 }
 
+function startGuidedGridCalibration() {
+  if (!state.image) return;
+  if (state.calibration.mode) {
+    setCalibrationStatus('当前正在取点，请先在主图上完成两次点击，或按 Esc 退出。', 'var(--amber)');
+    return;
+  }
+  const nextAxis = state.calibration.pxPerMmX ? 'y' : 'x';
+  startManualCalibration(nextAxis);
+}
+
 function startManualCalibration(axis) {
   if (!state.image) return;
   state.calibration.mode = axis;
@@ -1142,7 +1208,8 @@ function startManualCalibration(axis) {
 function clearGridCalibration() {
   if (!state.image) return;
   resetCalibrationState(true);
-  setCalibrationStatus('已清除网格标定。当前会退回到按图像参数估算。', 'var(--text3)');
+  setCalibrationStatus('已清除网格标定，请重新完成横向和纵向 5 个大格标定。', 'var(--text3)');
+  updateCounts();
   renderOverlay();
 }
 
@@ -1309,11 +1376,23 @@ function snapCalibrationPointToGrid(x, y, axis) {
 
 function updateCalibrationUI() {
   const hasImage = !!state.image;
-  ['btnGridAuto', 'btnGridManualX', 'btnGridManualY', 'btnGridClear'].forEach(id => {
+  ['btnGridAuto', 'btnGridManualX', 'btnGridManualY', 'btnGridClear', 'btnGridGuide'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.disabled = !hasImage;
   });
+  const hasX = !!state.calibration.pxPerMmX;
+  const hasY = !!state.calibration.pxPerMmY;
+  const guideBtn = document.getElementById('btnGridGuide');
+  if (guideBtn) {
+    const active = !!state.calibration.mode;
+    guideBtn.textContent = active
+      ? `正在${state.calibration.mode === 'x' ? '横向' : '纵向'}取点`
+      : (!hasX ? '开始网格标定' : (!hasY ? '继续纵向标定' : '重新网格标定'));
+    guideBtn.style.borderColor = active ? 'var(--accent)' : 'var(--amber)';
+    guideBtn.style.color = active ? 'var(--accent)' : 'var(--amber)';
+    guideBtn.style.background = active ? 'var(--accent-dim)' : 'var(--amber-dim)';
+  }
   const xBtn = document.getElementById('btnGridManualX');
   const yBtn = document.getElementById('btnGridManualY');
   if (xBtn) {
@@ -1333,10 +1412,8 @@ function updateCalibrationUI() {
   if (!summary) return;
   const speed = parseFloat(document.getElementById('paramSpeed').value) || 25;
   const gain = parseFloat(document.getElementById('paramGain').value) || 10;
-  const hasX = !!state.calibration.pxPerMmX;
-  const hasY = !!state.calibration.pxPerMmY;
-  const speedText = hasX ? `时间刻度已跟随网格标定更新（纸速 ${speed}）` : `时间刻度暂按纸速 ${speed} 和图像参数估算`;
-  const gainText = hasY ? `振幅刻度已跟随网格标定更新（增益 ${gain}）` : `振幅刻度暂按增益 ${gain} 和图像参数估算`;
+  const speedText = hasX ? `时间换算：横向标定 + 纸速 ${speed} mm/s` : `时间换算：纸速 ${speed} mm/s，等待横向标定`;
+  const gainText = hasY ? `振幅换算：纵向标定 + 增益 ${gain} mm/mV` : `振幅换算：增益 ${gain} mm/mV，等待纵向标定`;
   const modeText = state.calibration.mode
     ? `正在${state.calibration.mode === 'x' ? '横向' : '纵向'}取点：${state.calibration.pendingPoints.length}/2`
     : (isCalibrationReady() ? '横向和纵向 5 个大格已完成，可以继续提取。' : '横向和纵向都必须完成 5 个大格标定后，才能继续。');
@@ -1385,6 +1462,12 @@ function commitManualCalibrationPoint(x, y) {
   state.calibration.source = state.calibration.auto ? 'mixed' : 'manual';
   syncDpiFromCalibration();
   updateCalibrationUI();
+  updateCounts();
+  if (axis === 'x' && !state.calibration.pxPerMmY) {
+    setCalibrationStatus(`横向标定完成，已按 ${bigGrids} 个大格换算。现在继续纵向 5 个大格标定。`, 'var(--accent)');
+    startManualCalibration('y');
+    return true;
+  }
   setCalibrationStatus(`${axis === 'x' ? '横向' : '纵向'}标定完成，已按你选的 ${bigGrids} 个大格换算。后续提取会自动使用这个结果。`, 'var(--accent)');
   renderOverlay();
   return true;
@@ -1415,16 +1498,26 @@ function autoDetectGridCalibration() {
   state.calibration.source = (state.calibration.manual.x || state.calibration.manual.y) ? 'mixed' : 'auto';
   syncDpiFromCalibration();
   updateCalibrationUI();
+  updateCounts();
   setCalibrationStatus('自动识别完成。现在已经有网格尺度了；如果你想更稳一点，还可以再手动点一次 5 个大格来覆盖它。', 'var(--accent)');
   renderOverlay();
 }
 
 function setStep(n) {
-  for (let i=1; i<=4; i++) {
+  for (let i=1; i<=5; i++) {
     const el = document.getElementById('step'+i);
+    if (!el) continue;
     el.classList.toggle('active', i === n);
     el.classList.toggle('done', i < n);
   }
+}
+
+function getCurrentWorkflowStep() {
+  if (!state.image) return 1;
+  if (!isCalibrationReady()) return 2;
+  const extractedCount = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+  if (extractedCount > 0) return 4;
+  return 3;
 }
 
 function switchView(which) {
@@ -1477,6 +1570,62 @@ function updateLeadItem(lead) {
     : (state.boxes[lead] ? boxShort(lead) : '未设置');
 }
 
+function getWorkflowChecks() {
+  const leadCount = Object.keys(state.boxes).length;
+  const extractedCount = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+  const hasX = Number.isFinite(state.calibration.pxPerMmX) && state.calibration.pxPerMmX > 0;
+  const hasY = Number.isFinite(state.calibration.pxPerMmY) && state.calibration.pxPerMmY > 0;
+  const hasPerspective = !!state.originalImage && (state.image !== state.originalImage || state.perspectivePoints.length === 4);
+  return [
+    { key: 'image', done: !!state.image, label: '打开一张心电图图像（必做）' },
+    { key: 'perspective', done: hasPerspective, optional: true, label: '透视校正（选做）' },
+    { key: 'calibX', done: hasX, label: '完成横向 5 个大格标定（必做）' },
+    { key: 'calibY', done: hasY, label: '完成纵向 5 个大格标定（必做）' },
+    { key: 'leads', done: leadCount > 0, label: `标注至少 1 个导联区域（当前 ${leadCount}/12）（必做）` },
+    { key: 'extract', done: extractedCount > 0, label: `提取预览生成信号（当前 ${extractedCount} 个导联）（必做）` },
+  ];
+}
+
+function renderRequiredSteps() {
+  const el = document.getElementById('requiredSteps');
+  if (!el) return;
+  const checks = getWorkflowChecks();
+  const firstMissing = checks.find(c => !c.done && !c.optional);
+  el.innerHTML = `
+    ${checks.map(c => `
+      <div class="required-step ${c.done ? 'done' : (firstMissing && firstMissing.key === c.key ? 'blocked' : '')}">
+        <span class="mark">${c.done ? '✓' : (firstMissing && firstMissing.key === c.key ? '!' : '·')}</span>
+        <span>${c.label}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+function explainBlockedAction(action) {
+  const checks = getWorkflowChecks();
+  const needExtract = action === 'save';
+  const requiredChecks = checks.filter(c => !c.optional);
+  const required = needExtract ? requiredChecks : requiredChecks.filter(c => c.key !== 'extract');
+  const missing = required.find(c => !c.done);
+  if (!missing) return false;
+
+  const messageByKey = {
+    image: '请先打开一张心电图图像。',
+    calibX: '缺少必做步骤：请先完成横向 5 个大格标定。',
+    calibY: '缺少必做步骤：请先完成纵向 5 个大格标定。',
+    leads: '缺少必做步骤：请先在图像上拖拽标注至少 1 个导联区域。',
+    extract: '缺少必做步骤：请先点击“提取预览”生成信号，再保存 CSV。',
+  };
+  const msg = messageByKey[missing.key] || '还有必填步骤未完成。';
+  toast(msg, 'warn');
+  if (missing.key === 'calibX' || missing.key === 'calibY') {
+    const axisName = missing.key === 'calibX' ? '横向' : '纵向';
+    setCalibrationStatus(`这是必填项：请点击“${missing.key === 'calibX' ? '开始网格标定' : '继续纵向标定'}”，在图上点选${axisName} 5 个大格两端网格线。`, 'var(--amber)');
+  }
+  renderRequiredSteps();
+  return true;
+}
+
 function updateCounts() {
   const n = Object.keys(state.boxes).length;
   const ne = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
@@ -1484,10 +1633,10 @@ function updateCounts() {
   document.getElementById('leadCount').textContent = `${n}/12`;
   document.getElementById('statusLeads').innerHTML =
     `<span class="${n===12?'hl':''}">${n}/12 导联</span>${ne>0?' <span style="color:var(--red)">'+ne+'已提取</span>':''}`;
-  document.getElementById('btnExtract').disabled = n === 0 || !calibrationReady;
+  document.getElementById('btnExtract').disabled = !state.image;
   document.getElementById('btnClear').disabled = n === 0;
-  document.getElementById('btnSave').disabled = !state.extractedMV || !calibrationReady;
-  document.getElementById('btnSave2').disabled = !state.extractedMV || !calibrationReady;
+  document.getElementById('btnSave').disabled = !state.image;
+  document.getElementById('btnSave2').disabled = !state.image;
   document.getElementById('btnPreset').disabled = !state.image;
   document.getElementById('btnPerspectiveMode').disabled = !state.image;
   document.getElementById('btnAutoCorners').disabled = !state.image;
@@ -1527,6 +1676,8 @@ function updateCounts() {
     `;
   }
   updateCalibrationUI();
+  renderRequiredSteps();
+  setStep(getCurrentWorkflowStep());
 }
 
 function selectLead(lead) {
@@ -1574,7 +1725,7 @@ function clearAllBoxes() {
   document.getElementById('previewEmpty').style.display = 'flex';
   document.getElementById('previewHeader').style.display = 'none';
   toast('已清空所有导联区域');
-  setStep(2);
+  setStep(getCurrentWorkflowStep());
 }
 
 // ════════════════════════════════════════════════════════
@@ -1603,7 +1754,10 @@ function loadImage(file) {
       state.repairedLeads = new Set();
       resetCalibrationState(false);
       state.saveConfig.fileName = file.name.replace(/\.[^.]+$/, '') + '.csv';
+      state.saveConfig.sourceName = file.name;
       state.saveConfig.lastSavedLabel = '';
+      const saveNameInput = document.getElementById('saveFileName');
+      if (saveNameInput) saveNameInput.value = state.saveConfig.fileName;
       document.getElementById('rotSlider').value = 0;
       document.getElementById('rotVal').textContent = '0.0°';
       document.getElementById('emptyState').style.display = 'none';
@@ -1616,12 +1770,12 @@ function loadImage(file) {
         `<span class="hl">${file.name}</span> ${img.naturalWidth}×${img.naturalHeight}`;
       document.getElementById('btnPreset').disabled = false;
       document.getElementById('btnAutoDetect').disabled = false;
-      document.getElementById('perspectiveStatus').textContent = 'You can click 4 corners manually or try auto corner detection first.';
+      document.getElementById('perspectiveStatus').textContent = '可手动点选四个角点，或先尝试自动找角。';
       document.getElementById('csvRenderPanel').style.display = 'none';
       document.getElementById('csvRenderWrap').innerHTML = '';
       document.getElementById('csvRenderInfo').textContent = '';
       updateSaveLocationLabel();
-      setStep(2);
+      setStep(getCurrentWorkflowStep());
       switchView('edit');
       toast(`已加载: ${file.name}`);
     };
@@ -1690,8 +1844,8 @@ function startPerspectiveSelection() {
   resetCalibrationState(true);
   updateCounts();
   renderOverlay();
-  setPerspectiveStatus('Click 4 corners in order: top-left, top-right, bottom-right, bottom-left.', 'var(--amber)');
-  toast('Perspective mode enabled');
+  setPerspectiveStatus('请按顺序点击四个角点：左上、右上、右下、左下。', 'var(--amber)');
+  toast('已进入透视校正模式');
 }
 
 function sortPerspectivePoints(points) {
@@ -2103,6 +2257,8 @@ function renderECG() {
   if (!state.image) return;
   const c = document.getElementById('ecgCanvas');
   const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.clearRect(0,0,c.width,c.height);
   if (state.rotation !== 0) {
     ctx.save();
@@ -2259,6 +2415,35 @@ function getHandles(b) {
   ];
 }
 
+function getLeadHitAt(x, y) {
+  const leads = [
+    state.selectedLead,
+    ...LEADS_ORDER.slice().reverse().filter(lead => lead !== state.selectedLead),
+  ].filter(lead => lead && state.boxes[lead]);
+
+  for (const lead of leads) {
+    const box = state.boxes[lead];
+    const handle = hitTestHandles(box, x, y);
+    if (handle) return { type: 'resize', lead, box, handle };
+  }
+
+  let best = null;
+  for (const lead of leads) {
+    const box = state.boxes[lead];
+    if (x < box.x1 || x > box.x2 || y < box.y1 || y > box.y2) continue;
+    const area = Math.max(1, (box.x2 - box.x1) * (box.y2 - box.y1));
+    if (!best || area < best.area) best = { type: 'move', lead, box, area };
+  }
+  return best;
+}
+
+function getNextUnboxedLead(fromLead = state.selectedLead) {
+  const start = Math.max(0, LEADS_ORDER.indexOf(fromLead));
+  return LEADS_ORDER.slice(start + 1).find(lead => !state.boxes[lead]) ||
+         LEADS_ORDER.find(lead => !state.boxes[lead]) ||
+         null;
+}
+
 // ════════════════════════════════════════════════════════
 //  MOUSE
 // ════════════════════════════════════════════════════════
@@ -2311,18 +2496,18 @@ function onMouseDown(e) {
     }
     return;
   }
+  const hit = getLeadHitAt(x, y);
+  if (hit) {
+    if (state.selectedLead !== hit.lead) selectLead(hit.lead);
+    state.dragState = hit.type === 'resize'
+      ? {type:'resize',handle:hit.handle,lead:hit.lead,startBox:{...hit.box},startMouse:{x,y}}
+      : {type:'move',lead:hit.lead,startBox:{...hit.box},startMouse:{x,y}};
+    return;
+  }
   if (!state.selectedLead) return;
-  const ab = state.boxes[state.selectedLead];
-  if (ab) {
-    const handle = hitTestHandles(ab,x,y);
-    if (handle) {
-      state.dragState = {type:'resize',handle,lead:state.selectedLead,startBox:{...ab},startMouse:{x,y}};
-      return;
-    }
-    if (x>=ab.x1&&x<=ab.x2&&y>=ab.y1&&y<=ab.y2) {
-      state.dragState = {type:'move',lead:state.selectedLead,startBox:{...ab},startMouse:{x,y}};
-      return;
-    }
+  if (state.boxes[state.selectedLead]) {
+    const nextLead = getNextUnboxedLead(state.selectedLead);
+    if (nextLead) selectLead(nextLead);
   }
   state.drawing=true; state.drawStart={sx:x,sy:y}; state.cursorPos={x,y};
 }
@@ -2377,11 +2562,10 @@ function onMouseMove(e) {
     ov.style.cursor = 'crosshair';
     return;
   }
-  if (state.selectedLead && state.boxes[state.selectedLead]) {
-    const b=state.boxes[state.selectedLead];
-    const h=hitTestHandles(b,x,y);
-    if (h) { ov.style.cursor=handleCursor(h); return; }
-    if (x>=b.x1&&x<=b.x2&&y>=b.y1&&y<=b.y2) { ov.style.cursor='move'; return; }
+  const hit = getLeadHitAt(x, y);
+  if (hit) {
+    ov.style.cursor = hit.type === 'resize' ? handleCursor(hit.handle) : 'move';
+    return;
   }
   ov.style.cursor = state.selectedLead ? 'crosshair' : 'default';
 }
@@ -2415,8 +2599,7 @@ function onMouseUp(e) {
       // New box drawn — invalidate any prior isolated canvas
       invalidateLeadCanvas(state.selectedLead);
       updateLeadItem(state.selectedLead); updateCounts();
-      const idx=LEADS_ORDER.indexOf(state.selectedLead);
-      const next=LEADS_ORDER.slice(idx+1).find(l=>!state.boxes[l]);
+      const next=getNextUnboxedLead(state.selectedLead);
       if (next) setTimeout(()=>selectLead(next),80);
       toast(`✓ ${state.selectedLead} 已标注`);
     }
@@ -2465,7 +2648,7 @@ function onRotate(val) {
   state.perspectivePoints = [];
   state.selectedPerspectivePoint = -1;
   updateCounts();
-  setPerspectiveStatus('Rotation updated. Re-mark corners if you still want perspective correction.');
+  setPerspectiveStatus('旋转已更新。如果还需要透视校正，请重新标记四个角点。');
   renderECG();
 }
 
@@ -2533,14 +2716,14 @@ function applyPreset() {
   });
   buildLeadList(); renderOverlay(); selectLead('I');
   toast('预设已应用，可拖拽微调各导联区域');
-  setStep(2);
+  setStep(getCurrentWorkflowStep());
 }
 
 // ════════════════════════════════════════════════════════
 //  DROP
 // ════════════════════════════════════════════════════════
 function setupDrop() {
-  ['editView','uploadZone'].forEach(id => {
+  ['editView'].forEach(id => {
     const el=document.getElementById(id);
     if(!el) return;
     el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
@@ -3182,12 +3365,7 @@ function resampleLinear(sig, nOut) {
 // ════════════════════════════════════════════════════════
 async function runExtraction() {
   const presentLeads = LEADS_ORDER.filter(l=>state.boxes[l]);
-  if (!state.image || presentLeads.length===0) {
-    toast('请先标注至少一个导联区域','warn'); return;
-  }
-  if (!isCalibrationReady()) {
-    toast('请先完成横向和纵向 5 个大格标定', 'warn');
-    setCalibrationStatus('这是必填项：先完成横向 5 个大格和纵向 5 个大格标定，才能提取。', 'var(--amber)');
+  if (explainBlockedAction('extract')) {
     return;
   }
 
@@ -3247,7 +3425,7 @@ async function runExtraction() {
   progWrap.style.display='none';
   document.getElementById('btnExtract').disabled=false;
   updateCounts();
-  setStep(3);
+  setStep(getCurrentWorkflowStep());
 
   // Render overlay with signal lines
   renderOverlay();
@@ -3259,11 +3437,9 @@ async function runExtraction() {
     `<span style="color:var(--red)">✓ ${presentLeads.length}导联已提取</span>`;
   toast(`✓ 提取完成 · ${presentLeads.length} 导联`);
 
-  try{
-    emitExtractionToHeartOS(presentLeads, fs);
-  }catch(e){
-    console.warn('emitExtractionToHeartOS error', e);
-  }
+  // Manual preview is for visual checking only. Do not auto-send partial or short
+  // hand-picked leads to HeartOS/ECGOmics, otherwise the outer app shows invalid
+  // analysis panels before the user saves a final CSV.
 }
 
 // ════════════════════════════════════════════════════════
@@ -3457,11 +3633,7 @@ function renderCurrentCSVPreview(csv = null) {
 }
 
 async function saveCSV() {
-  if (!state.extractedMV || Object.keys(state.extractedMV).length===0) {
-    toast('请先提取信号','warn'); return;
-  }
-  if (!isCalibrationReady()) {
-    toast('请先完成横向和纵向 5 个大格标定', 'warn');
+  if (explainBlockedAction('save')) {
     return;
   }
   const csv = buildCSVString();
@@ -3510,7 +3682,7 @@ async function saveCSV() {
     state.saveConfig.lastSavedLabel = `浏览器下载/${fileName}`;
   }
   updateSaveLocationLabel();
-  setStep(4);
+  setStep(5);
   toast(`✓ 已保存 · ${presentLeads.length}导联 · ${maxN}点 · ${fs}Hz`);
   try{
     emitCSVToHeartOS(fileName, csv, presentLeads, fs, maxN);
@@ -3563,6 +3735,7 @@ function emitCSVToHeartOS(fileName, csv, presentLeads, fs, maxN) {
     type: 'HEARTOS_ECG_CSV',
     tool: 'handecg',
     fileName: fileName || 'ecg.csv',
+    sourceName: state.saveConfig.sourceName || '',
     csv: csv || '',
     leads: Array.isArray(presentLeads) ? presentLeads.slice() : [],
     fs: fs || 500,
@@ -4337,7 +4510,7 @@ async function autoDetectLeads() {
   buildLeadList();
   renderOverlay();
   selectLead('I');
-  setStep(2);
+  setStep(getCurrentWorkflowStep());
 
   statusEl.style.color = 'var(--accent)';
   statusEl.textContent = `✓ 检测到 ${detectedCount} 个导联区域`;

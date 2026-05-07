@@ -522,8 +522,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     
     <!-- Top gradient header -->
     <div class="umo-top">
-      <h2>根据以下内容生成音频概览和视频概览</h2>
-      <div class="subtitle" id="umoSubtitle">您的文档</div>
+      <h2>导入 XML、图片或 PDF</h2>
+      <div class="subtitle" id="umoSubtitle">心电图资料</div>
     </div>
 
     <!-- Default view: search + drop -->
@@ -547,30 +547,20 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         onclick="document.getElementById('fileIn').click()"
         ondragover="dov(event)" ondrop="ddr(event)" ondragleave="ddl(event)">
         <div style="font-size:16px;color:var(--text3);margin-bottom:6px;">或拖放文件</div>
-        <div class="umo-drop-sub">PDF、图片、文档、音频，<span style="text-decoration:underline;cursor:pointer">等等</span></div>
+        <div class="umo-drop-sub">支持 XML、PDF、图片</div>
       </div>
-      <input type="file" id="fileIn" style="display:none" multiple accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg,.bmp,.tiff,.xml,.csv" onchange="onFileSelect(event)">
+      <input type="file" id="fileIn" style="display:none" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.bmp,.tiff" onchange="onFileSelect(event)">
       <input type="file" id="folderIn" style="display:none" multiple webkitdirectory directory onchange="onFolderSelect(event)">
 
       <!-- Method buttons -->
       <div class="umo-methods">
         <button class="umo-method" onclick="document.getElementById('fileIn').click()">⬆️ 上传文件</button>
         <button class="umo-method" onclick="document.getElementById('folderIn').click()">📁 上传文件夹</button>
-        <button class="umo-method" onclick="showUmoSub('url')">🔗 <span class="yt">▶</span> 网站</button>
-        <button class="umo-method" onclick="showUmoSub('drive')">☁️ 云端硬盘</button>
         <button class="umo-method" onclick="showUmoSub('text')">📋 复制的文字</button>
       </div>
     </div>
 
     <!-- Sub panels -->
-    <div class="umo-sub" id="umoSub-url">
-      <label style="font-size:14px;font-weight:500;display:block;margin-bottom:8px;">网站链接</label>
-      <input type="text" id="urlIn" placeholder="粘贴网页或 YouTube 链接… https://">
-      <div class="umo-sub-btns">
-        <button class="umo-btn" onclick="hideUmoSub()">取消</button>
-        <button class="umo-btn ok" onclick="submitUrl()">添加</button>
-      </div>
-    </div>
     <div class="umo-sub" id="umoSub-text">
       <label style="font-size:14px;font-weight:500;display:block;margin-bottom:8px;">复制的文字</label>
       <textarea id="textIn" placeholder="粘贴或输入文本内容…&#10;&#10;AI 将自动分析并总结您的文本。"></textarea>
@@ -578,14 +568,6 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <button class="umo-btn" onclick="hideUmoSub()">取消</button>
         <button class="umo-btn ok" onclick="submitText()">添加并分析</button>
       </div>
-    </div>
-    <div class="umo-sub" id="umoSub-drive">
-      <div style="text-align:center;padding:32px 0;color:var(--text3);">
-        <div style="font-size:36px;margin-bottom:10px;">☁️</div>
-        <div style="font-size:15px;font-weight:500;color:var(--text2);margin-bottom:5px;">连接 Google 云端硬盘</div>
-        <div style="font-size:13px;line-height:1.6;">授权后可直接导入 Docs、Slides 等文件</div>
-      </div>
-      <div class="umo-sub-btns"><button class="umo-btn" onclick="hideUmoSub()">关闭</button></div>
     </div>
 
     <!-- Progress -->
@@ -854,7 +836,7 @@ function renderSrcs(){
   if(!sources.length){
     el.innerHTML=`<div class="empty-srcs">
       <div class="empty-srcs-icon">📄</div>
-      <p>已保存的来源将显示在此处。<br>点击"添加来源"即可添加 PDF、网站、文本、视频或音频文件。</p>
+      <p>已保存的来源将显示在此处。<br>点击"添加来源"即可添加 XML、图片或 PDF。</p>
     </div>`;
     return;
   }
@@ -938,7 +920,7 @@ function renderChat(){
     ce.innerHTML=`<div class="chat-empty">
       <div class="chat-empty-icon">💬</div>
       <h3>已保存的来源将显示在此处</h3>
-      <p>点击上方的"添加来源"即可添加 PDF、网站、文本、视频或音频文件。</p>
+      <p>点击上方的"添加来源"即可添加 XML、图片或 PDF。</p>
     </div>`;
     ml.innerHTML='';
     return;
@@ -2413,7 +2395,7 @@ function openUploadModal(){
   openMo('uploadMo');
 }
 function showUmoSub(id){
-  ['url','text','drive'].forEach(k=>{
+  ['text'].forEach(k=>{
     document.getElementById('umoSub-'+k).classList.toggle('show',k===id);
   });
   document.getElementById('umoDefault').style.display='none';
@@ -4235,9 +4217,10 @@ document.addEventListener('keydown',function(e){
       name: fileName,
       type: 'csv',
       checked: true,
-      content: '[HandECG 导出 CSV]\n' + preview,
+      content: '[HandECG 导出 CSV]\n' + csvText,
       imageDataUrl: null,
       fileObj: fileObj,
+      csvText: csvText,
       __fromHandEcg: true
     };
     var replaced = false;
@@ -4257,28 +4240,124 @@ document.addEventListener('keydown',function(e){
     if(typeof window.renderSrcs === 'function') window.renderSrcs();
     if(typeof window.updateCiSrc === 'function') window.updateCiSrc();
 
-    var rc = document.getElementById('resultContent');
-    if(rc){
-      var box = document.getElementById('heartosCsvFilesBox');
-      if(!box){
-        box = document.createElement('div');
-        box.id = 'heartosCsvFilesBox';
-        box.style.cssText = 'margin-top:10px;border:1px dashed #cbd5e1;border-radius:8px;padding:8px;background:#f8fafc;';
-        box.innerHTML = '<div style="font-size:12px;color:#475569;margin-bottom:6px;"><strong>CSV 文件</strong></div><div id="heartosCsvFilesList"></div>';
-        rc.appendChild(box);
-      }
-      var fl = document.getElementById('heartosCsvFilesList');
-      if(fl){
-        var itemId = 'csv_item_' + fileName.replace(/[^a-zA-Z0-9_-]/g, '_');
-        if(!document.getElementById(itemId)){
-          var it = document.createElement('div');
-          it.id = itemId;
-          it.style.cssText = 'font-size:12px;color:#0f172a;padding:4px 0;';
-          it.textContent = fileName;
-          fl.appendChild(it);
-        }
+    renderHandEcgCsvToStudio(data);
+  }
+
+  function parseHandEcgCsv(csvText){
+    var text = String(csvText || '').trim();
+    if(!text) return { headers: [], rows: [], leads: [], data: {}, rowCount: 0 };
+    var lines = text.split(/\r?\n/).filter(function(x){ return !!String(x || '').trim(); });
+    if(lines.length < 2) return { headers: [], rows: [], leads: [], data: {}, rowCount: 0 };
+    var headers = lines[0].split(',').map(function(x){ return String(x || '').trim(); });
+    var leads = headers.slice(1).filter(Boolean);
+    var data = {};
+    leads.forEach(function(lead){ data[lead] = []; });
+    for(var r=1;r<lines.length;r++){
+      var cols = lines[r].split(',');
+      for(var c=1;c<headers.length;c++){
+        var lead = headers[c];
+        if(!lead || !data[lead]) continue;
+        var n = Number(cols[c]);
+        data[lead].push(Number.isFinite(n) ? n : null);
       }
     }
+    return { headers: headers, rows: lines, leads: leads, data: data, rowCount: Math.max(0, lines.length - 1) };
+  }
+
+  function buildLeadWaveSvg(parsed, opts){
+    opts = opts || {};
+    var leads = (parsed && parsed.leads ? parsed.leads : []).slice(0, opts.maxLeads || 12);
+    var width = opts.width || 520;
+    var rowH = opts.rowH || 58;
+    var left = 38;
+    var right = 10;
+    var height = Math.max(rowH, leads.length * rowH);
+    var body = '';
+    leads.forEach(function(lead, idx){
+      var arr = ((parsed.data || {})[lead] || []).filter(function(v){ return Number.isFinite(v); });
+      var yMid = idx * rowH + rowH / 2;
+      body += '<text x="8" y="' + (yMid + 4) + '" font-size="11" font-weight="700" fill="#2563eb">' + esc(lead) + '</text>';
+      body += '<line x1="' + left + '" y1="' + yMid + '" x2="' + (width - right) + '" y2="' + yMid + '" stroke="#e2e8f0" stroke-width="1"/>';
+      if(arr.length < 2) return;
+      var min = Math.min.apply(null, arr);
+      var max = Math.max.apply(null, arr);
+      var range = Math.max(1e-6, max - min);
+      var maxPts = Math.max(40, width - left - right);
+      var step = Math.max(1, Math.ceil(arr.length / maxPts));
+      var pts = [];
+      for(var i=0;i<arr.length;i+=step){
+        var x = left + (i / Math.max(1, arr.length - 1)) * (width - left - right);
+        var y = yMid - ((arr[i] - min) / range - 0.5) * (rowH * 0.68);
+        pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+      }
+      body += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#dc2626" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>';
+    });
+    return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="' + height + '" xmlns="http://www.w3.org/2000/svg" style="display:block;background:#fff;border:1px solid #dbeafe;border-radius:8px;">' + body + '</svg>';
+  }
+
+  function buildExtractPreviewSvg(parsed, opts){
+    opts = opts || {};
+    var leads = (parsed && parsed.leads ? parsed.leads : []).slice(0, opts.maxLeads || 12);
+    var width = opts.width || 760;
+    var rowH = opts.rowH || 74;
+    var left = 46;
+    var right = 16;
+    var height = Math.max(rowH, leads.length * rowH);
+    var body = '<rect x="0" y="0" width="' + width + '" height="' + height + '" rx="10" fill="#080d18"/>';
+    leads.forEach(function(lead, idx){
+      var arr = ((parsed.data || {})[lead] || []).filter(function(v){ return Number.isFinite(v); });
+      var yMid = idx * rowH + rowH / 2;
+      body += '<text x="14" y="' + (yMid + 4) + '" font-size="12" font-weight="700" fill="#93c5fd">' + esc(lead) + '</text>';
+      body += '<line x1="' + left + '" y1="' + yMid + '" x2="' + (width - right) + '" y2="' + yMid + '" stroke="#1e293b" stroke-width="1"/>';
+      if(arr.length < 2) return;
+      var min = Math.min.apply(null, arr);
+      var max = Math.max.apply(null, arr);
+      var range = Math.max(1e-6, max - min);
+      var maxPts = Math.max(80, width - left - right);
+      var step = Math.max(1, Math.ceil(arr.length / maxPts));
+      var pts = [];
+      for(var i=0;i<arr.length;i+=step){
+        var x = left + (i / Math.max(1, arr.length - 1)) * (width - left - right);
+        var y = yMid - ((arr[i] - min) / range - 0.5) * (rowH * 0.72);
+        pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+      }
+      body += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#f87171" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>';
+    });
+    return '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="' + height + '" xmlns="http://www.w3.org/2000/svg" style="display:block;background:#080d18;border:1px solid #111827;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04);">' + body + '</svg>';
+  }
+
+  function downloadTextFile(fileName, text, mime){
+    var blob = new Blob([String(text || '')], { type: mime || 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName || ('download_' + Date.now() + '.txt');
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  }
+  window.downloadTextFile = downloadTextFile;
+
+  function renderHandEcgCsvToStudio(data){
+    if(!data || !data.csv) return;
+    var rc = document.getElementById('resultContent');
+    var ph = document.getElementById('resultPlaceholder');
+    if(!rc) return;
+    var fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
+    var csvText = String(data.csv || '');
+    currentResultText = csvText;
+    currentResultFileName = fileName;
+    window.__heartosHandEcgCsvText = csvText;
+    window.__heartosHandEcgCsvFileName = fileName;
+
+    if(ph) ph.style.display = 'none';
+    rc.style.display = 'block';
+    rc.innerHTML =
+      '<div style="border:1px solid #dbeafe;background:#f8fbff;border-radius:10px;padding:10px;">' +
+        '<h4 style="margin:0 0 8px;">HandECG 手动数字化结果</h4>' +
+        '<p style="margin:0;"><strong>CSV 文件：</strong>' + esc(fileName) + '</p>' +
+      '</div>';
+    var st = document.getElementById('studioResult');
+    if(st) st.scrollTop = 0;
   }
 
   function appendCsvMessage(data){
@@ -4287,11 +4366,14 @@ document.addEventListener('keydown',function(e){
     var row = document.createElement('div');
     row.className = 'msg-ai';
     var showName = _normalizeCsvNameBySource((data && data.fileName) || '', (data && data.sourceName) || '');
+    var parsed = parseHandEcgCsv(String((data && data.csv) || ''));
+    var previewSvg = buildExtractPreviewSvg(parsed, { width: 760, rowH: 72, maxLeads: 12 });
     row.innerHTML =
       '<div class="ai-av">AI</div>' +
       '<div class="ai-body">' +
-        '<p><strong>CSV 已回传到 HeartOS</strong>：' + showName + '</p>' +
+        '<p><strong>CSV 已回传到 HeartOS</strong>：' + esc(showName) + '</p>' +
         '<p style="font-size:12px;color:#6b7280;">可在来源区找到该文件并参与后续分析。</p>' +
+        '<div style="margin-top:10px;">' + previewSvg + '</div>' +
       '</div>';
     list.appendChild(row);
     scrollChatBottom();
