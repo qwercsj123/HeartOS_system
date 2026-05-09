@@ -35,6 +35,21 @@ def _hash_password(password: str, salt: str) -> str:
     return _sha256_hex(f"{salt}:{password}")
 
 
+def _is_client_password_digest(password: str) -> bool:
+    value = str(password or "")
+    prefix = "heartos:v1:sha256:"
+    if not value.startswith(prefix):
+        return False
+    digest = value[len(prefix):]
+    return len(digest) == 64 and all(c in "0123456789abcdef" for c in digest.lower())
+
+
+def _client_password_digest(username: str, password: str) -> str:
+    normalized_user = str(username or "").strip().lower()
+    digest = _sha256_hex(f"heartos-auth-v1:{normalized_user}:{password or ''}")
+    return f"heartos:v1:sha256:{digest}"
+
+
 def _load_users() -> dict[str, Any]:
     if not USERS_PATH.exists():
         _init_default_user()
@@ -76,8 +91,16 @@ def verify_user(username: str, password: str) -> dict[str, Any] | None:
         salt = str(u.get("salt", ""))
         if not salt:
             continue
-        if hmac.compare_digest(_hash_password(password, salt), str(u.get("password_hash", ""))):
+        stored_hash = str(u.get("password_hash", ""))
+        if hmac.compare_digest(_hash_password(password, salt), stored_hash):
             return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
+        if _is_client_password_digest(password):
+            default_password = settings.default_password or ""
+            default_digest = _client_password_digest(str(u.get("username") or username), default_password)
+            if hmac.compare_digest(password, default_digest) and hmac.compare_digest(_hash_password(default_password, salt), stored_hash):
+                u["password_hash"] = _hash_password(password, salt)
+                _save_users(db)
+                return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
     return None
 
 
@@ -86,8 +109,11 @@ def register_user(username: str, password: str, display_name: str | None = None)
     username = (username or "").strip()
     if len(username) < 3:
         raise ValueError("用户名至少 3 位")
-    if len(password or "") < 6:
-        raise ValueError("密码至少 6 位")
+    if not _is_client_password_digest(password):
+        if len(password or "") < 6:
+            raise ValueError("密码至少 6 位")
+        if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+            raise ValueError("密码需同时包含字母和数字")
 
     db = _load_users()
     users = db.setdefault("users", [])

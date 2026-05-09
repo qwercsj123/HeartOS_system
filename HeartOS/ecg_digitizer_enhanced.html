@@ -380,6 +380,41 @@ header {
 .required-step.blocked { color: var(--amber); }
 .required-step.blocked .mark { color: var(--amber); }
 
+.grid-guide-hint {
+  display: none;
+  margin-top: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgba(245,158,11,0.55);
+  border-radius: 6px;
+  background: rgba(245,158,11,0.10);
+  color: #92400e;
+  font-size: 11px;
+  line-height: 1.65;
+}
+.grid-guide-hint.show { display: block; }
+.grid-guide-hint strong { color: #b45309; }
+.grid-guide-hint button {
+  margin-top: 6px;
+  border: 1px solid rgba(245,158,11,0.65);
+  border-radius: 4px;
+  background: #fff7ed;
+  color: #b45309;
+  font: inherit;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.grid-guide-hint button:hover { background: #ffedd5; }
+.guide-pulse {
+  animation: guidePulse 1.25s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(245,158,11,0.42);
+}
+@keyframes guidePulse {
+  0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.42); }
+  70% { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
+  100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+}
+
 #calibSummary,
 #calibStatus,
 #layoutDesc,
@@ -639,6 +674,10 @@ header {
         <button class="btn" id="btnGridManualX" onclick="startManualCalibration('x')" disabled style="display:none;font-size:10px">手动横向两点</button>
         <button class="btn" id="btnGridManualY" onclick="startManualCalibration('y')" disabled style="display:none;font-size:10px">手动纵向两点</button>
         <button class="btn" id="btnGridClear" onclick="clearGridCalibration()" disabled style="font-size:10px">清除标定</button>
+      </div>
+      <div class="grid-guide-hint" id="gridGuideHint">
+        新用户先点 <strong>开始网格标定</strong>，然后在图上分别点选横向、纵向 5 个大格的两端网格线。
+        <br><button type="button" onclick="startGuidedGridCalibration()">开始标定</button>
       </div>
       <div class="param-grid" style="margin-top:8px">
         <div class="param-item">
@@ -981,6 +1020,19 @@ state.saveConfig = {
   sourceName: '',
   lastSavedLabel: '',
 };
+state.gridGuideHintDismissed = (() => {
+  try { return localStorage.getItem('handecg_grid_guide_seen') === '1'; }
+  catch (_) { return false; }
+})();
+
+function updateGridGuideHint() {
+  const hint = document.getElementById('gridGuideHint');
+  const btn = document.getElementById('btnGridGuide');
+  if (!hint || !btn) return;
+  const shouldShow = !!state.image && !isCalibrationReady() && !state.calibration.mode && !state.gridGuideHintDismissed;
+  hint.classList.toggle('show', shouldShow);
+  btn.classList.toggle('guide-pulse', shouldShow && !btn.disabled);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   buildLeadList();
@@ -1418,10 +1470,13 @@ function updateCalibrationUI() {
     ? `正在${state.calibration.mode === 'x' ? '横向' : '纵向'}取点：${state.calibration.pendingPoints.length}/2`
     : (isCalibrationReady() ? '横向和纵向 5 个大格已完成，可以继续提取。' : '横向和纵向都必须完成 5 个大格标定后，才能继续。');
   summary.innerHTML = `${speedText}<br>${gainText}<br>${modeText}`;
+  updateGridGuideHint();
 }
 
 function startManualCalibration(axis) {
   if (!state.image) return;
+  state.gridGuideHintDismissed = true;
+  try { localStorage.setItem('handecg_grid_guide_seen', '1'); } catch (_) {}
   state.calibration.mode = axis;
   state.calibration.pendingPoints = [];
   updateCalibrationUI();

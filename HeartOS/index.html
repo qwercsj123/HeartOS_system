@@ -360,6 +360,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .auth-actions button{height:36px;padding:0 14px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;}
 .auth-actions .pri{background:#2563eb;border-color:#2563eb;color:#fff;}
 .auth-msg{min-height:20px;font-size:12px;color:#b91c1c;margin-top:8px;}
+.auth-help{font-size:12px;color:#64748b;margin-top:5px;}
 .auth-hidden{display:none !important;}
 </style>
 </head>
@@ -375,6 +376,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="auth-row">
       <label>密码</label>
       <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="current-password" />
+      <div class="auth-help auth-hidden" id="authPasswordHelp">注册密码需至少 6 位，并同时包含字母和数字。</div>
     </div>
     <div class="auth-row auth-hidden" id="authDisplayWrap">
       <label>显示名称（注册可选）</label>
@@ -661,6 +663,7 @@ let msgs = [];
 let busy = false;
 let chatAbortController = null;
 let activeToolAbortController = null;
+let ecgsmartInFlight = false;
 const USE_CHAT_DISPATCH = true;
 window.__heartosLastImageSource = null;
 let __nbLoaded = false;
@@ -1467,7 +1470,7 @@ function upsertCsvSourceSafe(data){
 async function runToolByAction(actionName, args){
   if(actionName === 'analysis_ecg' || actionName === 'open_handecg'){
     if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
-      return { ok:false, tool:actionName, message:'你刚关闭了 HandECG，已暂时阻止自动重开（约8秒）。如需打开请稍后再点一次。' };
+      return { ok:false, tool:actionName, message:'你刚关闭了 HandECG，已暂时阻止自动重开（约2秒）。如需打开请稍后再点一次。' };
     }
     var src = pickImageSourceForTool();
     if(!src){
@@ -2113,6 +2116,11 @@ async function runStudio(type, opts){
   }
 
   if(type==='ecgsmart'){
+    if(ecgsmartInFlight){
+      showToast('自动数字化正在处理中，请稍候');
+      return;
+    }
+    ecgsmartInFlight = true;
     studioCards.forEach(c=>{
       document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
     });
@@ -2214,6 +2222,8 @@ async function runStudio(type, opts){
         ? '请求超时（300秒），请稍后重试。'
         : (e && e.message ? e.message : String(e));
       rc.innerHTML = `<div style="padding:20px;color:#dc2626;font-size:13px;"><p><strong>状态：</strong>❌ FAIL</p>自动数字化失败：${esc(msg)}</div>`;
+    }finally{
+      ecgsmartInFlight = false;
     }
     return;
   }
@@ -2705,7 +2715,9 @@ function setAuthModeAndShow(mode){
   var w = document.getElementById('authDisplayWrap');
   var btn = document.getElementById('authRegisterBtn');
   var pri = document.getElementById('authLoginBtn');
+  var help = document.getElementById('authPasswordHelp');
   if(w) w.classList.toggle('auth-hidden', authMode !== 'register');
+  if(help) help.classList.toggle('auth-hidden', authMode !== 'register');
   if(btn) btn.textContent = authMode === 'login' ? '切换到注册' : '切换到登录';
   if(pri) pri.textContent = authMode === 'login' ? '登录' : '注册并登录';
   setAuthMsg('');
@@ -2716,6 +2728,28 @@ function toggleAuthMode(){
   setAuthModeAndShow(authMode === 'login' ? 'register' : 'login');
 }
 
+async function sha256Hex(text){
+  if(window.crypto && window.crypto.subtle){
+    const data = new TextEncoder().encode(text);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  throw new Error('当前浏览器不支持安全密码摘要，请更换现代浏览器');
+}
+
+async function deriveAuthPassword(username, password){
+  const normalizedUser = String(username || '').trim().toLowerCase();
+  const hex = await sha256Hex('heartos-auth-v1:' + normalizedUser + ':' + String(password || ''));
+  return 'heartos:v1:sha256:' + hex;
+}
+
+function getWeakPasswordReason(password, username){
+  const p = String(password || '');
+  if(p.length < 6) return '密码至少 6 位，并同时包含字母和数字';
+  if(!/[A-Za-z]/.test(p) || !/[0-9]/.test(p)) return '密码需同时包含字母和数字，例如 abc123';
+  return '';
+}
+
 async function submitAuthLogin(){
   var ctl = null;
   var tm = null;
@@ -2723,8 +2757,12 @@ async function submitAuthLogin(){
     var u = (document.getElementById('authUsername').value || '').trim();
     var p = (document.getElementById('authPassword').value || '').trim();
     if(!u || !p){ setAuthMsg('请输入用户名和密码', true); return; }
+    if(authMode === 'register'){
+      var weakReason = getWeakPasswordReason(p, u);
+      if(weakReason){ setAuthMsg(weakReason, true); return; }
+    }
     var url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    var body = { username: u, password: p };
+    var body = { username: u, password: await deriveAuthPassword(u, p) };
     if(authMode === 'register') body.display_name = (document.getElementById('authDisplayName').value || '').trim();
     ctl = new AbortController();
     tm = setTimeout(function(){ try{ ctl.abort('auth-timeout'); }catch(_){} }, 12000);
@@ -3088,6 +3126,7 @@ var ecgLastUpload = null;
 var ecgPumpTimer = null;
 var ecgPendingSource = null;
 window.__heartosBlockAutoOpenUntil = 0;
+const HEARTOS_ECG_REOPEN_BLOCK_MS = 2000;
 
 function isEcgAutoOpenBlocked(){
   return Number(window.__heartosBlockAutoOpenUntil || 0) > Date.now();
@@ -3275,8 +3314,13 @@ function sendImageToEcg(){
 }
 
 function closeEcgOverlay(){
-  window.__heartosBlockAutoOpenUntil = Date.now() + 8000;
+  window.__heartosBlockAutoOpenUntil = Date.now() + HEARTOS_ECG_REOPEN_BLOCK_MS;
   if(ecgPumpTimer){ clearInterval(ecgPumpTimer); ecgPumpTimer = null; }
+  try{
+    if(typeof window.__heartosHandEcgFinalCleanup === 'function'){
+      window.__heartosHandEcgFinalCleanup();
+    }
+  }catch(_){}
   ecgPendingSource = null;
   ecgReady = false;
   var iframe = document.getElementById('ecgIframe');
@@ -4042,6 +4086,9 @@ document.addEventListener('keydown',function(e){
   }
   async function open(explicit){
     if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
+      if(typeof window.toast === 'function'){
+        window.toast('刚关闭 HandECG，请稍等 2 秒后再打开。', 'warn');
+      }
       return null;
     }
     var src = pick(explicit || null);
@@ -4078,6 +4125,11 @@ document.addEventListener('keydown',function(e){
     }
     o.iframe.src = u;
   }
+  window.__heartosHandEcgFinalCleanup = function(){
+    if(pump){ clearInterval(pump); pump = null; }
+    active = null;
+    imported = false;
+  };
   window.openEcgOverlay = function(explicitSrc){ return open(explicitSrc || null); };
   window.openHandEcgFromSource = function(id, evt){
     if(evt) evt.stopPropagation();
