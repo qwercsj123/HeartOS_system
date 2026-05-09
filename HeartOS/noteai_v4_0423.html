@@ -517,7 +517,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 
 <!-- ==================== UPLOAD MODAL (NotebookLM style) ==================== -->
 <div class="mo" id="uploadMo" onclick="closeMoOut(event,'uploadMo')">
-  <div class="mo-box" style="width:640px;" onclick="e=>e.stopPropagation()">
+  <div class="mo-box" style="width:640px;" onclick="event.stopPropagation()">
     <button class="mo-close" onclick="closeMo('uploadMo')">✕</button>
     
     <!-- Top gradient header -->
@@ -582,7 +582,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 
 <!-- ==================== NEW NOTEBOOK MODAL ==================== -->
 <div class="mo nbn-modal" id="nbnMo" onclick="closeMoOut(event,'nbnMo')">
-  <div class="mo-box" onclick="e=>e.stopPropagation()">
+  <div class="mo-box" onclick="event.stopPropagation()">
     <button class="mo-close" onclick="closeMo('nbnMo')">✕</button>
     <div class="nbn-head">
       <h2>新建对话</h2>
@@ -665,6 +665,7 @@ const USE_CHAT_DISPATCH = true;
 window.__heartosLastImageSource = null;
 let __nbLoaded = false;
 let __nbSaveTimer = null;
+let __initialUploadPromptShown = false;
 
 function updateChatSendButton(){
   const btn = document.getElementById('chatSendBtn');
@@ -744,7 +745,10 @@ async function loadNotebooksFromServer(){
     renderHome();
     return;
   }
-  openNb(notebooks[0].id, false);
+  const firstNb = notebooks[0];
+  const shouldAutoUpload = !__initialUploadPromptShown && !(Array.isArray(firstNb.sources) && firstNb.sources.length);
+  if(shouldAutoUpload) __initialUploadPromptShown = true;
+  openNb(firstNb.id, shouldAutoUpload);
 }
 
 async function loadAiConfigFromServer(){
@@ -2396,12 +2400,16 @@ function openUploadModal(){
 }
 function showUmoSub(id){
   ['text'].forEach(k=>{
-    document.getElementById('umoSub-'+k).classList.toggle('show',k===id);
+    const panel = document.getElementById('umoSub-'+k);
+    if(panel) panel.classList.toggle('show',k===id);
   });
   document.getElementById('umoDefault').style.display='none';
 }
 function hideUmoSub(){
-  ['url','text','drive'].forEach(k=>document.getElementById('umoSub-'+k).classList.remove('show'));
+  ['url','text','drive'].forEach(k=>{
+    const panel = document.getElementById('umoSub-'+k);
+    if(panel) panel.classList.remove('show');
+  });
   document.getElementById('umoDefault').style.display='';
 }
 function submitUrl(){
