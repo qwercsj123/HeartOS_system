@@ -29,3 +29,9 @@ POST /api/ecgomics/analyze
 
 URL: /api/ecgomics/analyze
 Status: 200 为成功
+
+
+服务器端启动指令
+uvicorn app.main:app --host 0.0.0.0 --port 18005
+
+python -m http.server 18006
