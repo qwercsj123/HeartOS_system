@@ -1603,6 +1603,25 @@ function safeJsonExtract(text){
   return null;
 }
 
+function finishDispatchToolChat(userText, replyText){
+  removeTyping();
+  appendAI(replyText);
+  msgs.push({role:'user',content:userText},{role:'assistant',content:replyText});
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
+  setChatBusy(false);
+  chatAbortController = null;
+}
+
+function runDispatchedToolAsync(toolName, opts){
+  Promise.resolve()
+    .then(() => runStudio(toolName, opts || { skipDispatch: true }))
+    .catch(e => {
+      const msg = (e && e.message) ? e.message : String(e || 'unknown error');
+      try{ appendAI('工具执行异常：' + msg); }catch(_){}
+    });
+}
+
 async function routeByLLM(userText){
   var providerBak = aiConfig.provider;
   var modelBak = aiConfig.model;
@@ -1657,41 +1676,28 @@ async function sendMsg(){
       var endpoint = action && action.endpoint ? String(action.endpoint) : '';
 
       if(endpoint === '/api/ai-ecg-digitize'){
-        await runStudio('ecgsmart', { skipDispatch: true });
-        removeTyping();
-        var msg1 = out.reply || '已触发自动数字化流程。';
-        appendAI(msg1);
-        msgs.push({role:'user',content:q},{role:'assistant',content:msg1});
-        syncCurrentNotebookState();
-        scheduleSaveCurrentNotebook(false);
-        setChatBusy(false);
-        chatAbortController = null;
+        var msg1 = '已识别为自动数字化任务，正在右侧分析区执行，完成后会生成 CSV 并加入来源列表。';
+        finishDispatchToolChat(q, msg1);
+        runDispatchedToolAsync('ecgsmart', { skipDispatch: true });
         return;
       }
 
       if(endpoint === '/api/ecgomics/analyze'){
-        await runStudio('ecgd', { skipDispatch: true });
-        removeTyping();
-        var msg2 = out.reply || '已触发 ECGOmics 分析流程。';
-        appendAI(msg2);
-        msgs.push({role:'user',content:q},{role:'assistant',content:msg2});
-        syncCurrentNotebookState();
-        scheduleSaveCurrentNotebook(false);
-        setChatBusy(false);
-        chatAbortController = null;
+        var msg2 = '已识别为 ECGOmics 分析任务，正在右侧分析区执行特征提取。';
+        finishDispatchToolChat(q, msg2);
+        runDispatchedToolAsync('ecgd', { skipDispatch: true });
         return;
       }
 
       if(endpoint === '/tool/handecg/manual'){
-        await openEcgOverlay();
-        removeTyping();
-        var msg3 = out.reply || '已打开 HandECG 手动数字化工具。';
-        appendAI(msg3);
-        msgs.push({role:'user',content:q},{role:'assistant',content:msg3});
-        syncCurrentNotebookState();
-        scheduleSaveCurrentNotebook(false);
-        setChatBusy(false);
-        chatAbortController = null;
+        var msg3 = '已识别为手动数字化任务，正在打开 HandECG 工具。';
+        finishDispatchToolChat(q, msg3);
+        Promise.resolve()
+          .then(() => openEcgOverlay())
+          .catch(e => {
+            const msg = (e && e.message) ? e.message : String(e || 'unknown error');
+            try{ appendAI('打开 HandECG 失败：' + msg); }catch(_){}
+          });
         return;
       }
 
@@ -1924,6 +1930,16 @@ async function readXmlTextFromSource(src){
   if(!src) return '';
   if(src.fileObj && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
+  }
+  const fileId = src.fileId || src.serverFileId || '';
+  if(fileId){
+    try{
+      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
+      if(resp.ok){
+        const txt = await resp.text();
+        if(txt && txt.indexOf('<') >= 0 && txt.indexOf('>') >= 0) return txt;
+      }
+    }catch(_){ }
   }
   const c = String(src.content||'').trim();
   if(c && c.indexOf('<') >= 0 && c.indexOf('>') >= 0) return c;
@@ -2458,7 +2474,7 @@ function readFile(f){
     r.onload = ev => {
       const ext = String(f.name.split('.').pop()||'').toLowerCase();
       const isXml = ext==='xml' || /xml/i.test(String(f.type||''));
-      const preview = isXml ? '[XML 文件，已载入，可用于 ECGOmics 特征提取]' : ev.target.result;
+      const preview = isXml ? String((ev.target && ev.target.result) || '') : ev.target.result;
       addSrcWithProgress(f.name, ext, preview, null, f);
     };
     r.readAsText(f);
@@ -2494,10 +2510,28 @@ function addSrcWithProgress(name, type, content, imageDataUrl, rawFile){
   },150);
 }
 
+async function persistSourceFileIfNeeded(srcObj, rawFile){
+  if(!srcObj || !rawFile || srcObj.fileId || srcObj.serverFileId) return;
+  try{
+    const fd = new FormData();
+    fd.append('file', rawFile, srcObj.name || rawFile.name || 'source.bin');
+    fd.append('source', 'heartos');
+    const resp = await apiFetch('/api/files/upload', { method:'POST', body: fd });
+    const out = await resp.json().catch(()=>({}));
+    if(!resp.ok) return;
+    srcObj.fileId = out.id || '';
+    srcObj.serverFileId = out.id || '';
+    srcObj.fileUrl = out.url || out.fileUrl || '';
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(false);
+  }catch(_){ }
+}
+
 function addSrc(name,type,content,imageDataUrl,rawFile){
   const id=sources.length+1;
   const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null};
   sources.push(srcObj);
+  persistSourceFileIfNeeded(srcObj, rawFile);
   if(srcObj.imageDataUrl || (srcObj.fileObj && /^image\//i.test(String(srcObj.fileObj.type||'')))){
     window.__heartosLastImageSource = srcObj;
     try{ appendImagePreviewInChat(srcObj); }catch(_){}

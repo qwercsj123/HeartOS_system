@@ -472,24 +472,38 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
     has_image = bool((req.context or {}).get("has_image"))
     has_xml = bool((req.context or {}).get("has_xml"))
 
-    # Route B: always perform LLM intent extraction first for chat input.
-    try:
-        route_plan = await _classify_intent_with_zhipu(
-            message=req.message,
-            context=req.context,
-            user=user,
-            api_key=req.api_key,
-        )
-    except Exception:
-        # Graceful fallback only when LLM routing itself fails.
-        if "手动" in msg_text and "数字化" in msg_text:
-            route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
-        elif "自动" in msg_text and "数字化" in msg_text:
-            route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
-        elif "ecgomics" in msg_text or has_xml:
-            route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
-        else:
-            route_plan = {"intent": "chat", "route": "model", "target": "zhipu"}
+    wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "处理", "生成", "提取", "分析", "跑一下", "run", "do"))
+    asks_concept = any(k in msg_text for k in ("什么是", "是什么", "解释", "介绍", "原理", "概念", "why", "what is", "how"))
+    wants_ecg_features = (
+        ("特征提取" in msg_text or "提取特征" in msg_text or "特征分析" in msg_text)
+        and ("心电" in msg_text or "ecg" in msg_text)
+    )
+
+    if "手动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
+        route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
+    elif "自动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
+        route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
+    elif ("ecgomics" in msg_text or has_xml or wants_ecg_features) and wants_action and not asks_concept:
+        route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
+    else:
+        # Route B: perform LLM intent extraction for chat input, then fall back
+        # to deterministic routing only if the LLM router itself is unavailable.
+        try:
+            route_plan = await _classify_intent_with_zhipu(
+                message=req.message,
+                context=req.context,
+                user=user,
+                api_key=req.api_key,
+            )
+        except Exception:
+            if "手动" in msg_text and "数字化" in msg_text:
+                route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
+            elif "自动" in msg_text and "数字化" in msg_text:
+                route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
+            elif "ecgomics" in msg_text or has_xml:
+                route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
+            else:
+                route_plan = {"intent": "chat", "route": "model", "target": "zhipu"}
 
     intent = str(route_plan.get("intent") or "chat")
     route = str(route_plan.get("route") or "model")

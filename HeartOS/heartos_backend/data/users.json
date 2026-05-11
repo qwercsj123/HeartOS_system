@@ -31,6 +31,14 @@
       "salt": "464893413eff368a",
       "password_hash": "40f80b67747a89583ea0e5b06e7dc7dd5dfd8e3e1f01502d7380745cf89c466f",
       "active": true
+    },
+    {
+      "id": "u_5c573c300c45",
+      "username": "chen11",
+      "display_name": "chen11",
+      "salt": "ee58f846107b05bd",
+      "password_hash": "b7de265d50a6ddc78a5e6107780f98e742f68a21fe18f1cf014b038bccf81997",
+      "active": true
     }
   ]
 }

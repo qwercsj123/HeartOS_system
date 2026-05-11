@@ -8,7 +8,7 @@ cd E:\HeartOS
 python -m http.server 8080  这个窗口也不要关。
 
 浏览器打开：
-前端页面：http://127.0.0.1:8080/noteai_v4_0423.html
+前端页面：http://127.0.0.1:8080/index.html
 后端健康：http://127.0.0.1:9000/health
 
 监控方法（最实用）
