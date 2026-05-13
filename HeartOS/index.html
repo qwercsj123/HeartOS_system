@@ -1274,9 +1274,17 @@ function extractLeadMapFromAny(obj){
   return null;
 }
 
-function leadMapToCsv(leadMap){
+function leadMapToCsv(leadMap, preferredOrder){
   if(!leadMap || typeof leadMap !== 'object') return '';
-  const names = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+  const allNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+  const wanted = Array.isArray(preferredOrder) ? preferredOrder.map(x => String(x || '').trim()).filter(Boolean) : [];
+  const names = [];
+  wanted.forEach(name => {
+    if(allNames.indexOf(name) >= 0 && names.indexOf(name) < 0) names.push(name);
+  });
+  allNames.forEach(name => {
+    if(names.indexOf(name) < 0) names.push(name);
+  });
   if(!names.length) return '';
   let maxN = 0;
   for(let i=0;i<names.length;i++){
@@ -1440,13 +1448,12 @@ function upsertCsvSourceSafe(data){
   const fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
   let fileObj = null;
   try{ fileObj = new File([csvText], fileName, { type:'text/csv' }); }catch(_){}
-  const preview = csvText.split(/\r?\n/).slice(0, 8).join('\n');
   const srcObj = {
     id: sources.length + 1,
     name: fileName,
     type: 'csv',
     checked: true,
-    content: '[AI/HandECG 导出 CSV]\n' + preview,
+    content: '[AI/HandECG 导出 CSV]\n' + csvText,
     imageDataUrl: null,
     fileObj: fileObj,
     __fromHandEcg: true
@@ -1555,9 +1562,21 @@ async function dispatchAgentUnified(userInput, signal){
       return /\.(png|jpe?g|bmp|tiff?|gif|webp)$/i.test(String(f.name || src.name || ''));
     }catch(_){ return false; }
   }
+  function isCsvLikeSourceLocal(src){
+    if(!src) return false;
+    var t = String(src.type || '').toLowerCase();
+    var n = String(src.name || '').toLowerCase();
+    if(t.indexOf('csv') >= 0 || /\.csv$/i.test(n)) return true;
+    var f = src.fileObj;
+    try{
+      if(f && (String(f.type || '').toLowerCase().indexOf('csv') >= 0 || /\.csv$/i.test(String(f.name || '')))) return true;
+    }catch(_){ }
+    return false;
+  }
   var checked = (sources || []).filter(s => !!s && !!s.checked);
   var hasImage = checked.some(s => isImageLikeSourceLocal(s));
   var hasXml = checked.some(s => isXmlSource(s));
+  var hasCsv = checked.some(s => isCsvLikeSourceLocal(s));
   const payload = {
     message: userInput,
     api_key: '',
@@ -1568,7 +1587,8 @@ async function dispatchAgentUnified(userInput, signal){
       message_id: ('msg_' + Date.now()),
       sources: buildDispatchSources(),
       has_image: hasImage,
-      has_xml: hasXml
+      has_xml: hasXml,
+      has_csv: hasCsv
     }
   };
   const resp = await apiFetch('/api/agent/auto-run', {
@@ -1669,6 +1689,13 @@ async function sendMsg(){
   setChatBusy(true);
   chatAbortController = new AbortController();
 
+  if((/补全|重建|reconstruct/i.test(q)) && (/心电|ecg|导联|波形/i.test(q) || pickCsvSource())){
+    var msgReconLocal = '已识别为心电图重建任务，正在右侧分析区执行，完成后会保存补全 CSV 并展示回传图像。';
+    finishDispatchToolChat(q, msgReconLocal);
+    runDispatchedToolAsync('ecgrecon', { skipDispatch: true });
+    return;
+  }
+
   if(USE_CHAT_DISPATCH){
     try{
       const out = await dispatchAgentUnified(q, chatAbortController.signal);
@@ -1686,6 +1713,13 @@ async function sendMsg(){
         var msg2 = '已识别为 ECGOmics 分析任务，正在右侧分析区执行特征提取。';
         finishDispatchToolChat(q, msg2);
         runDispatchedToolAsync('ecgd', { skipDispatch: true });
+        return;
+      }
+
+      if(endpoint === '/api/ecg-reconstruct'){
+        var msgRecon = '已识别为心电图重建任务，正在右侧分析区执行，完成后会保存补全 CSV 并展示回传图像。';
+        finishDispatchToolChat(q, msgRecon);
+        runDispatchedToolAsync('ecgrecon', { skipDispatch: true });
         return;
       }
 
@@ -1847,6 +1881,7 @@ let studioCards = [
   {id:'agent',cls:'agent-card',icon:'🎯', iconBg:'rgba(124,77,255,.12)',  name:'准心智能体',     desc:'基于来源内容的智能决策与规划'},
   {id:'ecgd', cls:'ecgd-card', icon:'📈', iconBg:'rgba(0,188,212,.12)',   name:'心电图特征提取', desc:'ECGOmics/XML 特征提取与批量处理'},
   {id:'ecgsmart',cls:'ml-card',icon:'🧲', iconBg:'rgba(26,115,232,.12)',  name:'自动数字化',desc:'自动识别导联并生成 CSV（快速）'},
+  {id:'ecgrecon',cls:'dl-card',icon:'🧬', iconBg:'rgba(22,163,74,.12)',  name:'心电图补全',desc:'上传 CSV 调用补全接口并回显波形'},
   {id:'ecg',  cls:'ecg-card',  icon:'💓', iconBg:'rgba(233,30,99,.12)',   name:'手动数字化',  desc:'手动校正波形并导出高质量 CSV（精确）'},
 ];
 let currentResultText = '';
@@ -1924,6 +1959,68 @@ function pickXmlLikeFallbackSource(){
     if(/\.xml$/i.test(fn) || ft.indexOf('xml') >= 0) return s;
   }
   return null;
+}
+
+function isCsvSource(src){
+  if(!src) return false;
+  const t = String(src.type||'').toLowerCase();
+  const n = String(src.name||'').toLowerCase();
+  if(/\.csv$/i.test(n)) return true;
+  if(t.indexOf('csv') >= 0) return true;
+  const f = src.fileObj;
+  if(f){
+    const ft = String(f.type||'').toLowerCase();
+    const fn = String(f.name||'').toLowerCase();
+    if(/\.csv$/i.test(fn) || ft.indexOf('csv') >= 0) return true;
+  }
+  const c = String(src.content||'').trim();
+  if(!c) return false;
+  return /(^|[\r\n])\s*(time_ms|time|index|sample|i|ii|lead)/i.test(c.slice(0, 500)) && c.indexOf(',') >= 0;
+}
+
+function pickCsvSource(explicit){
+  if(isCsvSource(explicit)) return explicit;
+  if(Array.isArray(sources)){
+    for(let i=0;i<sources.length;i++){
+      const s = sources[i];
+      if(s && s.checked && isCsvSource(s)) return s;
+    }
+    for(let j=0;j<sources.length;j++){
+      const s2 = sources[j];
+      if(isCsvSource(s2)) return s2;
+    }
+  }
+  return null;
+}
+
+async function readCsvTextFromSource(src){
+  if(!src) return '';
+  if(src.fileObj && typeof src.fileObj.text === 'function'){
+    try{ return await src.fileObj.text(); }catch(_){ }
+  }
+  const fileId = src.fileId || src.serverFileId || '';
+  if(fileId){
+    try{
+      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
+      if(resp.ok){
+        const txt = await resp.text();
+        if(txt && txt.indexOf(',') >= 0) return txt;
+      }
+    }catch(_){ }
+  }
+  return String(src.content||'');
+}
+
+async function csvSourceToFile(src){
+  if(!src) return null;
+  if(src.fileObj && typeof Blob !== 'undefined' && src.fileObj instanceof Blob) return src.fileObj;
+  const text = await readCsvTextFromSource(src);
+  if(!text || text.indexOf(',') < 0) return null;
+  const name = /\.csv$/i.test(src.name||'') ? src.name : ((src.name||'ecg').replace(/\.[^.]+$/,'') + '.csv');
+  try{
+    if(typeof File !== 'undefined') return new File([text], name, { type:'text/csv' });
+  }catch(_){ }
+  try{ return new Blob([text], { type:'text/csv' }); }catch(_){ return null; }
 }
 
 async function readXmlTextFromSource(src){
@@ -2118,6 +2215,115 @@ function renderEcgomicsXmlResult(src, out){
   return currentResultFileName;
 }
 
+function extractEcgReconstructPayload(obj){
+  const seen = new Set();
+  const q = [obj];
+  while(q.length){
+    const cur = q.shift();
+    if(!cur || typeof cur !== 'object') continue;
+    if(seen.has(cur)) continue;
+    seen.add(cur);
+
+    const leadMap = cur.ecgData || cur.ecgDataRaw || cur.leads || cur.waveforms || null;
+    const leadNames = leadMap && typeof leadMap === 'object'
+      ? Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]))
+      : [];
+    const image = cur.image || cur.img || cur.image_base64 || cur.imageBase64 || '';
+    if(leadNames.length || image){
+      return {
+        payload: cur,
+        leadMap: leadMap,
+        leadNames: leadNames,
+        image: image
+      };
+    }
+
+    Object.keys(cur).forEach(k => {
+      const v = cur[k];
+      if(v && typeof v === 'object') q.push(v);
+    });
+  }
+  return { payload: {}, leadMap: null, leadNames: [], image: '' };
+}
+
+function extractEcgReconstructLeadOrder(out){
+  const roots = [];
+  if(out) roots.push(out);
+  if(out && out.upstream) roots.push(out.upstream);
+  for(let i=0;i<roots.length;i++){
+    const meta = roots[i] && roots[i]._meta;
+    const norm = meta && meta.csv_normalization;
+    const order = norm && norm.lead_order;
+    if(Array.isArray(order) && order.length){
+      return order.map(x => String(x || '').trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function renderEcgReconstructResult(src, out){
+  const rc = document.getElementById('resultContent');
+  if(!rc) return;
+  const upstream = out && out.upstream ? out.upstream : out;
+  const parsedPayload = extractEcgReconstructPayload(upstream);
+  const payload = parsedPayload.payload || {};
+  const leadMap = parsedPayload.leadMap;
+  const metaLeadOrder = extractEcgReconstructLeadOrder(out);
+  const returnedLeadNames = parsedPayload.leadNames || [];
+  const leadNames = metaLeadOrder.length
+    ? metaLeadOrder.filter(name => returnedLeadNames.indexOf(name) >= 0).concat(returnedLeadNames.filter(name => metaLeadOrder.indexOf(name) < 0))
+    : returnedLeadNames;
+  const csvColumns = leadNames.length ? ['index'].concat(leadNames) : [];
+  const csv = leadNames.length ? leadMapToCsv(leadMap, leadNames) : '';
+  const srcBaseName = String((src && src.name) || 'ecg').replace(/\\/g, '/').split('/').pop().replace(/\.[^.]+$/, '') || 'ecg';
+  const csvName = srcBaseName + '_reconstruct.csv';
+  if(csv){
+    upsertCsvSourceSafe({ fileName: csvName, csv: csv, sourceName: '' });
+    currentResultText = csv;
+    currentResultFileName = csvName;
+    window.__heartosEcgReconstructCsvText = csv;
+  }else{
+    currentResultText = JSON.stringify(upstream || {}, null, 2);
+    currentResultFileName = 'ecg_reconstruct_' + Date.now() + '.json';
+  }
+
+  const imageDataUrl = parsedPayload.image ? _extractReturnedImageDataUrl(parsedPayload.image) : _extractReturnedImageDataUrl(payload);
+  const totalPoints = leadNames.reduce((acc, name)=>acc + ((leadMap[name] || []).length), 0);
+  const distRows = leadNames.length
+    ? leadNames.map(name => '<li><strong>' + esc(String(name)) + '</strong>：' + ((leadMap[name] || []).length) + ' points</li>').join('')
+    : '<li>未解析到导联数组</li>';
+  const preview = csv ? csv.split(/\r?\n/).slice(0, 70).join('\n') : currentResultText.slice(0, 5000);
+
+  rc.style.display='block';
+  rc.innerHTML =
+    '<h4>心电图补全结果</h4>' +
+    '<p><strong>状态：</strong>' + esc(String((upstream && upstream.code != null) ? upstream.code : '-')) + ' / ' + esc(String((upstream && upstream.msg) || '-')) + '</p>' +
+    '<p><strong>来源：</strong>' + esc(String((src && src.name) || 'csv')) + '</p>' +
+    '<p><strong>采样率：</strong>fs_in=' + esc(String(payload.fs_in == null ? '-' : payload.fs_in)) + '，fs_out=' + esc(String(payload.fs_out == null ? '-' : payload.fs_out)) + '</p>' +
+    '<p><strong>导联数：</strong>' + leadNames.length + '，<strong>总采样点：</strong>' + totalPoints + '</p>' +
+    (csvColumns.length ? '<p><strong>CSV 列名：</strong>' + esc(csvColumns.join(', ')) + '</p>' : '') +
+    (csv ? '<p style="margin:4px 0 8px;"><strong>补全 CSV：</strong>' + esc(csvName) +
+      ' <button class="sa" style="margin-left:8px;" onclick="downloadEcgomicsCsv(currentResultFileName, window.__heartosEcgReconstructCsvText || currentResultText)">下载 CSV</button></p>' : '') +
+    (imageDataUrl ? '<img src="' + imageDataUrl + '" alt="ecg-reconstruct-preview" onclick="openChatImageZoom(\'' + imageDataUrl + '\')" style="cursor:zoom-in;max-width:100%;border-radius:8px;border:1px solid #e5e7eb;margin:8px 0 10px;display:block;" />' : '') +
+    '<h4 style="margin-top:10px;">导联分布</h4>' +
+    '<ul style="margin:6px 0 10px 18px;padding:0;line-height:1.7;">' + distRows + '</ul>' +
+    '<pre style="white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;max-height:360px;overflow:auto;">' + esc(preview) + '</pre>';
+
+  try{
+    appendAI(csv ? ('心电图补全完成，导联数据已保存为 CSV：' + csvName + '\n列名：' + csvColumns.join(', ')) : '心电图补全完成，已回显接口返回结果。');
+    if(imageDataUrl){
+      const w = document.getElementById('msgsList');
+      if(w){
+        const d = document.createElement('div');
+        d.className = 'msg-ai';
+        d.innerHTML = '<div class="ai-av">AI</div><div class="ai-body"><p><strong>心电图补全回传图像</strong></p><img src="' + imageDataUrl + '" alt="ecg-reconstruct-chat-preview" onclick="openChatImageZoom(\'' + imageDataUrl + '\')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>';
+        w.appendChild(d);
+        scrollChat();
+      }
+    }
+  }catch(_){ }
+}
+
 async function runStudio(type, opts){
   opts = opts || {};
   if(!sources.length){openUploadModal();return;}
@@ -2240,6 +2446,64 @@ async function runStudio(type, opts){
       rc.innerHTML = `<div style="padding:20px;color:#dc2626;font-size:13px;"><p><strong>状态：</strong>❌ FAIL</p>自动数字化失败：${esc(msg)}</div>`;
     }finally{
       ecgsmartInFlight = false;
+    }
+    return;
+  }
+
+  if(type==='ecgrecon'){
+    if(studioRunning){
+      showToast('已有分析任务正在处理中，请稍候');
+      return;
+    }
+    studioRunning = true;
+    studioCards.forEach(c=>{
+      document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
+    });
+    const rc = document.getElementById('resultContent');
+    document.getElementById('resultPlaceholder').style.display='none';
+    rc.style.display='block';
+    rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>正在调用心电图补全接口，请稍候…</p></div>`;
+    try{
+      const src = pickCsvSource();
+      if(!src) throw new Error('未找到 CSV 来源。请先上传 .csv 文件并勾选该来源。');
+      const fileObj = await csvSourceToFile(src);
+      if(!fileObj) throw new Error('CSV 文件读取失败。');
+
+      const fd = new FormData();
+      const uploadName = src.name || fileObj.name || 'ecg.csv';
+      if(typeof Blob !== 'undefined' && fileObj instanceof Blob){
+        fd.append('file', fileObj, uploadName);
+      }else{
+        fd.append('file', fileObj);
+      }
+
+      const ctrl = new AbortController();
+      activeToolAbortController = ctrl;
+      const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
+      let resp = null;
+      let out = {};
+      try{
+        resp = await apiFetch('/api/ecg-reconstruct', {
+          method:'POST',
+          body: fd,
+          signal: ctrl.signal
+        });
+        out = await resp.json().catch(()=>({}));
+      }finally{
+        clearTimeout(timer);
+        if(activeToolAbortController === ctrl) activeToolAbortController = null;
+      }
+      if(!resp || !resp.ok){
+        throw new Error((out && (out.detail || out.msg || out.error)) || ('HTTP ' + (resp ? resp.status : '0')));
+      }
+      renderEcgReconstructResult(src, out);
+    }catch(e){
+      const msg = (e && e.name === 'AbortError')
+        ? '请求超时（300秒），请稍后重试。'
+        : (e && e.message ? e.message : String(e));
+      rc.innerHTML = `<div style="padding:20px;color:#dc2626;font-size:13px;"><p><strong>状态：</strong>❌ FAIL</p>心电图补全失败：${esc(msg)}</div>`;
+    }finally{
+      studioRunning = false;
     }
     return;
   }
@@ -2466,7 +2730,7 @@ function ddl(e){document.getElementById('umoDrop').classList.remove('drag');}
 function ddr(e){e.preventDefault();document.getElementById('umoDrop').classList.remove('drag');if(e.dataTransfer.files.length)readFile(e.dataTransfer.files[0]);}
 
 function readFile(f){
-  const isText = f.type==='text/plain'||/xml/i.test(String(f.type||''))||/\\.xml$/i.test(f.name)||f.name.endsWith('.md')||f.name.endsWith('.txt');
+  const isText = f.type==='text/plain'||/csv/i.test(String(f.type||''))||/xml/i.test(String(f.type||''))||/\\.csv$/i.test(f.name)||/\\.xml$/i.test(f.name)||f.name.endsWith('.md')||f.name.endsWith('.txt');
   const isImg = /\.(png|jpg|jpeg|bmp|tiff?|gif)$/i.test(f.name) || f.type.startsWith('image/');
   const isPdf = /\.pdf$/i.test(f.name) || /pdf/i.test(String(f.type||''));
   if(isText){

@@ -2,6 +2,8 @@
 
 import asyncio
 import base64
+import csv
+import io
 import json
 import re
 import uuid
@@ -43,7 +45,9 @@ from .schemas import (
 )
 
 
-app = FastAPI(title=settings.name, version="1.4.0")
+APP_VERSION = "1.4.1"
+
+app = FastAPI(title=settings.name, version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_list,
@@ -123,11 +127,12 @@ async def _classify_intent_with_zhipu(
     system = (
         "你是后端路由器。请仅输出 JSON，不要输出其它文本。"
         "字段: intent, route, target, reason, need_fields。"
-        "intent 只能是: ecg_digitize, ecg_manual_digitize, ecgomics_analyze, report_generate, rag_search, agent_run, chat。"
+        "intent 只能是: ecg_digitize, ecg_manual_digitize, ecg_reconstruct, ecgomics_analyze, report_generate, rag_search, agent_run, chat。"
         "route 只能是: api, agent, model。"
-        "target 取值示例: /api/ai-ecg-digitize, /api/ecgomics/analyze, /tool/handecg/manual, /tool/report/generate, /tool/rag/search, ecg, ml, dl, stats, zhipu。"
+        "target 取值示例: /api/ai-ecg-digitize, /api/ecg-reconstruct, /api/ecgomics/analyze, /tool/handecg/manual, /tool/report/generate, /tool/rag/search, ecg, ml, dl, stats, zhipu。"
         "如果用户明确要求手动数字化，返回 ecg_manual_digitize + /tool/handecg/manual。"
         "如果用户明确要求自动数字化，返回 ecg_digitize + /api/ai-ecg-digitize。"
+        "如果用户要求心电图补全、心电图重建、导联补全、波形重建，返回 ecg_reconstruct + /api/ecg-reconstruct。"
         "如果用户在问模型知识问答，使用 chat。"
     )
     input_payload = {
@@ -272,9 +277,100 @@ def _need_xml_fallback(status_code: int, body_json: Any, body_text: str) -> bool
     return any(k in merged for k in ["ecgdata", "non-empty one-dimensional", "must be longer than 10s", "inputtype"])
 
 
+def _try_float(value: Any) -> float | None:
+    s = str(value if value is not None else "").strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _looks_like_index_column(values: list[float | None]) -> bool:
+    nums = [v for v in values if v is not None]
+    if len(nums) < max(3, int(len(values) * 0.8)):
+        return False
+    if all(abs(nums[i] - i) < 1e-9 for i in range(len(nums))):
+        return True
+    if len(nums) >= 3:
+        step = nums[1] - nums[0]
+        if step > 0 and all(abs((nums[i] - nums[i - 1]) - step) < 1e-9 for i in range(1, len(nums))):
+            return True
+    return False
+
+
+def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
+    text = content.decode("utf-8-sig", errors="ignore").strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="uploaded csv is empty")
+
+    rows = [row for row in csv.reader(io.StringIO(text)) if any(str(cell).strip() for cell in row)]
+    if not rows:
+        raise HTTPException(status_code=422, detail="uploaded csv has no rows")
+
+    max_cols = max(len(row) for row in rows)
+    rows = [row + [""] * (max_cols - len(row)) for row in rows]
+    header_removed = False
+    index_removed = False
+    header = rows[0]
+    lead_order: list[str] = []
+
+    numeric_first_row = sum(1 for cell in header if _try_float(cell) is not None)
+    if numeric_first_row < max(1, int(len(header) * 0.8)):
+        rows = rows[1:]
+        header_removed = True
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="uploaded csv has only a header row")
+
+    first_header = str(header[0] if header else "").strip().lower()
+    first_col = [_try_float(row[0]) for row in rows if row]
+    first_col_named_index = first_header in {"", "index", "idx", "time", "time_ms", "sample", "samples", "row"}
+    if len(rows[0]) > 1 and (first_col_named_index or _looks_like_index_column(first_col)):
+        rows = [row[1:] for row in rows]
+        index_removed = True
+        if header_removed:
+            lead_order = [str(cell).strip() for cell in header[1:] if str(cell).strip()]
+    elif header_removed:
+        lead_order = [str(cell).strip() for cell in header if str(cell).strip()]
+
+    numeric_rows: list[list[str]] = []
+    skipped_rows = 0
+    for row in rows:
+        nums: list[str] = []
+        ok = True
+        for cell in row:
+            v = _try_float(cell)
+            if v is None:
+                ok = False
+                break
+            nums.append(format(v, ".12g"))
+        if ok and nums:
+            numeric_rows.append(nums)
+        else:
+            skipped_rows += 1
+
+    if not numeric_rows:
+        raise HTTPException(status_code=422, detail="csv normalization produced no numeric rows")
+
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerows(numeric_rows)
+    meta = {
+        "header_removed": header_removed,
+        "index_removed": index_removed,
+        "skipped_rows": skipped_rows,
+        "rows": len(numeric_rows),
+        "columns": len(numeric_rows[0]) if numeric_rows else 0,
+        "lead_order": lead_order,
+    }
+    return out.getvalue().encode("utf-8"), meta
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "name": settings.name, "version": "1.4.0"}
+    return {"status": "ok", "name": settings.name, "version": APP_VERSION}
 
 
 @app.post("/api/auth/login", response_model=LoginResponse)
@@ -471,16 +567,23 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
     msg_text = (req.message or "").strip().lower()
     has_image = bool((req.context or {}).get("has_image"))
     has_xml = bool((req.context or {}).get("has_xml"))
+    has_csv = bool((req.context or {}).get("has_csv"))
 
-    wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "处理", "生成", "提取", "分析", "跑一下", "run", "do"))
+    wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "处理", "生成", "提取", "分析", "补全", "重建", "跑一下", "run", "do"))
     asks_concept = any(k in msg_text for k in ("什么是", "是什么", "解释", "介绍", "原理", "概念", "why", "what is", "how"))
     wants_ecg_features = (
         ("特征提取" in msg_text or "提取特征" in msg_text or "特征分析" in msg_text)
         and ("心电" in msg_text or "ecg" in msg_text)
     )
+    wants_ecg_reconstruct = (
+        ("补全" in msg_text or "重建" in msg_text or "reconstruct" in msg_text)
+        and ("心电" in msg_text or "ecg" in msg_text or "导联" in msg_text or "波形" in msg_text or has_csv)
+    )
 
     if "手动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
         route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
+    elif wants_ecg_reconstruct and wants_action and not asks_concept:
+        route_plan = {"intent": "ecg_reconstruct", "route": "api", "target": "/api/ecg-reconstruct"}
     elif "自动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
         route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
     elif ("ecgomics" in msg_text or has_xml or wants_ecg_features) and wants_action and not asks_concept:
@@ -498,6 +601,8 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
         except Exception:
             if "手动" in msg_text and "数字化" in msg_text:
                 route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
+            elif wants_ecg_reconstruct:
+                route_plan = {"intent": "ecg_reconstruct", "route": "api", "target": "/api/ecg-reconstruct"}
             elif "自动" in msg_text and "数字化" in msg_text:
                 route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
             elif "ecgomics" in msg_text or has_xml:
@@ -525,6 +630,15 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
             target="/api/ai-ecg-digitize",
             reply="已识别为自动数字化任务，请调用 /api/ai-ecg-digitize 并提交图像文件或 image_base64。",
             action={"endpoint": "/api/ai-ecg-digitize", "method": "POST", "required": ["file 或 image_base64"]},
+        )
+
+    if intent == "ecg_reconstruct" or target == "/api/ecg-reconstruct":
+        return AgentAutoRunResponse(
+            intent="ecg_reconstruct",
+            route="api",
+            target="/api/ecg-reconstruct",
+            reply="已识别为心电图重建任务，请调用 /api/ecg-reconstruct 并提交 CSV 文件。",
+            action={"endpoint": "/api/ecg-reconstruct", "method": "POST", "required": ["CSV file"]},
         )
 
     if intent == "ecgomics_analyze" or target == "/api/ecgomics/analyze":
@@ -671,6 +785,81 @@ async def handecg_save(
         data["_meta"]["user_id"] = user.get("id")
         data["_meta"]["username"] = user.get("username")
     return data
+
+
+@app.post("/api/ecg-reconstruct")
+@app.post("/api/reconstruct")
+async def ecg_reconstruct(
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    upstream_url = (settings.ecg_reconstruct_url or "").strip()
+    if not upstream_url:
+        raise HTTPException(status_code=500, detail="未配置 ECG 重建地址 APP_ECG_RECONSTRUCT_URL")
+
+    filename = str(file.filename or "ecg.csv")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="uploaded file is empty")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large, max {settings.max_upload_mb}MB")
+
+    upstream_content, csv_meta = _normalize_reconstruct_csv(content)
+    upstream_filename = filename if filename.lower().endswith(".csv") else f"{filename}.csv"
+    content_type = str(file.content_type or "text/csv")
+    timeout = httpx.Timeout(settings.http_timeout)
+    limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
+    last_err: Exception | None = None
+    last_status = 502
+    last_text = ""
+
+    for attempt in range(settings.http_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+                resp = await client.post(
+                    upstream_url,
+                    files={"file": (upstream_filename, upstream_content, content_type or "text/csv")},
+                )
+            if resp.status_code >= 400:
+                last_status = resp.status_code
+                last_text = (resp.text or "")[:800]
+                if attempt < settings.http_retries:
+                    await asyncio.sleep(0.3 * (attempt + 1))
+                    continue
+                break
+            try:
+                out: Any = resp.json()
+            except Exception:
+                raise HTTPException(status_code=502, detail="ECG 重建接口返回非 JSON")
+
+            if isinstance(out, dict):
+                out.setdefault("_meta", {})
+                out["_meta"]["user_id"] = user.get("id")
+                out["_meta"]["username"] = user.get("username")
+                out["_meta"]["source_file"] = filename
+                out["_meta"]["csv_normalization"] = csv_meta
+                payload = out.get("data") if isinstance(out.get("data"), dict) else out
+                response: dict[str, Any] = {"ok": True, "upstream": out}
+                if isinstance(payload, dict):
+                    for key in ("fs_in", "fs_out", "ecgDataRaw", "ecgData", "image"):
+                        if key in payload:
+                            response[key] = payload[key]
+                return response
+            return {"ok": True, "upstream": out}
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            if attempt < settings.http_retries:
+                await asyncio.sleep(0.3 * (attempt + 1))
+                continue
+
+    detail = f"ECG 重建失败 upstream={upstream_url}"
+    if last_text:
+        detail += f" resp={last_text}"
+    if last_err:
+        detail += f" err={last_err!r}"
+    raise HTTPException(status_code=last_status, detail=detail[:1500])
 
 
 @app.post("/api/ai-ecg-digitize")

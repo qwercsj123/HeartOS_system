@@ -8,6 +8,7 @@
 - `GET /api/files`：文件列表
 - `GET /health：健康检查
 - POST /api/ecgomics/analyze：ECGOmics 分析代理
+- POST /api/ecg-reconstruct：CSV 心电重建代理
 
 ---
 
@@ -98,6 +99,37 @@ location.reload()
 
 前端在 HandECG 提取完成后会自动调用：POST /api/ecgomics/analyze。
 如需修改地址，设置环境变量 APP_ECGOMICS_URL 后重启后端。
+
+## ECG 重建接入
+
+后端已内置 CSV 心电重建代理，默认上游地址：http://219.147.100.43:18007/reconstruct。
+
+调用方式：
+```powershell
+curl.exe -X POST http://127.0.0.1:9000/api/ecg-reconstruct `
+  -H "Authorization: Bearer <token>" `
+  -F "file=@D:\Project\Models\3399_20170921085252.csv;type=text/csv"
+```
+
+接口会将 CSV 以 multipart/form-data 的 `file` 字段转发给上游，并返回：
+```json
+{
+  "ok": true,
+  "upstream": {
+    "code": 200,
+    "msg": "SUCCESS",
+    "data": {
+      "fs_in": 192.69,
+      "fs_out": 500.0,
+      "ecgDataRaw": {},
+      "ecgData": {},
+      "image": "base64..."
+    }
+  }
+}
+```
+
+如需修改地址，设置环境变量 APP_ECG_RECONSTRUCT_URL 后重启后端。
 
 
 
