@@ -2288,6 +2288,8 @@ function renderEcgReconstructResult(src, out){
   }
 
   const imageDataUrl = parsedPayload.image ? _extractReturnedImageDataUrl(parsedPayload.image) : _extractReturnedImageDataUrl(payload);
+  const saveInfo = out && out._saveImputeECGR ? out._saveImputeECGR : null;
+  const saveOk = !!(saveInfo && saveInfo.ok);
   const totalPoints = leadNames.reduce((acc, name)=>acc + ((leadMap[name] || []).length), 0);
   const distRows = leadNames.length
     ? leadNames.map(name => '<li><strong>' + esc(String(name)) + '</strong>：' + ((leadMap[name] || []).length) + ' points</li>').join('')
@@ -2301,6 +2303,7 @@ function renderEcgReconstructResult(src, out){
     '<p><strong>来源：</strong>' + esc(String((src && src.name) || 'csv')) + '</p>' +
     '<p><strong>采样率：</strong>fs_in=' + esc(String(payload.fs_in == null ? '-' : payload.fs_in)) + '，fs_out=' + esc(String(payload.fs_out == null ? '-' : payload.fs_out)) + '</p>' +
     '<p><strong>导联数：</strong>' + leadNames.length + '，<strong>总采样点：</strong>' + totalPoints + '</p>' +
+    (saveInfo ? '<p><strong>平台保存：</strong>' + (saveOk ? '✅ 已同步 saveImputeECGR' : ('❌ 保存失败：' + esc(String(saveInfo.detail || saveInfo.status || '-')))) + '</p>' : '') +
     (csvColumns.length ? '<p><strong>CSV 列名：</strong>' + esc(csvColumns.join(', ')) + '</p>' : '') +
     (csv ? '<p style="margin:4px 0 8px;"><strong>补全 CSV：</strong>' + esc(csvName) +
       ' <button class="sa" style="margin-left:8px;" onclick="downloadEcgomicsCsv(currentResultFileName, window.__heartosEcgReconstructCsvText || currentResultText)">下载 CSV</button></p>' : '') +
@@ -2310,7 +2313,7 @@ function renderEcgReconstructResult(src, out){
     '<pre style="white-space:pre-wrap;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;max-height:360px;overflow:auto;">' + esc(preview) + '</pre>';
 
   try{
-    appendAI(csv ? ('心电图补全完成，导联数据已保存为 CSV：' + csvName + '\n列名：' + csvColumns.join(', ')) : '心电图补全完成，已回显接口返回结果。');
+    appendAI(csv ? ('心电图补全完成，导联数据已保存为 CSV：' + csvName + '\n列名：' + csvColumns.join(', ') + (saveInfo ? ('\n平台保存：' + (saveOk ? '已同步 saveImputeECGR' : '保存失败')) : '')) : '心电图补全完成，已回显接口返回结果。');
     if(imageDataUrl){
       const w = document.getElementById('msgsList');
       if(w){

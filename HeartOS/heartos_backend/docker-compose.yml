@@ -18,6 +18,7 @@
       APP_ECGOMICS_URL: http://110.157.241.24:18023/ECGOmics
       APP_AI_ECG_DIGITIZE_URL: http://110.157.241.24:18022/digitize
       APP_ECG_RECONSTRUCT_URL: http://219.147.100.43:18007/reconstruct
+      APP_IMPUTE_ECG_SAVE_URL: https://www.heartvoice.com.cn/dcs/api/heartos/saveImputeECGR
     volumes:
       - ./data:/app/data
     restart: unless-stopped

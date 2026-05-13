@@ -368,6 +368,52 @@ def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
     return out.getvalue().encode("utf-8"), meta
 
 
+async def _save_impute_ecg_result(
+    *,
+    result: dict[str, Any],
+    source_filename: str,
+    user: dict[str, Any],
+) -> dict[str, Any]:
+    save_url = (settings.impute_ecg_save_url or "").strip()
+    if not save_url:
+        return {"ok": False, "skipped": True, "detail": "未配置 APP_IMPUTE_ECG_SAVE_URL"}
+
+    payload_src = result.get("data") if isinstance(result.get("data"), dict) else result
+    if not isinstance(payload_src, dict):
+        return {"ok": False, "skipped": True, "detail": "重建结果不是 JSON 对象，无法保存"}
+
+    save_payload: dict[str, Any] = {
+        "userId": str(user.get("id") or user.get("username") or ""),
+        "fsIn": payload_src.get("fs_in"),
+        "fsOut": payload_src.get("fs_out"),
+        "sourceFilename": source_filename or "ecg.csv",
+        "ecgDataRaw": payload_src.get("ecgDataRaw") or {},
+        "ecgData": payload_src.get("ecgData") or {},
+        "image": payload_src.get("image") or "",
+    }
+
+    timeout = httpx.Timeout(settings.http_timeout)
+    limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
+    last_err: Exception | None = None
+    for attempt in range(settings.http_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+                resp = await client.post(save_url, headers={"Content-Type": "application/json"}, json=save_payload)
+            try:
+                data: Any = resp.json()
+            except Exception:
+                data = {"raw": resp.text}
+            if resp.status_code >= 400:
+                return {"ok": False, "status": resp.status_code, "detail": (resp.text or "")[:800], "payload": save_payload}
+            return {"ok": True, "status": resp.status_code, "response": data, "payload": save_payload}
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            if attempt < settings.http_retries:
+                await asyncio.sleep(0.3 * (attempt + 1))
+                continue
+    return {"ok": False, "detail": repr(last_err), "payload": save_payload}
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "name": settings.name, "version": APP_VERSION}
@@ -844,6 +890,13 @@ async def ecg_reconstruct(
                     for key in ("fs_in", "fs_out", "ecgDataRaw", "ecgData", "image"):
                         if key in payload:
                             response[key] = payload[key]
+                save_result = await _save_impute_ecg_result(result=out, source_filename=filename, user=user)
+                out["_meta"]["saveImputeECGR"] = {
+                    "ok": bool(save_result.get("ok")),
+                    "status": save_result.get("status"),
+                    "detail": save_result.get("detail"),
+                }
+                response["_saveImputeECGR"] = save_result
                 return response
             return {"ok": True, "upstream": out}
         except HTTPException:
