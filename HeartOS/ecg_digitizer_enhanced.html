@@ -1,42 +1,44 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ECG Digitizer — Hand ECG</title>
+<title>HandECG — Hand ECG</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+SC:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #f7f9fc;
+  --bg: #f0f4f8;
   --surface: #ffffff;
-  --surface2: #f3f6fa;
-  --surface3: #eef3f8;
-  --border: #d8e0ea;
-  --border2: #b9c4d3;
-  --accent: #2563eb;
-  --accent2: #1d4ed8;
-  --accent-dim: rgba(37,99,235,0.12);
-  --accent-dim2: rgba(37,99,235,0.06);
-  --red: #f87171;
-  --red-dim: rgba(248,113,113,0.15);
+  --surface2: #f7f9fc;
+  --border: #dde3ed;
+  --border2: #c4cdd9;
+  --accent: #1a56e8;
+  --accent2: #1342c0;
+  --accent-dim: rgba(26,86,232,0.10);
+  --accent-dim2: rgba(26,86,232,0.05);
+  --green: #10b981;
+  --green-dim: rgba(16,185,129,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
   --amber: #f59e0b;
-  --amber-dim: rgba(245,158,11,0.14);
-  --blue: #2563eb;
-  --text: #101828;
-  --text2: #26364a;
-  --text3: #66758a;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.12);
-  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.12);
-  --ring: 0 0 0 3px rgba(37,99,235,0.18);
-  --ui: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', monospace;
-  --serif: var(--ui);
-  --panel: 268px;
-  --header: 56px;
+  --amber-dim: rgba(245,158,11,0.12);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124,58,237,0.10);
+  --text: #0f172a;
+  --text2: #334155;
+  --text3: #64748b;
+  --shadow-sm: 0 1px 3px rgba(15,23,42,0.08);
+  --shadow-md: 0 4px 16px rgba(15,23,42,0.10);
+  --shadow-lg: 0 8px 32px rgba(15,23,42,0.14);
+  --ui: 'IBM Plex Sans SC', 'Microsoft YaHei UI', 'PingFang SC', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+  --header: 60px;
+  --sidebar: 280px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
   font-family: var(--ui);
   background: var(--bg);
@@ -46,421 +48,813 @@ body {
   flex-direction: column;
   overflow: hidden;
   font-size: 13px;
-  font-weight: 400;
-  -webkit-font-smoothing: auto;
-  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ── HEADER ── */
 header {
   height: var(--header);
-  background: #fbfcfe;
+  background: #fff;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  gap: 20px;
+  padding: 0 18px;
+  gap: 0;
   flex-shrink: 0;
   z-index: 100;
 }
-.logo {
-  font-family: var(--ui);
-  font-size: 18px;
-  font-weight: 700;
-  color: #2563eb;
-  white-space: nowrap;
-}
-.logo span {
-  color: var(--text2);
-  font-family: var(--ui);
-  font-size: 12px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
-.header-sep { width: 1px; height: 20px; background: var(--border); }
-.header-actions { display: flex; gap: 6px; margin-left: auto; align-items: center; }
 
-/* Step indicator */
-.steps { display: flex; gap: 0; }
-.step {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 12px;
-  font-size: 14px;
-  color: var(--text2);
-  border-bottom: 2px solid transparent;
-  cursor: default;
-  transition: all 0.2s;
+.logo {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
+  padding-right: 20px;
+  border-right: 1px solid var(--border);
+  margin-right: 20px;
 }
-.step .step-num {
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: #dce4ef;
-  color: var(--text2);
-  font-size: 12px;
+.logo-icon {
+  width: 28px; height: 28px;
+  background: var(--accent);
+  border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+
+/* ── WIZARD STEPS ── */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+}
+
+.wstep {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  cursor: default;
+}
+
+.wstep-body {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+.wstep.done .wstep-body:hover {
+  background: var(--accent-dim2);
+}
+.wstep.done:hover .wstep-label {
+  color: var(--accent);
+}
+
+.wstep-num {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  background: #e2e8f0;
+  color: var(--text3);
+  transition: all 0.25s;
+}
+
+.wstep-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text3);
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.wstep-check {
+  width: 16px; height: 16px;
+  background: var(--green);
+  border-radius: 50%;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 9px;
+  color: #fff;
   flex-shrink: 0;
 }
-.step.active { color: var(--accent); border-bottom-color: var(--accent); }
-.step.active .step-num { background: var(--accent); color: #ffffff; }
-.step.done { color: var(--text2); }
-.step.done .step-num { background: var(--accent-dim); color: var(--accent); }
-.step-arrow { color: var(--text2); font-size: 10px; }
+
+/* States */
+.wstep.done .wstep-num { background: var(--green); color: #fff; display: none; }
+.wstep.done .wstep-check { display: flex; }
+.wstep.done .wstep-label { color: var(--text2); }
+.wstep.active .wstep-num { background: var(--accent); color: #fff; }
+.wstep.active .wstep-label { color: var(--accent); font-weight: 600; }
+.wstep.active .wstep-body { background: var(--accent-dim2); }
+
+.wstep-arrow {
+  color: var(--border2);
+  font-size: 14px;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.wstep.active ~ .wstep-arrow,
+.wstep.active ~ .wstep { opacity: 0.5; }
+
+/* Status pill in header */
+.step-status-pill {
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+}
+.step-status-pill.show { opacity: 1; }
+.step-status-pill.ok { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.2); }
+.step-status-pill.warn { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+.step-status-pill.info { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(26,86,232,0.2); }
+
+/* Header right actions */
+.header-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 16px;
+}
 
 /* ── BUTTONS ── */
 .btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 7px 13px;
-  border-radius: 10px; border: 1px solid var(--border2);
-  background: #ffffff; color: var(--text2);
-  font-family: var(--ui); font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: #fff;
+  color: var(--text2);
+  font-family: var(--ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
   box-shadow: var(--shadow-sm);
+  letter-spacing: -0.1px;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim2); }
-.btn.primary { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(26,86,232,0.3);
+}
 .btn.primary:hover { background: var(--accent2); }
-.btn.secondary { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
-.btn.secondary:hover { background: rgba(251,191,36,0.2); }
-.btn.danger { border-color: var(--red); color: var(--red); background: var(--red-dim); }
-.btn.ghost { background: transparent; border-color: transparent; }
-.btn.ghost:hover { border-color: var(--border2); background: var(--surface2); }
-.btn:disabled { opacity: 0.48; cursor: not-allowed; pointer-events: none; }
-.btn-icon { padding: 5px 8px; }
+.btn.success {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+}
+.btn.success:hover { background: #059669; }
+.btn.secondary { border-color: var(--amber); color: #92400e; background: var(--amber-dim); }
+.btn.ai-btn { border-color: var(--purple); color: var(--purple); background: var(--purple-dim); }
+.btn.ai-btn:hover { background: rgba(124,58,237,0.18); }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn.ghost:hover { background: var(--surface2); border-color: var(--border); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.btn.sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+.btn-icon { padding: 7px 9px; }
 
 /* ── LAYOUT ── */
 .workspace { display: flex; flex: 1; overflow: hidden; }
 
 /* ── SIDEBAR ── */
 .sidebar {
-  width: var(--panel);
-  background: #fbfcfe;
+  width: var(--sidebar);
+  background: #fff;
   border-right: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  overflow-y: auto; overflow-x: hidden; flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  transition: none;
 }
-.sidebar-section { border-bottom: 1px solid var(--border); padding: 12px 14px; }
-.sidebar-section.grow { flex: 0 0 auto; overflow: visible; }
-.section-title {
-  font-size: 11px; color: var(--text2);
+
+/* Step panels */
+.step-panels {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+.step-panel {
+  display: none;
+  flex-direction: column;
+  padding: 16px;
+  gap: 14px;
+}
+.step-panel.active { display: flex; }
+
+/* Panel header */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-num {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 1.5px; text-transform: uppercase;
-  margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
-}
-.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-/* ── UPLOAD ZONE ── */
-.upload-zone {
-  border: 1px dashed #bcd2f9; border-radius: 12px;
-  padding: 14px; text-align: center; cursor: pointer;
-  transition: all 0.2s; background: var(--accent-dim2);
-}
-.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--accent-dim); }
-.upload-zone .icon { font-size: 22px; margin-bottom: 4px; }
-.upload-zone p { color: var(--text2); font-size: 10px; line-height: 1.5; }
-.upload-zone strong { color: var(--accent); }
-#fileInput { display: none; }
-
-/* ── PARAMS ── */
-.param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.param-item label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; font-weight: 600; }
-.param-item input, .param-item select {
-  width: 100%; background: #ffffff;
-  border: 1px solid var(--border2); border-radius: 8px;
-  color: var(--text); font-family: var(--ui); font-size: 14px;
-  padding: 8px 10px; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-}
-.param-item input:focus, .param-item select:focus { border-color: var(--accent); box-shadow: var(--ring); }
-
-/* ── ROTATION ── */
-.rotation-wrap { display: flex; align-items: center; gap: 8px; }
-.rotation-wrap input[type=range] { flex: 1; accent-color: var(--accent); height: 3px; }
-.rot-val { width: 38px; text-align: right; color: var(--accent); font-size: 10px; }
-
-/* ── TABS ── */
-.tabs { display: flex; gap: 1px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 7px; }
-.tab { flex: 1; padding: 5px 4px; text-align: center; font-size: 10px; cursor: pointer; color: var(--text2); background: var(--surface2); transition: all 0.15s; }
-.tab.active { background: #ffffff; color: var(--accent); font-weight: 600; }
-
-/* ── LEAD LIST ── */
-.lead-list { display: flex; flex-direction: column; gap: 2px; }
-.lead-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 8px; border-radius: 8px;
-  border: 1px solid transparent; cursor: pointer;
-  transition: all 0.15s; background: var(--surface2);
-}
-.lead-item:hover { border-color: var(--border2); }
-.lead-item.active { border-color: var(--accent); background: var(--accent-dim); }
-.lead-item.active .lead-name { color: var(--accent); }
-.lead-name { font-size: 12px; font-weight: 600; color: var(--text2); width: 34px; flex-shrink: 0; }
-.lead-status { font-size: 10px; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lead-del { opacity: 0; color: var(--red); cursor: pointer; font-size: 11px; padding: 0 2px; transition: opacity 0.15s; }
-.lead-item:hover .lead-del { opacity: 1; }
-.badge { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
-.badge.set { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
-.badge.extracted { background: var(--red); box-shadow: 0 0 4px var(--red); }
-
-/* ── CANVAS AREA ── */
-.main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-/* Tab bar between canvas and preview */
-.view-tabs {
-  display: flex; background: #fbfcfe; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.view-tab {
-  padding: 10px 18px; font-size: 13px; cursor: pointer;
-  color: var(--text2); border-bottom: 2px solid transparent;
+.panel-title {
+  font-size: 14px;
   font-weight: 600;
-  transition: all 0.15s;
+  color: var(--text);
 }
-.view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.view-tab:hover { color: var(--text2); }
-
-.canvas-wrap {
-  flex: 1; overflow: auto; position: relative;
-  background: var(--bg);
-  display: flex; align-items: flex-start; justify-content: flex-start;
-  padding: 18px;
-}
-.canvas-container {
-  position: relative; display: inline-block;
-  line-height: 0; user-select: none; flex-shrink: 0;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
-  border: 1px solid #aeb8c7;
-  background: #ffffff;
-}
-#ecgCanvas {
-  display: block;
-  image-rendering: auto;
-  filter: contrast(1.12) saturate(0.98);
-}
-#overlayCanvas {
-  position: absolute; top: 0; left: 0;
-  pointer-events: auto; cursor: crosshair;
+.panel-subtitle {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
 }
 
-/* ── PREVIEW PANEL ── */
-.preview-wrap {
-  flex: 1; overflow: auto; background: var(--bg);
-  display: none; flex-direction: column; padding: 12px;
+/* Result box - shown after each step completes */
+.result-box {
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: none;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.result-box.show { display: flex; }
+.result-box.ok { background: var(--green-dim); border: 1px solid rgba(16,185,129,0.25); color: #065f46; }
+.result-box.warn { background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.3); color: #78350f; }
+.result-box.info { background: var(--accent-dim); border: 1px solid rgba(26,86,232,0.2); color: #1e3a8a; }
+.result-box .rb-icon { font-size: 14px; flex-shrink: 0; margin-top: 0px; }
+.result-box .rb-text { flex: 1; }
+.result-box .rb-title { font-weight: 600; margin-bottom: 2px; }
+
+/* Instruction card */
+.instruction-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.instruction-card .ic-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+.instruction-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.istep {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.4;
+  word-break: break-all;
+}
+.istep .ist-num {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0px;
+}
+.istep.active-step .ist-num { background: var(--accent); color: #fff; }
+
+/* Action area */
+.panel-actions { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+/* Params grid */
+.param-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 8px;
 }
+.param-item label {
+  display: block;
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.param-item input, .param-item select {
+  width: 100%;
+  min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 13px;
+  padding: 7px 8px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+.param-item input:focus, .param-item select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(26,86,232,0.12);
+}
+
+/* Calibration axis indicators */
+.calib-axes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.calib-axis {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: center;
+  transition: all 0.2s;
+}
+.calib-axis.done { border-color: var(--green); background: var(--green-dim); }
+.calib-axis.active { border-color: var(--amber); background: var(--amber-dim); }
+.calib-axis-label { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.calib-axis-val { font-size: 13px; font-weight: 600; color: var(--text); margin-top: 2px; font-family: var(--mono); }
+.calib-axis.done .calib-axis-label { color: var(--green); }
+.calib-axis.done .calib-axis-val { color: var(--green); }
+
+/* Lead layout preset buttons */
+.preset-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.preset-btn {
+  flex: 1;
+  padding: 10px 8px;
+  border: 2px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface2);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  font-family: var(--ui);
+}
+.preset-btn:hover { border-color: var(--accent); }
+.preset-btn.selected { border-color: var(--accent); background: var(--accent-dim); }
+.preset-btn-label { font-size: 12px; font-weight: 600; color: var(--text2); }
+.preset-btn-desc { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.preset-btn.selected .preset-btn-label { color: var(--accent); }
+
+/* Lead grid status */
+.lead-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.lead-cell {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  background: var(--surface2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.lead-cell:hover { border-color: var(--accent); }
+.lead-cell.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+.lead-cell.has-box { border-color: var(--border2); color: var(--text2); background: #fff; }
+.lead-cell.has-box::after { content: ''; }
+.lead-cell.active.has-box { border-color: var(--accent); background: var(--accent-dim); }
+.lead-cell.extracted { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+
+/* Next step button */
+.next-step-btn {
+  width: 100%;
+  padding: 11px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(26,86,232,0.25);
+}
+.next-step-btn:hover { background: var(--accent2); box-shadow: 0 4px 12px rgba(26,86,232,0.35); }
+.next-step-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+/* Section divider */
+.sdivider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+/* AI suggestion box */
+.ai-suggestion {
+  border: 1px solid rgba(124,58,237,0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(26,86,232,0.05) 100%);
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-suggestion.show { display: flex; }
+.ai-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--purple);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ai-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--purple);
+}
+.ai-dots {
+  display: flex;
+  gap: 3px;
+}
+.ai-dots span {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--purple);
+  animation: aiDot 1.2s ease-in-out infinite;
+}
+.ai-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ai-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes aiDot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+.ai-result {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.5;
+  display: none;
+}
+.ai-result.show { display: block; }
+.ai-apply-row {
+  display: none;
+  gap: 6px;
+}
+.ai-apply-row.show { display: flex; }
+
+/* Progress bar */
+.prog-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  display: none;
+}
+.prog-bar.show { display: block; }
+.prog-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+/* ── CANVAS AREA ── */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* View bar */
+.view-bar {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 42px;
+}
+.view-tab {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text3);
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  border-radius: 6px 6px 0 0;
+}
+.view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.view-tab:hover:not(.active) { color: var(--text2); background: var(--surface2); }
+.view-bar-right { margin-left: auto; display: flex; gap: 6px; }
+
+/* Canvas wrap */
+.canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background: var(--bg);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 20px;
+}
+.canvas-container {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  user-select: none;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid #b0bec8;
+  background: #fff;
+}
+#ecgCanvas { display: block; image-rendering: auto; filter: contrast(1.08) saturate(0.98); }
+#overlayCanvas { position: absolute; top: 0; left: 0; pointer-events: auto; cursor: crosshair; }
+
+/* Empty state */
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.es-card {
+  background: #fff;
+  border: 2px dashed var(--border2);
+  border-radius: 16px;
+  padding: 40px 60px;
+  text-align: center;
+  transition: all 0.2s;
+}
+.es-card:hover { border-color: var(--accent); background: var(--accent-dim2); }
+.es-icon { font-size: 40px; margin-bottom: 8px; opacity: 0.4; }
+.es-title { font-size: 16px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
+.es-sub { font-size: 12px; color: var(--text3); }
+
+/* Zoom controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 10;
+}
+.zoom-btn {
+  width: 32px; height: 32px;
+  background: #fff;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text2);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+  font-family: var(--ui);
+}
+.zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+.zoom-label { text-align: center; font-size: 10px; color: var(--text3); font-family: var(--mono); }
+
+/* Preview wrap */
+.preview-wrap {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg);
+  display: none;
+  flex-direction: column;
+  padding: 14px;
+  gap: 10px;
+}
 .preview-wrap.visible { display: flex; }
-
-.preview-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px;
-  background: var(--surface); border-radius: 6px;
-  border: 1px solid var(--border); flex-shrink: 0;
-}
-.preview-header-title { font-size: 11px; color: var(--text2); flex: 1; }
-.preview-header .quality-badge {
-  font-size: 10px; padding: 3px 8px; border-radius: 3px;
-  border: 1px solid var(--border2); color: var(--text2);
-}
-.preview-header .quality-badge.good { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-.preview-header .quality-badge.warn { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
-
 .preview-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 8px;
 }
-
 .preview-card {
-  background: var(--surface);
+  background: #fff;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 10px;
   overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.15s;
+  transition: box-shadow 0.15s;
 }
-.preview-card:hover { border-color: var(--border2); }
-.preview-card.selected { border-color: var(--accent); }
-
+.preview-card:hover { box-shadow: var(--shadow-sm); }
 .preview-card-header {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 8px;
-  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface2);
 }
-.preview-card-lead { font-size: 10px; font-weight: 700; color: var(--accent); width: 32px; }
-.preview-card-info { font-size: 9px; color: var(--text2); flex: 1; }
-.preview-card-status { font-size: 9px; }
-.preview-card-status.ok { color: var(--accent); }
+.preview-card-lead { font-size: 11px; font-weight: 700; width: 30px; }
+.preview-card-info { font-size: 10px; color: var(--text3); flex: 1; font-family: var(--mono); }
+.preview-card-status { font-size: 10px; }
+.preview-card-status.ok { color: var(--green); }
 .preview-card-status.warn { color: var(--amber); }
-
-.preview-canvas-wrap { position: relative; background: #fdf6f0; }
-.preview-canvas-wrap canvas { display: block; width: 100%; }
-
-/* ── EXTRACT CONTROLS ── */
-.extract-controls {
-  background: var(--surface); border-radius: 6px;
-  border: 1px solid var(--border); padding: 10px 12px;
-  flex-shrink: 0;
-}
-.extract-controls-title { font-size: 9px; color: var(--text2); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
-.extract-params { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
-.extract-param { display: flex; flex-direction: column; gap: 3px; }
-.extract-param label { font-size: 9px; color: var(--text2); font-weight: 600; }
-.extract-param input, .extract-param select {
-  background: var(--surface3); border: 1px solid var(--border2);
-  border-radius: 3px; color: var(--text); font-family: var(--mono);
-  font-size: 11px; padding: 4px 8px; outline: none; width: 90px;
-}
-.extract-param input:focus { border-color: var(--accent); }
-
-/* ── ZOOM ── */
-.zoom-controls {
-  position: absolute; bottom: 12px; right: 12px;
-  display: flex; flex-direction: column; gap: 3px; z-index: 10;
-}
-.zoom-btn {
-  width: 34px; height: 34px; background: #ffffff;
-  border: 1px solid var(--border2); border-radius: 10px;
-  color: var(--text2); font-size: 15px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+.preview-card-edit {
+  font-size: 10px; padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  font-family: var(--ui);
   transition: all 0.15s;
 }
-.zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
-.zoom-label { text-align: center; font-size: 9px; color: var(--text2); }
+.preview-card-edit:hover { border-color: var(--amber); color: var(--amber); }
+.preview-card-edit.edited { border-color: var(--accent); color: var(--accent); }
+.preview-canvas-wrap { position: relative; background: #f9f5ef; }
+.preview-canvas-wrap canvas { display: block; width: 100%; }
+
+/* Extract params panel */
+.extract-params-bar {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  flex-shrink: 0;
+}
+.epb-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+.epb-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.ep-item { display: flex; flex-direction: column; gap: 3px; }
+.ep-item label { font-size: 10px; color: var(--text3); font-weight: 500; }
+.ep-item input, .ep-item select {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 6px; color: var(--text);
+  font-size: 12px; padding: 5px 8px; outline: none; width: 90px;
+  font-family: var(--ui);
+}
+.ep-item input:focus { border-color: var(--accent); }
+
+/* Preview summary bar */
+.preview-summary {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.ps-info { font-size: 12px; color: var(--text2); flex: 1; }
+.quality-badge {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.quality-badge.good { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+.quality-badge.warn { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
 
 /* ── STATUS BAR ── */
 .statusbar {
-  height: 28px; background: #fbfcfe;
+  height: 26px;
+  background: #fff;
   border-top: 1px solid var(--border);
-  display: flex; align-items: center;
-  padding: 0 12px; gap: 14px; font-size: 11px;
-  color: var(--text2); flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text3);
+  flex-shrink: 0;
+  font-family: var(--mono);
 }
 .statusbar .sep { color: var(--border2); }
-.statusbar .hl { color: var(--accent); }
-.hint { margin-left: auto; font-size: 9px; }
+.statusbar .hl { color: var(--accent); font-weight: 500; }
 
 /* ── TOAST ── */
 .toast {
-  position: fixed; bottom: 36px; left: 50%;
-  transform: translateX(-50%) translateY(16px);
-  background: var(--surface2); border: 1px solid var(--accent);
-  color: var(--accent); padding: 7px 14px;
-  border-radius: 4px; font-size: 11px; opacity: 0;
-  transition: all 0.25s; z-index: 9999; pointer-events: none;
+  position: fixed;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--text);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  opacity: 0;
+  transition: all 0.2s;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.error { border-color: var(--red); color: var(--red); }
-.toast.warn  { border-color: var(--amber); color: var(--amber); }
-
-.required-steps {
-  margin-top: 8px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface2);
-  font-size: 10px;
-  color: var(--text2);
-  line-height: 1.65;
-}
-.required-step {
-  display: flex;
-  gap: 6px;
-  align-items: flex-start;
-}
-.required-step .mark {
-  width: 13px;
-  color: var(--text3);
-  flex: 0 0 13px;
-}
-.required-step.done { color: var(--text2); }
-.required-step.done .mark { color: var(--accent); }
-.required-step.blocked { color: var(--amber); }
-.required-step.blocked .mark { color: var(--amber); }
-
-.grid-guide-hint {
-  display: none;
-  margin-top: 8px;
-  padding: 8px 9px;
-  border: 1px solid rgba(245,158,11,0.55);
-  border-radius: 6px;
-  background: rgba(245,158,11,0.10);
-  color: #92400e;
-  font-size: 11px;
-  line-height: 1.65;
-}
-.grid-guide-hint.show { display: block; }
-.grid-guide-hint strong { color: #b45309; }
-.grid-guide-hint button {
-  margin-top: 6px;
-  border: 1px solid rgba(245,158,11,0.65);
-  border-radius: 4px;
-  background: #fff7ed;
-  color: #b45309;
-  font: inherit;
-  font-weight: 700;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-.grid-guide-hint button:hover { background: #ffedd5; }
-.guide-pulse {
-  animation: guidePulse 1.25s ease-in-out infinite;
-  box-shadow: 0 0 0 0 rgba(245,158,11,0.42);
-}
-@keyframes guidePulse {
-  0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.42); }
-  70% { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
-  100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
-}
-
-#calibSummary,
-#calibStatus,
-#layoutDesc,
-#selectedLeadInfo,
-#requiredSteps,
-.lead-status,
-.preview-card-info,
-.preview-card-status,
-.extract-controls-title,
-.extract-param label,
-.statusbar,
-.hint {
-  font-size: 11px !important;
-}
-
-/* ── INFO BOX ── */
-.info-box {
-  background: var(--surface3); border: 1px solid var(--border);
-  border-radius: 4px; padding: 7px; font-size: 10px;
-  color: var(--text2); line-height: 1.6; margin-top: 6px;
-}
-.info-box .kv { display: flex; justify-content: space-between; }
-.info-box .v { color: var(--accent); }
-
-/* ── EMPTY STATE ── */
-.empty-state {
-  position: absolute; inset: 0; display: flex;
-  flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; color: var(--text3); pointer-events: none;
-}
-.empty-state .big-icon { font-size: 44px; opacity: 0.25; }
-.empty-state h2 { font-family: var(--serif); font-style: italic; font-size: 18px; color: var(--text2); opacity: 0.4; }
-.empty-state p { font-size: 10px; opacity: 0.4; }
-
-[style*="var(--text3)"] { color: var(--text2) !important; }
-[style*="opacity:0.6"] { opacity: 0.85 !important; }
-[style*="opacity:0.8"] { opacity: 1 !important; }
+.toast.error { background: var(--red); }
+.toast.warn { background: var(--amber); color: var(--text); }
+.toast.success { background: var(--green); }
 
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-.divider { height: 1px; background: var(--border); margin: 6px 0; }
+/* Sidebar nav */
+.sidebar-nav {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-nav-item {
+  flex: 1;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.sidebar-nav-item.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* ── REPAIR MODAL ── */
+/* Advanced panel */
+.adv-panel { display: none; }
+.adv-panel.active { display: block; padding: 14px; }
+
+/* Batch section at bottom of sidebar */
+.batch-section {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  flex-shrink: 0;
+  display: none;
+}
+.batch-section.show { display: block; }
+.batch-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.batch-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+.batch-bar { height: 3px; background: var(--border); border-radius: 2px; margin: 6px 0; }
+.batch-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+.batch-queue { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
+.batch-item {
+  display: flex; align-items: center; gap: 6px; padding: 4px 7px;
+  border-radius: 6px; border: 1px solid transparent;
+  font-size: 11px; cursor: pointer; transition: all 0.15s; background: var(--surface2);
+}
+.batch-item:hover { border-color: var(--border2); }
+.batch-item.active { border-color: var(--accent); background: var(--accent-dim); }
+.batch-item.done { opacity: 0.6; }
+.batch-item .bi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+.batch-item.active .bi-name { color: var(--accent); }
+.batch-item .bi-status { font-size: 10px; color: var(--green); }
+
+/* Repair modal (unchanged styles) */
 .rmodal-overlay {
   display:none; position:fixed; inset:0; z-index:3000;
   background:rgba(0,0,0,0.82); align-items:center; justify-content:center;
@@ -468,35 +862,35 @@ header {
 .rmodal-overlay.open { display:flex; }
 .rmodal-box {
   background:var(--surface); border:1px solid var(--border2);
-  border-radius:8px; width:min(96vw,1040px); height:min(90vh,680px);
+  border-radius:12px; width:min(96vw,1040px); height:min(90vh,680px);
   display:flex; flex-direction:column; overflow:hidden;
+  box-shadow: var(--shadow-lg);
 }
 .rmodal-header {
-  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  display:flex; align-items:center; gap:8px; padding:10px 14px;
   border-bottom:1px solid var(--border); background:var(--surface2); flex-shrink:0;
 }
-.rmodal-title { font-size:12px; color:var(--text); flex:1; }
+.rmodal-title { font-size:13px; font-weight:600; color:var(--text); flex:1; }
 .rmodal-body { flex:1; display:flex; overflow:hidden; }
 .rmodal-tools {
   width:160px; flex-shrink:0; border-right:1px solid var(--border);
-  background:var(--surface2); padding:8px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;
+  background:var(--surface2); padding:10px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;
 }
-.tool-section-label { font-size:9px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin:6px 0 3px; }
+.tool-section-label { font-size:10px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin:6px 0 3px; }
 .rmodal-canvas-area {
-  flex:1; overflow:auto; background:#ffffff;
-  display:flex; align-items:flex-start; justify-content:flex-start;
-  padding:12px;
+  flex:1; overflow:auto; background:#fff;
+  display:flex; align-items:flex-start; justify-content:flex-start; padding:12px;
 }
 #repairCanvas { display:block; cursor:crosshair; image-rendering:crisp-edges; }
 .rmodal-footer {
-  display:flex; align-items:center; gap:8px; padding:7px 12px;
+  display:flex; align-items:center; gap:8px; padding:8px 14px;
   border-top:1px solid var(--border); background:var(--surface2); flex-shrink:0;
-  font-size:10px; color:var(--text3);
+  font-size:11px; color:var(--text3);
 }
 .rtool-btn {
-  display:flex; align-items:center; gap:5px; padding:5px 8px;
-  border:1px solid var(--border2); border-radius:4px; background:var(--surface3);
-  color:var(--text2); font-family:var(--mono); font-size:10px; cursor:pointer; width:100%;
+  display:flex; align-items:center; gap:5px; padding:6px 8px;
+  border:1px solid var(--border2); border-radius:6px; background:var(--surface3,#eef3f8);
+  color:var(--text2); font-family:var(--ui); font-size:11px; cursor:pointer; width:100%;
   transition:all 0.15s;
 }
 .rtool-btn:hover { border-color:var(--accent); color:var(--accent); }
@@ -504,99 +898,131 @@ header {
 .rtool-btn.amber.active { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
 .rtool-btn.red.active { border-color:var(--red); color:var(--red); background:var(--red-dim); }
 .brush-size-wrap { display:flex; flex-direction:column; gap:3px; }
-.brush-size-wrap label { font-size:9px; color:var(--text3); }
+.brush-size-wrap label { font-size:10px; color:var(--text3); }
 .brush-size-wrap input { accent-color:var(--accent); width:100%; }
-.anchor-legend { font-size:9px; color:var(--text3); line-height:1.7; }
+.anchor-legend { font-size:10px; color:var(--text3); line-height:1.7; }
 .anchor-legend span { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+.vcrop-hint { font-size:10px; color:#818cf8; line-height:1.6; margin-top:4px; }
+.progress-bar { height:2px; background:var(--border); border-radius:1px; overflow:hidden; margin-top:4px; display:none; }
+.progress-fill { height:100%; background:var(--accent); border-radius:1px; transition:width 0.3s; }
+.info-box { background:var(--surface2,#f3f6fa); border:1px solid var(--border); border-radius:6px; padding:8px; font-size:11px; color:var(--text2); line-height:1.6; margin-top:6px; }
+.info-box .kv { display:flex; justify-content:space-between; }
+.info-box .v { color:var(--accent); }
 
-/* Vertical crop handles in repair canvas */
-.vcrop-active #repairCanvas { cursor: ns-resize; }
-.vcrop-hint { font-size:9px; color:#818cf8; line-height:1.6; margin-top:4px; }
+/* Pulse animation for calibration point indicator */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
 
-/* ── BATCH MODE ── */
-.batch-queue {
-  display:flex; flex-direction:column; gap:2px; max-height:220px; overflow-y:auto;
-}
-.batch-item {
-  display:flex; align-items:center; gap:6px; padding:4px 7px;
-  border-radius:4px; border:1px solid transparent;
-  font-size:10px; cursor:pointer; transition:all 0.15s;
-  background:var(--surface2);
-}
-.batch-item:hover { border-color:var(--border2); }
-.batch-item.active { border-color:var(--accent); background:var(--accent-dim); }
-.batch-item.done { border-color:var(--border); opacity:0.6; }
-.batch-item.done .bi-name { text-decoration:line-through; color:var(--text3); }
-.batch-item .bi-idx { font-size:9px; color:var(--text3); min-width:18px; }
-.batch-item .bi-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text2); }
-.batch-item .bi-status { font-size:9px; flex-shrink:0; }
-.batch-item.active .bi-name { color:var(--accent); }
-.batch-progress {
-  font-size:10px; color:var(--text2); padding:4px 0;
-  display:flex; justify-content:space-between; align-items:center;
-}
-.batch-bar { height:3px; background:var(--border); border-radius:2px; margin:4px 0; }
-.batch-bar-fill { height:100%; background:var(--accent); border-radius:2px; transition:width 0.3s; }
-.preview-card-edit {
-  font-size:9px; padding:2px 7px; border-radius:3px;
-  border:1px solid var(--border2); background:transparent;
-  color:var(--text3); cursor:pointer; font-family:var(--mono);
-  transition:all 0.15s; margin-left:auto; flex-shrink:0;
-}
-.preview-card-edit:hover { border-color:var(--amber); color:var(--amber); background:var(--amber-dim); }
-.preview-card-edit.edited { border-color:var(--accent); color:var(--accent); }
+/* Rotation card show animation */
+#rotateCard { transition: all 0.25s; }
 
-/* Progress */
-.progress-bar {
-  height: 2px; background: var(--border); border-radius: 1px;
-  overflow: hidden; margin-top: 4px;
+/* Keyboard hint kbd style */
+kbd {
+  background: var(--border);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 4px;
+  color: var(--text2);
 }
-.progress-fill {
-  height: 100%; background: var(--accent);
-  border-radius: 1px; transition: width 0.3s;
+
+/* Collapse toggle */
+.collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  user-select: none;
 }
+.collapse-toggle:hover { color: var(--text2); }
+.collapse-arrow { transition: transform 0.2s; font-size: 10px; }
+.collapse-toggle.open .collapse-arrow { transform: rotate(90deg); }
+.collapse-body { display: none; margin-top: 8px; }
+.collapse-toggle.open + .collapse-body { display: block; }
+
+/* Required hidden inputs for original JS compatibility */
+#paramDPI, #paramFS, #calibDistX, #calibDistY { display: none !important; }
+
+/* Preview empty state */
+.preview-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text3);
+  font-size: 13px;
+  flex-direction: column;
+  gap: 10px;
+}
+.pe-icon { font-size: 40px; opacity: 0.2; }
+
+/* CSV render panel */
+#csvRenderPanel { display:none; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; }
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
 <header>
-  <div class="logo">Hand ECG <span>v3.0</span></div>
-  <div class="header-sep"></div>
+  <div class="logo">
+    <div class="logo-icon">🫀</div>
+    HandECG
+  </div>
 
-  <!-- Step indicators -->
-  <div class="steps">
-    <div class="step active" id="step1">
-      <span class="step-num">1</span> 打开图像
+  <!-- Wizard Steps -->
+  <div class="wizard-steps" id="wizardSteps">
+    <div class="wstep active" id="wstep1" onclick="if(state.image)goToStep(1)" style="cursor:pointer" title="点击返回此步骤">
+      <div class="wstep-body">
+        <div class="wstep-num">1</div>
+        <div class="wstep-check">✓</div>
+        <div class="wstep-label">图像预处理</div>
+      </div>
     </div>
-    <span class="step-arrow">›</span>
-    <div class="step" id="step2">
-      <span class="step-num">2</span> 网格标定
+    <span class="wstep-arrow">›</span>
+    <div class="wstep" id="wstep2" onclick="if(state.image)goToStep(2)" style="cursor:pointer" title="点击返回此步骤">
+      <div class="wstep-body">
+        <div class="wstep-num">2</div>
+        <div class="wstep-check">✓</div>
+        <div class="wstep-label">网格标定</div>
+      </div>
     </div>
-    <span class="step-arrow">›</span>
-    <div class="step" id="step3">
-      <span class="step-num">3</span> 标注区域
+    <span class="wstep-arrow">›</span>
+    <div class="wstep" id="wstep3" onclick="if(state.image)goToStep(3)" style="cursor:pointer" title="点击返回此步骤">
+      <div class="wstep-body">
+        <div class="wstep-num">3</div>
+        <div class="wstep-check">✓</div>
+        <div class="wstep-label">标注导联</div>
+      </div>
     </div>
-    <span class="step-arrow">›</span>
-    <div class="step" id="step4">
-      <span class="step-num">4</span> 提取预览
-    </div>
-    <span class="step-arrow">›</span>
-    <div class="step" id="step5">
-      <span class="step-num">5</span> 保存 CSV
+    <span class="wstep-arrow">›</span>
+    <div class="wstep" id="wstep4" onclick="if(state.image)goToStep(4)" style="cursor:pointer" title="点击返回此步骤">
+      <div class="wstep-body">
+        <div class="wstep-num">4</div>
+        <div class="wstep-check">✓</div>
+        <div class="wstep-label">提取信号</div>
+      </div>
     </div>
   </div>
 
-  <div class="header-actions">
-    <button class="btn" onclick="document.getElementById('fileInput').click()">⊕ 打开</button>
-    <button class="btn" id="btnPreset" onclick="applyPreset()" disabled>⊞ 应用预设</button>
-    <button class="btn" id="btnClear" onclick="clearAllBoxes()" disabled>⊘ 清空</button>
-    <button class="btn secondary" id="btnExtract" onclick="runExtraction()" disabled>▶ 提取预览</button>
-    <button class="btn primary" id="btnSave" onclick="saveCSV()" disabled>↓ 保存 CSV</button>
-    <button class="btn" id="btnNextImage" onclick="batchNext()" disabled
-      style="display:none;border-color:var(--accent);color:var(--accent)">
-      ✓ 完成，下一张 ›
-    </button>
+  <!-- Status pill -->
+  <div class="step-status-pill" id="stepStatusPill"></div>
+
+  <!-- Right actions -->
+  <div class="header-right">
+
+    <button class="btn primary" id="btnNextImage" onclick="batchNext()" disabled style="display:none">下一张 ›</button>
+    <!-- hidden compat buttons -->
+    <button id="btnExtract" onclick="runExtraction()" style="display:none"></button>
+    <button id="btnSave" onclick="saveCSV()" style="display:none"></button>
   </div>
 </header>
 
@@ -604,157 +1030,437 @@ header {
 <div class="workspace">
 
   <!-- SIDEBAR -->
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
+    <!-- 拖拽调宽手柄 -->
+    <div id="sidebarResizer" style="position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:50;background:transparent"
+      onmousedown="startSidebarResize(event)"></div>
 
-    <div class="sidebar-section">
-      <div class="section-title">操作步骤</div>
-      <div class="required-steps" id="requiredSteps"></div>
-      <input type="file" id="fileInput" accept="image/*" multiple>
-    </div>
+    <!-- Nav tabs for step panels -->
 
-    <!-- BATCH QUEUE (shown when >1 file loaded) -->
-    <div class="sidebar-section" id="batchSection" style="display:none">
-      <div class="section-title">批量队列</div>
-      <div class="batch-progress">
-        <span id="batchProgressText">0 / 0 完成</span>
-        <button class="btn" id="btnDownloadAll" onclick="downloadAllCSV()" disabled
-          style="font-size:9px;padding:3px 8px;border-color:var(--accent);color:var(--accent)">
-          ↓ 打包下载 ZIP
+
+    <!-- WIZARD PANELS -->
+    <div class="step-panels" id="wizardPanels">
+
+      <!-- STEP 1: Upload -->
+      <div class="step-panel active" id="panel1">
+        <div class="panel-header">
+          <div class="panel-num">1</div>
+          <div>
+            <div class="panel-title">图像预处理</div>
+            <div class="panel-subtitle">上传心电图，支持拍照或扫描图片</div>
+          </div>
+        </div>
+
+        <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+
+        <!-- Result after upload -->
+        <div id="_result1_compat" style="display:none">
+          <div class="rb-icon">✅</div>
+          <div class="rb-text">
+            <div class="rb-title">图像已加载</div>
+            <div style="font-size:11px;margin-top:2px;color:inherit;opacity:0.8"></div>
+          </div>
+        </div>
+        <!-- 文件信息行（上传后显示） -->
+        <div id="fileInfoRow" style="display:none;align-items:center;gap:8px;padding:9px 11px;background:var(--green-dim);border:1px solid rgba(16,185,129,0.25);border-radius:9px">
+          <span style="font-size:14px">✅</span>
+          <div style="flex:1;min-width:0">
+            <div id="result1Title" style="font-size:12px;font-weight:600;color:#065f46;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+            <div id="result1Detail" style="font-size:10px;color:#065f46;opacity:0.8;margin-top:1px"></div>
+          </div>
+
+        </div>
+
+        <!-- 旋转校正（上传后显示） -->
+        <div id="rotateCard" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px">↻ 旋转校正</span>
+            <button class="btn ghost sm" onclick="resetRotation()" style="font-size:11px;padding:2px 8px;color:var(--text3)">归零</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onclick="nudgeRotation(-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'" title="逆时针">−</button>
+            <input type="number" id="rotInput" value="0" step="0.5"
+              oninput="setRotationFromInput(this.value)"
+              onkeydown="if(event.key==='ArrowUp'){event.preventDefault();nudgeRotation(0.5)}else if(event.key==='ArrowDown'){event.preventDefault();nudgeRotation(-0.5)}"
+              style="flex:1;text-align:center;border:1px solid var(--border2);border-radius:8px;padding:7px 6px;font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent);background:#fff;outline:none;min-width:0">
+            <button onclick="nudgeRotation(1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'" title="顺时针">+</button>
+            <span style="font-size:12px;color:var(--text3);flex-shrink:0">°</span>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;text-align:center">
+            输入框支持任意角度
+          </div>
+        </div>
+        <span id="rotVal" style="display:none">0.0°</span>
+
+
+
+        <!-- 透视校正（展开） -->
+        <div id="perspCard" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px;flex-wrap:nowrap">
+            <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">📐 变形校正</span>
+            <button class="btn sm" id="btnResetPerspective" onclick="resetPerspectiveCorrection()" disabled
+              style="font-size:10px;padding:2px 8px;color:var(--text3);white-space:nowrap;flex-shrink:0">↺ 还原</button>
+          </div>
+
+          <!-- 场景说明 -->
+          <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:10px;background:#fff;border-radius:7px;padding:8px 10px;border:1px solid var(--border)">
+            拍照角度偏斜时使用。框选心电图网格的<strong style="color:var(--text2)">四个角</strong>，系统自动校正变形。<br><span style="font-size:10px;color:var(--text3)">端正的图片可跳过</span>
+          </div>
+
+          <!-- 操作 -->
+          <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+            <button class="btn sm" id="btnAutoCorners" onclick="autoDetectPerspectiveCorners()" disabled
+              style="width:100%;justify-content:center;font-size:12px">
+              ⌁ 自动框选
+            </button>
+            <button class="btn sm" id="btnPerspectiveMode" onclick="startPerspectiveSelection()" disabled
+              style="width:100%;justify-content:center;font-size:12px">
+              ✎ 手动点选四个角
+            </button>
+          </div>
+
+          <div id="perspectiveStatus" style="font-size:11px;color:var(--text3);line-height:1.6;min-height:16px;margin-bottom:8px"></div>
+
+          <button class="btn sm" id="btnApplyPerspective" onclick="applyPerspectiveCorrection()" disabled
+            style="width:100%;justify-content:center;background:var(--accent);color:#fff;border-color:var(--accent);font-size:12px;padding:7px">
+            确认校正
+          </button>
+        </div>
+
+        <button class="next-step-btn" id="toStep2Btn" onclick="goToStep(2)" disabled>
+          下一步：标定网格 →
         </button>
       </div>
+
+      <!-- STEP 2: Calibration -->
+      <div class="step-panel" id="panel2">
+        <div class="panel-header">
+          <div class="panel-num">2</div>
+          <div>
+            <div class="panel-title">网格标定</div>
+            <div class="panel-subtitle">在图上各点选两条格线完成标定</div>
+          </div>
+        </div>
+
+        <!-- ECG params -->
+        <div class="instruction-card">
+          <div class="ic-title">心电图参数</div>
+          <div class="param-row">
+            <div class="param-item">
+              <label>纸速 (mm/s)</label>
+              <select id="paramSpeed">
+                <option value="25" selected>25 标准</option>
+                <option value="50">50 快速</option>
+                <option value="12.5">12.5 慢速</option>
+              </select>
+            </div>
+            <div class="param-item">
+              <label>增益 (mm/mV)</label>
+              <select id="paramGain">
+                <option value="10" selected>10 标准</option>
+                <option value="5">5 半幅</option>
+                <option value="20">20 双倍</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <span id="rotVal" style="display:none">0.0°</span>
+
+        <!-- Calibration status -->
+        <div class="instruction-card">
+          <div class="ic-title">标定进度</div>
+          <div class="calib-axes">
+            <div class="calib-axis" id="calibAxisX">
+              <div class="calib-axis-label">横向</div>
+              <div class="calib-axis-val" id="calibXVal">未标定</div>
+            </div>
+            <div class="calib-axis" id="calibAxisY">
+              <div class="calib-axis-label">纵向</div>
+              <div class="calib-axis-val" id="calibYVal">未标定</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 标定步骤状态 -->
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div id="calibStep1Row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)">
+            <span id="calibStep1Icon" style="font-size:14px">○</span>
+            <span style="font-size:12px;color:var(--text2)">横向：放大图像点选相距5大格的交叉点</span>
+          </div>
+          <div id="calibStep2Row" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)">
+            <span id="calibStep2Icon" style="font-size:14px">○</span>
+            <span style="font-size:12px;color:var(--text2)">纵向：放大图像点选相距5大格的交叉点</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="panel-actions">
+          <!-- 自动进入标定模式，无需手动点击开始 -->
+          <div id="calibAutoHint" style="font-size:11px;color:var(--accent);background:var(--accent-dim2);border:1px solid rgba(26,86,232,0.2);border-radius:8px;padding:8px 10px;line-height:1.6">
+            ← → 正在横向标定：点选图上横向 5 大格两端
+          </div>
+          <!-- 取点状态行：取点中时显示撤回 -->
+          <!-- calibPointStatus hidden - using calibAutoHint instead -->
+          <div id="calibPointStatus" style="display:none!important"></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn ghost sm" id="btnCalibUndoAxis" onclick="undoCalibAxis()" disabled
+              style="flex:1;justify-content:center">
+              ↩ 重做此轴
+            </button>
+            <button class="btn ghost sm" id="btnGridClear" onclick="clearGridCalibration()" disabled
+              style="flex:1;justify-content:center">
+              ⊗ 全部清除
+            </button>
+          </div>
+        </div>
+
+        <!-- Status msg -->
+        <div class="result-box" id="calibMsg">
+          <div class="rb-icon">ℹ️</div>
+          <div class="rb-text" id="calibMsgText">请先点击上方按钮开始标定</div>
+        </div>
+
+<div id="result2" style="display:none"></div>
+
+
+
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn ghost sm" onclick="goToStep(1)" style="flex-shrink:0;color:var(--text3)">
+            ← 返回上传
+          </button>
+          <button class="next-step-btn" id="toStep3Btn" onclick="goToStep(3)" disabled style="flex:1">
+            下一步：标注导联 →
+          </button>
+        </div>
+
+        <!-- hidden compat inputs -->
+        <input type="number" id="paramDPI" value="96">
+        <select id="calibDistX"><option value="5" selected>5</option></select>
+        <select id="calibDistY"><option value="5" selected>5</option></select>
+      </div>
+
+      <!-- STEP 3: Lead annotation -->
+      <div class="step-panel" id="panel3">
+        <div class="panel-header">
+          <div class="panel-num">3</div>
+          <div>
+            <div class="panel-title">标注导联区域</div>
+            <div class="panel-subtitle" id="panel3Sub">在图上拖拽框选每个导联的区域</div>
+          </div>
+        </div>
+
+        <!-- Layout presets -->
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">版面预设</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+            <div class="preset-btn selected" id="preset-4x3" onclick="selectPresetBtn('4x3')">
+              <div class="preset-btn-label">4列×3行</div>
+              <div class="preset-btn-desc">GE/Philips</div>
+            </div>
+            <div class="preset-btn" id="preset-3x4" onclick="selectPresetBtn('3x4')">
+              <div class="preset-btn-label">3列×4行</div>
+              <div class="preset-btn-desc">三列格式</div>
+            </div>
+            <div class="preset-btn" id="preset-2x6" onclick="selectPresetBtn('2x6')">
+              <div class="preset-btn-label">6行×2列</div>
+              <div class="preset-btn-desc">两列格式</div>
+            </div>
+            <div class="preset-btn" id="preset-12x1" onclick="selectPresetBtn('12x1')">
+              <div class="preset-btn-label">12行×1列</div>
+              <div class="preset-btn-desc">单列全导</div>
+            </div>
+            <div class="preset-btn" id="preset-4x3r" onclick="selectPresetBtn('4x3r')">
+              <div class="preset-btn-label">4列+节律</div>
+              <div class="preset-btn-desc">含节律条</div>
+            </div>
+            <div class="preset-btn" id="preset-2x6r" onclick="selectPresetBtn('2x6r')">
+              <div class="preset-btn-label">6行+节律</div>
+              <div class="preset-btn-desc">含节律条</div>
+            </div>
+          </div>
+          <div class="preset-btn" id="preset-custom" onclick="selectPresetBtn('custom')" style="margin-top:4px;text-align:center">
+            <div class="preset-btn-label" style="font-size:11px">自定义手动绘制</div>
+          </div>
+
+        </div>
+
+        <!-- Lead grid status -->
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">
+            导联状态 <span id="leadCount" style="color:var(--accent)">0/12</span>
+          </div>
+          <div class="lead-grid" id="leadGrid"></div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instruction-card">
+          <div class="ic-title">操作提示</div>
+          <div class="instruction-steps">
+            <div class="istep"><div class="ist-num">1</div><div>选择版面预设后，在图上拖拽绘制对应导联区域</div></div>
+            <div class="istep"><div class="ist-num">2</div><div>点击导联格子激活，然后在图上拖拽框选该导联范围</div></div>
+            <div class="istep"><div class="ist-num">3</div><div>拖拽区域边缘可调整大小</div></div>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div class="result-box" id="result3">
+          <div class="rb-icon">✅</div>
+          <div class="rb-text">
+            <div class="rb-title" id="result3Title">导联区域已设置</div>
+            <div id="result3Detail" style="font-size:11px;margin-top:2px;opacity:0.8"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <button class="btn ghost sm" onclick="goToStep(2)" style="flex-shrink:0;color:var(--text3)">← 返回标定</button>
+          <button class="btn sm" id="btnClear2" onclick="clearAllBoxes()" disabled style="flex:1;justify-content:center">⊘ 清空</button>
+        </div>
+        <button class="next-step-btn" id="toStep4Btn" onclick="goToStep(4)" disabled style="width:100%;padding:11px">
+          提取信号 →
+        </button>
+        <div id="selectedLeadInfo" style="display:none" class="info-box"></div>
+      </div>
+
+      <!-- STEP 4: 提取信号 -->
+      <div class="step-panel" id="panel4">
+        <div class="panel-header">
+          <div class="panel-num">4</div>
+          <div>
+            <div class="panel-title">提取信号</div>
+            <div class="panel-subtitle">完成导联标注后自动提取</div>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="prog-bar" id="extractProg"><div class="prog-fill" id="progressFill" style="width:0%"></div></div>
+        <div id="extractProgress" style="display:none">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill2" style="width:0%"></div></div>
+        </div>
+
+        <!-- Result summary -->
+        <div class="result-box" id="result4">
+          <div class="rb-icon">✅</div>
+          <div class="rb-text">
+            <div class="rb-title" id="result4Title">提取完成</div>
+            <div id="result4Detail" style="font-size:11px;margin-top:2px;opacity:0.8"></div>
+          </div>
+        </div>
+
+        <!-- 主操作按钮 -->
+        <button class="btn secondary" id="btnExtract2" onclick="doExtractAndPreview()" disabled
+          style="width:100%;justify-content:center;padding:11px;font-size:14px">
+          ▶ 提取信号
+        </button>
+        <button class="btn success" id="btnSave2" onclick="saveCSV()" disabled
+          style="width:100%;justify-content:center;padding:11px;font-size:14px">
+          ↓ 导出提取信号
+        </button>
+        <button class="btn ghost sm" onclick="goToStep(3)" style="color:var(--text3);justify-content:center;width:100%">
+          ← 返回标注导联
+        </button>
+
+        <!-- Advanced params (collapsed) -->
+        <div>
+          <div class="collapse-toggle" onclick="toggleCollapse(this)">
+            高级提取参数 <span class="collapse-arrow">›</span>
+          </div>
+          <div class="collapse-body">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="param-row">
+                <div class="param-item"><label>暗度阈值</label><input type="number" id="epThreshold" value="150" min="50" max="255"></div>
+                <div class="param-item"><label>基线窗口(%)</label><input type="number" id="epBaseline" value="10" min="2" max="50"></div>
+              </div>
+              <div class="param-row">
+                <div class="param-item"><label>平滑核(px)</label><input type="number" id="epSmooth" value="0" min="0" max="15"></div>
+                <div class="param-item">
+                  <label>提取方法</label>
+                  <select id="epMethod" style="min-width:110px">
+                    <option value="track" selected>连续追踪（推荐）</option>
+                    <option value="centroid">重心法</option>
+                    <option value="darkest">最暗点</option>
+                  </select>
+                </div>
+              </div>
+              <div class="param-item">
+                <label>输出采样率(Hz)</label>
+                <input type="number" id="paramFS" value="500" min="100" max="2000" style="display:block!important;width:100%">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /wizardPanels -->
+
+
+    <!-- Batch queue -->
+    <div class="batch-section" id="batchSection">
+      <div class="batch-header">
+        <div class="batch-title">批量队列</div>
+        <button class="btn sm" id="btnDownloadAll" onclick="downloadAllCSV()" disabled
+          style="font-size:10px;padding:3px 8px;border-color:var(--accent);color:var(--accent)">
+          ↓ 下载全部 ZIP
+        </button>
+      </div>
+      <span id="batchProgressText" style="font-size:11px;color:var(--text3)">0 / 0 完成</span>
       <div class="batch-bar"><div class="batch-bar-fill" id="batchBarFill" style="width:0%"></div></div>
       <div class="batch-queue" id="batchQueue"></div>
     </div>
-<div class="sidebar-section">
-      <div class="section-title" id="perspectiveSectionTitle">旋转校正</div>
-      <div class="rotation-wrap" style="display:none">
-        <input type="range" id="rotSlider" min="-15" max="15" step="0.1" value="0" oninput="onRotate(this.value)">
-        <div class="rot-val" id="rotVal">0.0°</div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-        <button class="btn" id="btnPerspectiveMode" onclick="startPerspectiveSelection()" disabled style="font-size:10px">▣ 四点矫正</button>
-        <button class="btn" id="btnAutoCorners" onclick="autoDetectPerspectiveCorners()" disabled style="font-size:10px">⌁ 自动找角</button>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-        <button class="btn secondary" id="btnApplyPerspective" onclick="applyPerspectiveCorrection()" disabled style="font-size:10px">▶ 应用矫正</button>
-        <button class="btn" id="btnResetPerspective" onclick="resetPerspectiveCorrection()" disabled style="font-size:10px">↺ 恢复原图</button>
-      </div>
-      <div id="perspectiveStatus" style="font-size:9px;color:var(--text3);line-height:1.6;margin-top:6px">
-        上传图片后可手动点选四个角点，先完成手机拍照透视拉正。
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="section-title">心电图参数</div>
-      <div class="param-grid">
-        <div class="param-item">
-          <label>纸速 mm/s</label>
-          <input type="number" id="paramSpeed" value="25" min="1" max="200">
-        </div>
-        <div class="param-item">
-          <label>增益 mm/mV</label>
-          <input type="number" id="paramGain" value="10" min="1" max="40">
-        </div>
-        <div class="param-item" style="display:none">
-          <label>图像 DPI</label>
-          <input type="number" id="paramDPI" value="96" min="72" max="600">
-        </div>
-        <div class="param-item" style="display:none">
-          <label>输出 Hz</label>
-          <input type="number" id="paramFS" value="500" min="100" max="2000">
-        </div>
-      </div>
-    </div>
-    <div class="sidebar-section">
-      <div class="section-title">网格标定</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn" id="btnGridAuto" onclick="autoDetectGridCalibration()" disabled
-          style="display:none;font-size:10px;border-color:var(--blue);color:var(--blue)">自动识别网格</button>
-        <button class="btn secondary" id="btnGridGuide" onclick="startGuidedGridCalibration()" disabled style="font-size:10px">开始网格标定</button>
-        <button class="btn" id="btnGridManualX" onclick="startManualCalibration('x')" disabled style="display:none;font-size:10px">手动横向两点</button>
-        <button class="btn" id="btnGridManualY" onclick="startManualCalibration('y')" disabled style="display:none;font-size:10px">手动纵向两点</button>
-        <button class="btn" id="btnGridClear" onclick="clearGridCalibration()" disabled style="font-size:10px">清除标定</button>
-      </div>
-      <div class="grid-guide-hint" id="gridGuideHint">
-        新用户先点 <strong>开始网格标定</strong>，然后在图上分别点选横向、纵向 5 个大格的两端网格线。
-        <br><button type="button" onclick="startGuidedGridCalibration()">开始标定</button>
-      </div>
-      <div class="param-grid" style="margin-top:8px">
-        <div class="param-item">
-          <label>横向距离 mm</label>
-          <select id="calibDistX">
-            <option value="1">1 个大格</option>
-            <option value="2">2 个大格</option>
-            <option value="5" selected>5 个大格</option>
-          </select>
-        </div>
-        <div class="param-item">
-          <label>纵向距离 mm</label>
-          <select id="calibDistY">
-            <option value="1">1 个大格</option>
-            <option value="2" selected>2 个大格</option>
-            <option value="5">5 个大格</option>
-          </select>
-        </div>
-      </div>
-      <div id="calibSummary" style="font-size:9px;color:var(--text3);line-height:1.7;margin-top:6px">
-        请先完成横向和纵向 5 个大格标定。
-      </div>
-      <div id="calibStatus" style="font-size:9px;color:var(--text3);line-height:1.6;margin-top:4px">
-        可先自动识别；如果失败，在主图上点两点完成横向/纵向标定。建议沿小格或 5 mm 大格取点。
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="section-title">版面预设</div>
-      <div class="tabs" id="layoutTabs">
-        <div class="tab active" id="tab-4col" onclick="selectLayout('4col')">4列×3行</div>
-        <div class="tab" id="tab-2col" onclick="selectLayout('2col')">2列×6行</div>
-        <div class="tab" id="tab-custom" onclick="selectLayout('custom')">自定义</div>
-      </div>
-      <div style="font-size:9px;color:var(--text3);line-height:1.7" id="layoutDesc">
-        GE / Philips 标准格式<br>I·aVR·V1·V4 / II·aVL·V2·V5 / III·aVF·V3·V6
-      </div>
-      <button class="btn" id="btnAutoDetect" onclick="autoDetectLeads()" disabled
-        style="display:none;width:100%;margin-top:6px;font-size:10px;border-color:var(--blue);color:var(--blue)">
-        ⚡ 自动检测导联区域
-      </button>
-      <div id="autoDetectStatus" style="font-size:9px;color:var(--text3);margin-top:4px;display:none"></div>
-    </div>
-
-    <div class="sidebar-section grow">
-      <div class="section-title">导联区域
-        <span id="leadCount" style="color:var(--accent);font-size:9px;margin-left:2px">0/12</span>
-      </div>
-      <div class="lead-list" id="leadList"></div>
-      <div id="selectedLeadInfo" style="display:none" class="info-box" style="margin-top:6px"></div>
-    </div>
 
   </div>
+  <!-- /SIDEBAR -->
 
   <!-- MAIN AREA -->
   <div class="main-area">
 
-    <!-- View tabs -->
-    <div class="view-tabs">
-      <div class="view-tab active" id="vtab-edit" onclick="switchView('edit')">✏️ 标注视图</div>
-      <div class="view-tab" id="vtab-preview" onclick="switchView('preview')">👁 提取预览</div>
+    <!-- View tab bar -->
+    <div class="view-bar" id="viewBar" style="display:none">
+      <div class="view-tab active" id="vtab-edit" onclick="switchView('edit')">🖊 图像标注</div>
+      <div class="view-tab" id="vtab-preview" onclick="if(!this.classList.contains('disabled'))switchView('preview')" style="display:none" title="提取信号后可查看">📊 提取预览</div>
+      <div class="view-bar-right">
+        <div id="statusImg" style="font-size:11px;color:var(--text3)">未加载图像</div>
+        <div class="sep" style="color:var(--border2)">|</div>
+        <div id="statusLeads" style="font-size:11px;color:var(--text3)">0/12 导联</div>
+        <div class="sep" style="color:var(--border2)">|</div>
+        <div id="statusExtract" style="font-size:11px;color:var(--text3)">未提取</div>
+        <div class="sep" style="color:var(--border2)">|</div>
+        <div id="statusZoom" style="font-size:11px;color:var(--text3);font-family:var(--mono)">100%</div>
+      </div>
     </div>
 
     <!-- EDIT VIEW -->
     <div class="canvas-wrap" id="editView">
-      <div class="empty-state" id="emptyState" style="cursor:pointer" onclick="document.getElementById('fileInput').click()">
-        <div class="big-icon">⚡</div>
-        <h2>打开心电图</h2>
-        <p>支持 JPG · PNG · TIFF · BMP</p>
+      <div class="empty-state" id="emptyState">
+        <div class="es-card" onclick="document.getElementById('fileInput').click()">
+          <div class="es-icon">🫀</div>
+          <div class="es-title">心电图上传</div>
+          <div class="es-sub">点击此处上传图片<br>上传后可调整图像角度再继续</div>
+        </div>
       </div>
       <div class="canvas-container" id="canvasContainer" style="display:none">
+        <!-- 画布右上角删除按钮 -->
+        <button onclick="clearCurrentFile()" title="删除图片，重新上传"
+          id="btnClearFile"
+          style="position:absolute;top:8px;right:8px;z-index:20;
+                 width:28px;height:28px;border-radius:6px;
+                 border:1px solid rgba(0,0,0,0.15);
+                 background:rgba(255,255,255,0.85);
+                 backdrop-filter:blur(4px);
+                 color:#64748b;font-size:13px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;
+                 transition:all 0.15s;box-shadow:0 1px 4px rgba(0,0,0,0.12)"
+          onmouseover="this.style.background='rgba(239,68,68,0.9)';this.style.color='#fff';this.style.borderColor='transparent'"
+          onmouseout="this.style.background='rgba(255,255,255,0.85)';this.style.color='#64748b';this.style.borderColor='rgba(0,0,0,0.15)'">
+          ✕
+        </button>
         <canvas id="ecgCanvas"></canvas>
         <canvas id="overlayCanvas"
           onmousedown="onMouseDown(event)"
           onmousemove="onMouseMove(event)"
           onmouseup="onMouseUp(event)"
-          onmouseleave="onMouseLeave(event)">
+          onmouseleave="onMouseLeave(event)"
+          oncontextmenu="event.preventDefault()">
         </canvas>
       </div>
       <div class="zoom-controls">
@@ -768,89 +1474,78 @@ header {
     <!-- PREVIEW VIEW -->
     <div class="preview-wrap" id="previewView">
 
-      <div class="extract-controls">
-        <div class="extract-controls-title">提取参数调整</div>
-        <div class="extract-params">
-          <div class="extract-param">
-            <label>暗度阈值 (0~255)</label>
-            <input type="number" id="epThreshold" value="150" min="50" max="255">
+      <!-- Extract params bar (shown in preview) -->
+      <div class="extract-params-bar extract-controls">
+        <div class="epb-title">提取参数</div>
+        <div class="epb-row">
+          <div class="ep-item">
+            <label>暗度阈值</label>
+            <input type="number" id="epThreshold2" oninput="document.getElementById('epThreshold').value=this.value" value="150" min="50" max="255">
           </div>
-          <div class="extract-param">
-            <label>基线窗口 (%)</label>
-            <input type="number" id="epBaseline" value="10" min="2" max="50">
+          <div class="ep-item">
+            <label>基线窗口(%)</label>
+            <input type="number" id="epBaseline2" oninput="document.getElementById('epBaseline').value=this.value" value="10" min="2" max="50">
           </div>
-          <div class="extract-param">
-            <label>平滑核 (px)</label>
-            <input type="number" id="epSmooth" value="0" min="0" max="15">
+          <div class="ep-item">
+            <label>平滑核(px)</label>
+            <input type="number" id="epSmooth2" oninput="document.getElementById('epSmooth').value=this.value" value="0" min="0" max="15">
           </div>
-          <div class="extract-param">
+          <div class="ep-item">
             <label>提取方法</label>
-            <select id="epMethod">
+            <select id="epMethod2" style="min-width:110px" onchange="document.getElementById('epMethod').value=this.value">
+              <option value="track" selected>连续追踪（推荐）</option>
               <option value="centroid">重心法</option>
-              <option value="darkest">最暗点法</option>
-              <option value="topmost">最高点法</option>
-              <option value="track" selected>连续性追踪（推荐）</option>
+              <option value="darkest">最暗点</option>
             </select>
           </div>
-          <button class="btn secondary" onclick="runExtraction()" style="align-self:flex-end">↻ 重新提取</button>
-          <button class="btn primary" onclick="saveCSV()" id="btnSave2" style="align-self:flex-end" disabled>↓ 保存 CSV</button>
-        </div>
-      <div id="extractProgress" style="display:none">
-          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-        </div>
-        <div style="margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);display:flex;flex-direction:column;gap:6px">
-          <div style="font-size:10px;color:var(--text2)">CSV 保存</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <input type="text" id="saveFileName" placeholder="ecg.csv" style="flex:1;min-width:180px;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none">
-            <button class="btn" onclick="chooseSaveDirectory()" style="font-size:10px">选择保存位置</button>
-            <button class="btn" onclick="renderCurrentCSVPreview()" style="font-size:10px">回绘 CSV 预览</button>
-          </div>
-          <div id="saveLocationLabel" style="font-size:9px;color:var(--text3)">当前保存位置：浏览器默认下载目录</div>
         </div>
       </div>
 
-      <div class="preview-header" id="previewHeader" style="display:none">
-        <div class="preview-header-title" id="previewHeaderTitle">—</div>
+      <!-- Quality summary -->
+      <div class="preview-summary" id="previewHeader" style="display:none">
+        <div class="ps-info" id="previewHeaderTitle">—</div>
         <div class="quality-badge" id="qualityBadge">—</div>
-        <button class="btn ghost btn-icon" onclick="switchView('edit')" title="返回编辑">✏️</button>
+        <button class="btn ghost btn-icon sm" onclick="switchView('edit')" title="返回编辑">✏️</button>
       </div>
 
+      <!-- Preview grid -->
       <div class="preview-grid" id="previewGrid"></div>
-      <div id="csvRenderPanel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px">
+
+      <!-- CSV render panel -->
+      <div id="csvRenderPanel">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
-          <div style="font-size:11px;color:var(--text2)">CSV 回绘预览</div>
-          <div id="csvRenderInfo" style="font-size:9px;color:var(--text3)"></div>
+          <div style="font-size:12px;color:var(--text2);font-weight:600">CSV 回绘预览</div>
+          <div id="csvRenderInfo" style="font-size:10px;color:var(--text3)"></div>
         </div>
         <div class="preview-canvas-wrap" id="csvRenderWrap"></div>
       </div>
 
-      <div id="previewEmpty" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;flex-direction:column;gap:8px">
-        <div style="font-size:36px;opacity:0.2">👁</div>
-        <div>点击「▶ 提取预览」查看效果</div>
-        <div style="font-size:10px;opacity:0.6">可多次调整参数重新提取，满意后保存 CSV</div>
+      <!-- Empty state -->
+      <div class="preview-empty" id="previewEmpty">
+        <div class="pe-icon">📊</div>
+        <div style="font-weight:500;color:var(--text2)">提取信号后自动显示</div>
+        <div style="font-size:11px">请在左侧步骤4点击「▶ 提取信号」</div>
       </div>
 
     </div>
 
   </div>
+  <!-- /MAIN AREA -->
+
 </div>
 
 <!-- STATUS BAR -->
 <div class="statusbar">
-  <span id="statusImg">未加载图像</span>
-  <span class="sep">|</span>
-  <span id="statusLeads">0 / 12 导联</span>
+  <span id="sb-img">未加载</span>
   <span class="sep">|</span>
   <span id="statusCursor">x:—  y:—</span>
   <span class="sep">|</span>
-  <span id="statusZoom">100%</span>
-  <span class="sep">|</span>
-  <span id="statusExtract" style="color:var(--text3)">未提取</span>
-  <span class="hint">拖拽绘制 · 滚轮缩放 · 空格拖动画布 · Tab切换导联 · Del删除</span>
+  <span id="sb-hint" style="margin-left:auto;font-size:10px;color:var(--text3)">拖拽绘制区域 · 滚轮缩放 · Space+拖动画布 · Tab切换导联 · Del删除</span>
 </div>
+
 <div class="toast" id="toast"></div>
 
-<!-- ══ REPAIR MODAL ══ -->
+<!-- REPAIR MODAL (unchanged) -->
 <div class="rmodal-overlay" id="repairModal">
   <div class="rmodal-box">
     <div class="rmodal-header">
@@ -860,48 +1555,27 @@ header {
       <button class="btn btn-icon ghost" onclick="closeRepairModal()">✕</button>
     </div>
     <div class="rmodal-body">
-      <!-- Left tool panel -->
       <div class="rmodal-tools">
         <div class="tool-section-label">工具模式</div>
-        <button class="rtool-btn red active" id="rtool-erase" onclick="setRepairTool('erase')">
-          ◌ 画笔擦除
-        </button>
-        <button class="rtool-btn amber" id="rtool-anchor" onclick="setRepairTool('anchor')">
-          ◉ 添加锚点
-        </button>
-        <button class="rtool-btn" id="rtool-delanchor" onclick="setRepairTool('delanchor')">
-          ✕ 删除锚点
-        </button>
-        <button class="rtool-btn" id="rtool-pan" onclick="setRepairTool('pan')">
-          ✥ 平移视图
-        </button>
-        <button class="rtool-btn" id="rtool-hint" onclick="setRepairTool('hint')" style="border-color:#818cf8;color:#818cf8">
-          ↔ 指定目标线
-        </button>
-        <button class="rtool-btn" id="rtool-vcrop" onclick="setRepairTool('vcrop')" style="border-color:#2dd4bf;color:#2dd4bf">
-          ⣿ 垂直裁剪
-        </button>
-
+        <button class="rtool-btn red active" id="rtool-erase" onclick="setRepairTool('erase')">◌ 画笔擦除</button>
+        <button class="rtool-btn amber" id="rtool-anchor" onclick="setRepairTool('anchor')">◉ 添加锚点</button>
+        <button class="rtool-btn" id="rtool-delanchor" onclick="setRepairTool('delanchor')">✕ 删除锚点</button>
+        <button class="rtool-btn" id="rtool-pan" onclick="setRepairTool('pan')">✥ 平移视图</button>
+        <button class="rtool-btn" id="rtool-hint" onclick="setRepairTool('hint')" style="border-color:#818cf8;color:#818cf8">↔ 指定目标线</button>
+        <button class="rtool-btn" id="rtool-vcrop" onclick="setRepairTool('vcrop')" style="border-color:#2dd4bf;color:#2dd4bf">⣿ 垂直裁剪</button>
         <div id="vcropControls" style="display:none">
           <div class="tool-section-label">裁剪范围</div>
-          <div class="vcrop-hint">
-            拖动青色线调整上/下边界<br>
-            边界外的像素会被遮蔽<br>
-            只保留目标线所在区域
-          </div>
+          <div class="vcrop-hint">拖动青色线调整上/下边界<br>边界外像素被遮蔽</div>
           <button class="rtool-btn" style="margin-top:4px;font-size:9px" onclick="resetVCrop()">↺ 重置裁剪</button>
         </div>
-
         <div class="tool-section-label">画笔大小</div>
         <div class="brush-size-wrap">
-          <input type="range" id="brushSize" min="2" max="40" value="8" step="1"
-            oninput="document.getElementById('brushSizeVal').textContent=this.value">
+          <input type="range" id="brushSize" min="2" max="40" value="8" step="1" oninput="document.getElementById('brushSizeVal').textContent=this.value">
           <label>大小: <span id="brushSizeVal">8</span>px</label>
         </div>
         <div class="tool-section-label">擦除颜色</div>
         <button class="rtool-btn" id="eraseWhite" onclick="setEraseColor('white')" style="border-color:var(--accent);color:var(--accent)">● 白色（纸底）</button>
         <button class="rtool-btn" id="eraseCustom" onclick="setEraseColor('pick')">○ 取色擦除</button>
-
         <div class="tool-section-label">缩放</div>
         <div style="display:flex;gap:4px">
           <button class="rtool-btn" style="flex:1;justify-content:center" onclick="repairZoom(1.3)">+</button>
@@ -909,38 +1583,166 @@ header {
           <button class="rtool-btn" style="flex:1;justify-content:center;font-size:9px" onclick="repairZoomFit()">⊡</button>
         </div>
         <div style="font-size:9px;color:var(--accent);text-align:center" id="repairZoomLabel">100%</div>
-
         <div class="tool-section-label">锚点说明</div>
         <div class="anchor-legend">
-          锚点 = 告知提取算法「此处信号应在这个位置」<br>
-          <span style="background:#fbbf24"></span>黄点 = 锚点位置<br>
-          添加后点击「重新提取」生效
+          锚点 = 告知算法「此处信号应在这个位置」<br>
+          <span style="background:#fbbf24"></span>黄点 = 锚点位置<br>添加后点击「重新提取」生效
         </div>
-
         <div style="margin-top:auto;padding-top:8px;display:flex;flex-direction:column;gap:4px">
-          <button class="btn" style="width:100%;font-size:10px" onclick="repairUndo()">↩ 撤销</button>
-          <button class="btn" style="width:100%;font-size:10px" onclick="repairReset()">↺ 重置</button>
+          <button class="btn" style="width:100%;font-size:11px" onclick="repairUndo()">↩ 撤销</button>
+          <button class="btn" style="width:100%;font-size:11px" onclick="repairReset()">↺ 重置</button>
         </div>
       </div>
-
-      <!-- Canvas area -->
       <div class="rmodal-canvas-area" id="repairCanvasArea">
         <canvas id="repairCanvas"></canvas>
       </div>
     </div>
     <div class="rmodal-footer">
       <span id="repairFooterInfo">锚点: 0</span>
-      <span style="margin-left:auto;font-size:9px;color:var(--text3)">擦除干扰线后「重新提取」；或添加锚点引导算法</span>
-      <button class="btn" style="font-size:10px" onclick="closeRepairModal()">取消</button>
-      <button class="btn secondary" style="font-size:10px" onclick="applyRepairAndReextract()">▶ 重新提取此导联</button>
+      <span style="margin-left:auto;font-size:10px;color:var(--text3)">擦除干扰线后「重新提取」；或添加锚点引导算法</span>
+      <button class="btn" style="font-size:11px" onclick="closeRepairModal()">取消</button>
+      <button class="btn secondary" style="font-size:11px" onclick="applyRepairAndReextract()">▶ 重新提取此导联</button>
     </div>
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════ SCRIPTS ═══════════════════════════════════════ -->
 <script>
-// ════════════════════════════════════════════════════════
-//  CONSTANTS
-// ════════════════════════════════════════════════════════
+// ─── COMPATIBILITY SHIMS ───────────────────────────────────────────────────
+// Map old sidebar element IDs to new UI elements
+function setCalibrationStatus(msg, color='var(--text3)') {
+  // Show status in the calibMsg box
+  const box = document.getElementById('calibMsg');
+  const txt = document.getElementById('calibMsgText');
+  if (!box || !txt) return;
+
+  box.classList.remove('ok', 'warn', 'info');
+  box.classList.add('show');
+
+  if (color === 'var(--accent)' || color.includes('green')) {
+    box.classList.add('ok');
+    box.querySelector('.rb-icon').textContent = '✅';
+  } else if (color === 'var(--amber)') {
+    box.classList.add('warn');
+    box.querySelector('.rb-icon').textContent = '⚠️';
+  } else {
+    box.classList.add('info');
+    box.querySelector('.rb-icon').textContent = 'ℹ️';
+  }
+  txt.textContent = msg;
+}
+
+function setPerspectiveStatus(msg, color='var(--text3)') {
+  const el = document.getElementById('perspectiveStatus');
+  if (el) { el.textContent = msg; el.style.color = color; }
+}
+
+// ─── WIZARD STATE ──────────────────────────────────────────────────────────
+let currentWizardStep = 1;
+let currentSidebarTab = 'wizard';
+let selectedPreset = '4x3';
+let aiSuggestion = null;
+
+function isStepDone(n) {
+  if (n === 1) return !!state.image;
+  if (n === 2) return typeof isCalibrationReady === 'function' && isCalibrationReady();
+  if (n === 3) return Object.keys(state.boxes || {}).length > 0;
+  if (n === 4) return !!(state.extractedMV && Object.keys(state.extractedMV).length > 0);
+  return false;
+}
+
+function goToStep(n) {
+  currentWizardStep = n;
+
+  // Update step panels
+  document.querySelectorAll('.step-panel').forEach((p, i) => {
+    p.classList.toggle('active', i + 1 === n);
+  });
+
+  // Update wizard indicators - only mark done if actually completed
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('wstep' + i);
+    if (!el) continue;
+    el.classList.remove('active', 'done');
+    if (i === n) el.classList.add('active');
+    else if (i < n && isStepDone(i)) el.classList.add('done');
+  }
+
+  // 非步骤4时，自动切回图像标注视图
+  if (n !== 4) {
+    const pvTab = document.getElementById('vtab-preview');
+    const hasExtracted = state.extractedMV && Object.keys(state.extractedMV).length > 0;
+    // Only switch back if currently on preview view
+    if (document.getElementById('previewView')?.classList.contains('visible')) {
+      switchView('edit');
+    }
+  }
+
+  // 离开步骤2时，取消正在进行的标定，并重绘清除标定线
+  if (n !== 2) {
+    if (state.calibration.mode) {
+      state.calibration.mode = null;
+      state.calibration.pendingPoints = [];
+      updateCalibAxisUI();
+    }
+    renderOverlay();  // 无论如何重绘，使标定线消失
+    // 清除顶部步骤状态提示
+    const pill = document.getElementById('stepStatusPill');
+    if (pill) pill.classList.remove('show');
+  }
+
+  // 进入步骤4
+  if (n === 4) {
+    const alreadyExtracted = state.extractedMV && Object.keys(state.extractedMV).length > 0;
+    if (alreadyExtracted) {
+      // 已有提取结果，直接切到预览视图
+      const pv = document.getElementById('vtab-preview');
+      if (pv) { pv.style.display = ''; pv.classList.remove('disabled'); pv.classList.add('active'); }
+      const ev = document.getElementById('editView');
+      const prv = document.getElementById('previewView');
+      const t1 = document.getElementById('vtab-edit');
+      if (ev) ev.style.display = 'none';
+      if (prv) prv.classList.add('visible');
+      if (t1) t1.classList.remove('active');
+    } else {
+      // 未提取过，自动触发提取
+      const canExtract = state.image && typeof isCalibrationReady === 'function' && isCalibrationReady() && Object.keys(state.boxes || {}).length > 0;
+      if (canExtract && !window._extractionRunning) {
+        setTimeout(() => { doExtractAndPreview(); }, 300);
+      }
+    }
+  }
+
+  // 进入步骤2：自动开始横向标定
+  if (n === 2 && state.image && !isCalibrationReady()) {
+    setTimeout(() => {
+      if (!state.calibration.pxPerMmX && !state.calibration.mode) {
+        startManualCalibration('x');
+      }
+    }, 150);
+  }
+}
+
+function refreshWizardSteps() {
+  goToStep(currentWizardStep);
+}
+
+function switchSidebarTab(tab) { /* advanced panel removed */ }
+
+function showStepStatus(msg, type = 'ok') {
+  const pill = document.getElementById('stepStatusPill');
+  if (!pill) return;
+  pill.textContent = msg;
+  pill.className = 'step-status-pill show ' + type;
+  clearTimeout(pill._timer);
+  pill._timer = setTimeout(() => pill.classList.remove('show'), 4000);
+}
+
+function toggleCollapse(el) {
+  el.classList.toggle('open');
+}
+
+// ─── LEAD GRID ────────────────────────────────────────────────────────────
 const LEADS_ORDER = ["I","II","III","aVR","aVL","aVF","V1","V2","V3","V4","V5","V6"];
 const COLORS = {
   I:'#4ade80', II:'#34d399', III:'#2dd4bf',
@@ -948,7 +1750,390 @@ const COLORS = {
   V1:'#f472b6', V2:'#fb7185', V3:'#f97316',
   V4:'#fbbf24', V5:'#a3e635', V6:'#22d3ee',
 };
-const LAYOUT_PRESETS = {
+
+function buildLeadGrid() {
+  rebuildLeadGrid(selectedPreset || '4col');
+}
+
+function updateLeadGrid() {
+  const allLeads = [...LEADS_ORDER, 'II_R'];
+  allLeads.forEach(lead => {
+    const cell = document.getElementById(`lgc-${lead}`);
+    if (!cell) return;
+    const hasBox = !!state.boxes[lead];
+    const extracted = state.extractedMV && state.extractedMV[lead];
+    const isActive = state.selectedLead === lead;
+    cell.className = 'lead-cell' +
+      (hasBox ? ' has-box' : '') +
+      (extracted ? ' extracted' : '') +
+      (isActive ? ' active' : '');
+    if (extracted) cell.setAttribute('title', `${state.extractedMV[lead].length}点`);
+  });
+}
+
+// ─── PRESET BUTTONS ───────────────────────────────────────────────────────
+function selectPresetBtn(preset) {
+  selectedPreset = preset;
+  ['4x3','3x4','2x6','12x1','4x3r','2x6r','custom','4col','2col'].forEach(p => {
+    document.getElementById(`preset-${p}`)?.classList.toggle('selected', p === preset);
+  });
+  // Adjust lead grid columns to match layout
+  const grid = document.getElementById('leadGrid');
+  if (grid) {
+    if (preset === '4col') {
+      // 4列×3行: I aVR V1 V4 / II aVL V2 V5 / III aVF V3 V6
+      grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+      grid.dataset.order = '4col';
+    } else if (preset === '2col') {
+      // 2列×6行: 左列肢导+aV / 右列胸导
+      grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+      grid.dataset.order = '2col';
+    } else {
+      grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+      grid.dataset.order = 'custom';
+    }
+    rebuildLeadGrid(preset);
+  }
+  selectLayout(preset);
+}
+
+function rebuildLeadGrid(preset) {
+  const grid = document.getElementById('leadGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const hasRhythm = ['4x3r','2x6r'].includes(preset);
+  let order, cols;
+
+  if (preset === '4x3' || preset === '4col') {
+    order = ['I','aVR','V1','V4','II','aVL','V2','V5','III','aVF','V3','V6']; cols = 4;
+  } else if (preset === '3x4') {
+    order = ['I','aVR','V1','II','aVL','V2','III','aVF','V3','V4','V5','V6']; cols = 3;
+  } else if (preset === '2x6' || preset === '2col') {
+    order = ['I','V1','II','V2','III','V3','aVR','V4','aVL','V5','aVF','V6']; cols = 2;
+  } else if (preset === '12x1') {
+    order = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6']; cols = 1;
+  } else if (preset === '4x3r') {
+    order = ['I','aVR','V1','V4','II','aVL','V2','V5','III','aVF','V3','V6']; cols = 4;
+  } else if (preset === '2x6r') {
+    order = ['I','V1','II','V2','III','V3','aVR','V4','aVL','V5','aVF','V6']; cols = 2;
+  } else {
+    order = LEADS_ORDER; cols = 4;
+  }
+
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  // Normal leads
+  order.forEach(lead => {
+    const cell = document.createElement('div');
+    cell.className = 'lead-cell';
+    cell.id = `lgc-${lead}`;
+    cell.textContent = lead;
+    cell.onclick = () => selectLead(lead);
+    grid.appendChild(cell);
+  });
+
+  // Rhythm strip row (full width)
+  if (hasRhythm) {
+    const rhythmCell = document.createElement('div');
+    rhythmCell.className = 'lead-cell';
+    rhythmCell.id = 'lgc-II_R';
+    rhythmCell.textContent = 'II (节律)';
+    rhythmCell.style.gridColumn = `1 / -1`;
+    rhythmCell.style.fontSize = '11px';
+    rhythmCell.onclick = () => selectLead('II_R');
+    grid.appendChild(rhythmCell);
+  }
+
+  updateLeadGrid();
+}
+
+// ─── CALIBRATION AXIS UI ─────────────────────────────────────────────────
+function updateCalibAxisUI() {
+  const x = state.calibration?.pxPerMmX;
+  const y = state.calibration?.pxPerMmY;
+  const mode = state.calibration?.mode;
+
+  // Update axis value displays
+  const axX = document.getElementById('calibAxisX');
+  const axY = document.getElementById('calibAxisY');
+  const vX = document.getElementById('calibXVal');
+  const vY = document.getElementById('calibYVal');
+  if (axX && vX) {
+    axX.className = 'calib-axis' + (x ? ' done' : (mode === 'x' ? ' active' : ''));
+    vX.textContent = x ? `${x.toFixed(2)} px/mm` : (mode === 'x' ? '取点中…' : '未标定');
+  }
+  if (axY && vY) {
+    axY.className = 'calib-axis' + (y ? ' done' : (mode === 'y' ? ' active' : ''));
+    vY.textContent = y ? `${y.toFixed(2)} px/mm` : (mode === 'y' ? '取点中…' : '未标定');
+  }
+
+  // Update checkmark status rows
+  const r1 = document.getElementById('calibStep1Row');
+  const i1 = document.getElementById('calibStep1Icon');
+  const r2 = document.getElementById('calibStep2Row');
+  const i2 = document.getElementById('calibStep2Icon');
+  if (i1) {
+    if (x) { i1.textContent = '✅'; r1.style.borderColor = 'var(--green)'; r1.style.background = 'var(--green-dim)'; }
+    else if (mode === 'x') { i1.textContent = '⏺'; r1.style.borderColor = 'var(--amber)'; r1.style.background = 'var(--amber-dim)'; }
+    else { i1.textContent = '○'; r1.style.borderColor = 'var(--border)'; r1.style.background = 'var(--surface2)'; }
+  }
+  if (i2) {
+    if (y) { i2.textContent = '✅'; r2.style.borderColor = 'var(--green)'; r2.style.background = 'var(--green-dim)'; }
+    else if (mode === 'y') { i2.textContent = '⏺'; r2.style.borderColor = 'var(--amber)'; r2.style.background = 'var(--amber-dim)'; }
+    else { i2.textContent = '○'; r2.style.borderColor = 'var(--border)'; r2.style.background = 'var(--surface2)'; }
+  }
+
+  // Update auto hint text
+  const hint = document.getElementById('calibAutoHint');
+  if (hint) {
+    if (!x && (mode === 'x' || !mode)) {
+      hint.textContent = mode === 'x' ? '正在横向取点：点选同一行相距5大格的两个交叉点' : '请点选同一行相距5大格的两个交叉点';
+      hint.style.color = 'var(--accent)';
+      hint.style.borderColor = 'rgba(26,86,232,0.2)';
+      hint.style.background = 'var(--accent-dim2)';
+    } else if (x && !y) {
+      hint.textContent = mode === 'y' ? '正在纵向取点：点选同一列相距5大格的两个交叉点' : '横向完成！请点选同一列相距5大格的两个交叉点';
+      hint.style.color = '#78350f';
+      hint.style.borderColor = 'rgba(245,158,11,0.3)';
+      hint.style.background = 'var(--amber-dim)';
+    } else if (x && y) {
+      hint.textContent = '✓ 标定完成，可进入下一步';
+      hint.style.color = 'var(--green)'; 
+      hint.style.borderColor = 'rgba(16,185,129,0.25)';
+      hint.style.background = 'var(--green-dim)';
+    }
+  }
+
+  // Advanced panel summary
+  const sum = document.getElementById('calibSummary');
+  if (sum) {
+    sum.textContent = (x ? `横向 ${x.toFixed(2)} px/mm` : '横向未标定') + ' · ' + (y ? `纵向 ${y.toFixed(2)} px/mm` : '纵向未标定');
+  }
+
+  // Both done
+  if (x && y) {
+    document.getElementById('toStep3Btn')?.removeAttribute('disabled');
+    showStepStatus('✓ 网格标定完成', 'ok');
+    // Auto proceed to Y calibration when X just finished
+  } else if (x && !y && mode !== 'y') {
+    // X done, auto start Y
+    setTimeout(() => {
+      if (state.calibration.pxPerMmX && !state.calibration.pxPerMmY && !state.calibration.mode) {
+        startManualCalibration('y');
+      }
+    }, 200);
+  }
+
+  // Clear button
+  const btnGC = document.getElementById('btnGridClear');
+  if (btnGC) btnGC.disabled = !state.image;
+  const btnUA = document.getElementById('btnCalibUndoAxis');
+  if (btnUA) {
+    const hasAny = mode || x || y;
+    btnUA.disabled = !hasAny;
+    btnUA.textContent = mode ? '↩ 取消此轴' : y ? '↩ 重做纵向' : x ? '↩ 重做横向' : '↩ 重做此轴';
+  }
+}
+
+// ─── AI PRESET SUGGESTION ─────────────────────────────────────────────────
+let aiData = null;
+
+async function runAISuggestion(imgDataUrl) {
+  const box = document.getElementById('aiBox');
+  const loading = document.getElementById('aiLoading');
+  const result = document.getElementById('aiResult');
+  const applyRow = document.getElementById('aiApplyRow');
+
+  box.classList.add('show');
+  loading.style.display = 'flex';
+  result.classList.remove('show');
+  applyRow.classList.remove('show');
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: imgDataUrl.split(',')[1] }
+            },
+            {
+              type: "text",
+              text: `分析这张心电图图像，以JSON格式回答（仅JSON，不要任何其他文字）：
+{
+  "layout": "4col" 或 "2col" 或 "custom",
+  "paper_speed": 25 或 50,
+  "gain": 10 或 5 或 20,
+  "quality": "good" 或 "fair" 或 "poor",
+  "notes": "简短备注，不超过30字",
+  "has_rhythm_strip": true 或 false
+}
+layout含义：4col=4列×3行（GE/Philips标准），2col=2列×6行，custom=无法确定。`
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    const text = data.content.find(b => b.type === 'text')?.text || '';
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    aiData = JSON.parse(cleaned);
+
+    loading.style.display = 'none';
+
+    const qualityMap = { good: '质量良好', fair: '质量一般', poor: '质量较差' };
+    const layoutMap = { '4col': '4列×3行（GE/Philips）', '2col': '2列×6行', custom: '自定义' };
+
+    result.innerHTML = `
+      <strong>识别结果：</strong><br>
+      版面格式：${layoutMap[aiData.layout] || '未知'}<br>
+      纸速：${aiData.paper_speed || 25} mm/s，增益：${aiData.gain || 10} mm/mV<br>
+      图像质量：${qualityMap[aiData.quality] || '—'}<br>
+      ${aiData.notes ? `备注：${aiData.notes}` : ''}
+    `;
+    result.classList.add('show');
+    applyRow.classList.add('show');
+
+  } catch (e) {
+    loading.style.display = 'none';
+    result.textContent = '分析失败，请手动设置参数';
+    result.classList.add('show');
+    aiData = null;
+  }
+}
+
+function applyAISuggestion() {
+  if (!aiData) return;
+
+  if (aiData.layout && ['4col','2col'].includes(aiData.layout)) {
+    selectPresetBtn(aiData.layout);
+  }
+  if (aiData.paper_speed) {
+    const sp = document.getElementById('paramSpeed');
+    if (sp) sp.value = aiData.paper_speed;
+  }
+  if (aiData.gain) {
+    const gn = document.getElementById('paramGain');
+    if (gn) gn.value = aiData.gain;
+  }
+  dismissAI();
+  showStepStatus('✓ 已应用 AI 建议', 'ok');
+  toast('✦ AI 建议已应用', 'success');
+}
+
+function dismissAI() {
+  const box = document.getElementById('aiBox');
+  if (box) box.classList.remove('show');
+}
+
+// ─── DROP HANDLER ─────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--border2)';
+  const files = e.dataTransfer?.files;
+  if (files && files.length > 0) batchLoadFiles(files);
+}
+
+function setupDrop() {
+  const wrap = document.getElementById('editView');
+  if (!wrap) return;
+  wrap.addEventListener('dragover', e => { e.preventDefault(); });
+  wrap.addEventListener('drop', e => {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) batchLoadFiles(files);
+  });
+}
+
+// ─── PARAMSPEED/GAIN reads for original JS ────────────────────────────────
+// paramSpeed and paramGain are already select elements, compat ok
+
+// ─── OVERRIDE updateCalibrationUI to also update our new UI ───────────────
+// (called by original JS)
+const _origUpdateCalibUI = typeof updateCalibrationUI !== 'undefined' ? updateCalibrationUI : null;
+
+// ─── SIDEBAR NAV COMPAT ───────────────────────────────────────────────────
+function selectLayout(preset) {
+  // Update legacy tab state silently
+  ['4col','2col','custom'].forEach(p => {
+    const t = document.getElementById(`tab-${p}`);
+    if (t) t.classList.toggle('active', p === preset);
+  });
+  // Also call LAYOUT_PRESETS if the original function exists
+  if (typeof LAYOUT_PRESETS !== 'undefined') {
+    const d = document.getElementById('layoutDesc');
+    if (d && LAYOUT_PRESETS[preset]) d.innerHTML = LAYOUT_PRESETS[preset].desc || '';
+  }
+}
+
+// ─── HOOK: after image loads ──────────────────────────────────────────────
+// Override loadImage post-hook via the DOMContentLoaded pattern
+document.addEventListener('ecg_image_loaded', function(e) {
+  const file = e.detail?.file;
+  onImageLoaded(file);
+});
+
+function onImageLoaded(file) {
+  // Update step 1 result
+  const row = document.getElementById('fileInfoRow');
+  const t = document.getElementById('result1Title');
+  const d = document.getElementById('result1Detail');
+  if (row) row.style.display = 'flex';
+  if (t) t.textContent = file?.name || '图像';
+  if (d && state.image) d.textContent = `${state.imageW} × ${state.imageH} 像素`;
+  // Show rotation + perspective cards
+  const rc = document.getElementById('rotateCard');
+  if (rc) rc.style.display = 'block';
+  const pc = document.getElementById('perspCard');
+  if (pc) pc.style.display = 'block';
+  // Show view bar
+  const vb = document.getElementById('viewBar');
+  if (vb) vb.style.display = '';
+  // Reset rotation input
+  const ri = document.getElementById('rotInput');
+  if (ri) ri.value = 0;
+
+  // Enable step 2 progression
+  document.getElementById('toStep2Btn')?.removeAttribute('disabled');
+  document.getElementById('btnCalibX')?.removeAttribute('disabled');
+  document.getElementById('btnCalibY')?.removeAttribute('disabled');
+  document.getElementById('btnGridClear')?.removeAttribute('disabled');
+  document.getElementById('btnPerspectiveMode')?.removeAttribute('disabled');
+  document.getElementById('btnAutoCorners')?.removeAttribute('disabled');
+  document.getElementById('btnPreset')?.removeAttribute('disabled');
+  document.getElementById('btnClear')?.removeAttribute('disabled');
+  document.getElementById('btnClear2')?.removeAttribute('disabled');
+
+  // Status bar
+  const si = document.getElementById('statusImg');
+  if (si) si.innerHTML = `<span style="color:var(--accent)">${file?.name || '图像'}</span>`;
+  const sib = document.getElementById('sb-img');
+  if (sib) sib.textContent = file?.name || '已加载';
+
+  showStepStatus('✓ 图像已加载，可调整角度后继续', 'ok');
+
+
+}
+
+</script>
+
+<!-- ═══════════════ ORIGINAL CORE JS (algorithms, untouched) ═══════════════ -->
+<script>
+// ════════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════════
+// LEADS_ORDER and COLORS already defined above
+
+var __HEARTOS_UNUSED_LAYOUT_PRESETS = {
   '4col': {
     desc: 'GE / Philips 标准格式<br>I·aVR·V1·V4 / II·aVL·V2·V5 / III·aVF·V3·V6',
     leads: {
@@ -973,6 +2158,437 @@ const LAYOUT_PRESETS = {
   },
   'custom': { desc: '手动拖拽为每个导联绘制区域', leads: {} }
 };
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let __HEARTOS_UNUSED_STATE = {
+  image: null, imageW: 0, imageH: 0,
+  originalImage: null, originalImageW: 0, originalImageH: 0,
+  rotation: 0, scale: 1.0,
+  boxes: {},
+  selectedLead: null,
+  calibration: {
+    pxPerMmX: null, pxPerMmY: null,
+    mode: null,
+    pendingPoints: [],
+    manual: { x: null, y: null },
+    auto: null,
+    source: 'dpi',
+  },
+  extractedMV: null,
+  extractedSignals: null,
+  drawing: false,
+  dragState: null,
+  cursorPos: { x: 0, y: 0 },
+  spacePan: false,
+  offCanvas: null,
+  leadCanvases: {},
+  repairedLeads: new Set(),
+  perspectiveMode: false,
+  perspectiveModeSource: null,
+  perspectivePoints: [],
+  selectedPerspectivePoint: -1,
+  saveConfig: {
+    dirHandle: null,
+    dirName: '浏览器默认下载目录',
+    fileName: 'ecg.csv',
+    sourceName: '',
+    lastSavedLabel: '',
+  },
+};
+</script>
+
+<!-- paste the full original JS block -->
+<script id="coreAlgo">
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  OVERRIDE / PATCH functions to integrate with new UI
+// ════════════════════════════════════════════════════════
+
+// Patch updateCalibrationUI
+const _patchUpdateCalibUI = function() {
+  updateCalibAxisUI();
+
+  const hasImage = !!state.image;
+  const btnGC = document.getElementById('btnGridClear');
+  if (btnGC) btnGC.disabled = !hasImage;
+};
+
+// Patch updateCounts to also update new UI
+const _origUpdateCounts = typeof updateCounts === 'function' ? updateCounts : null;
+
+// Patch buildLeadList to also update lead grid
+const _origBuildLeadList = typeof buildLeadList === 'function' ? buildLeadList : null;
+
+// Patch setStep / getCurrentWorkflowStep
+function setStep(n) {
+  // map old step numbers to new wizard
+  if (n >= 5) {
+    document.getElementById('btnSave')?.removeAttribute('disabled');
+    document.getElementById('btnSave2')?.removeAttribute('disabled');
+    document.getElementById('btnSave3')?.removeAttribute('disabled');
+  }
+}
+
+function getCurrentWorkflowStep() {
+  if (!state.image) return 1;
+  if (!isCalibrationReady()) return 2;
+  if (!Object.keys(state.boxes).length) return 3;
+  if (!state.extractedMV || !Object.keys(state.extractedMV).length) return 4;
+  return 5;
+}
+
+// Patch renderRequiredSteps (no-op in new UI)
+function renderRequiredSteps() { /* new UI handles this */ }
+
+// Patch updateGridGuideHint (no-op)
+function updateGridGuideHint() {}
+
+// Patch explainBlockedAction
+function explainBlockedAction(action) {
+  if (!state.image) { toast('请先图像预处理', 'warn'); return true; }
+  if (!isCalibrationReady()) {
+    toast('请先完成横向和纵向 5 大格标定', 'warn');
+    goToStep(2);
+    return true;
+  }
+  if (!Object.keys(state.boxes).length) {
+    toast('请先标注至少 1 个导联区域', 'warn');
+    goToStep(3);
+    return true;
+  }
+  if (action === 'save' && (!state.extractedMV || !Object.keys(state.extractedMV).length)) {
+    toast('请先点击「▶ 提取预览」', 'warn');
+    return true;
+  }
+  return false;
+}
+
+// Toast override (same as before, adapted to new colors)
+let __HEARTOS_UNUSED_TOAST_TIMER;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type === 'error' ? ' error' : type === 'warn' ? ' warn' : type === 'success' ? ' success' : '');
+  clearTimeout(__HEARTOS_UNUSED_TOAST_TIMER);
+  __HEARTOS_UNUSED_TOAST_TIMER = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// (loadImage hook moved to UI OVERRIDES section)
+</script>
+
+<script>
+// ─── INJECT the full original JS (algorithms) at runtime ─────────────────
+// We fetch & eval the extracted core to keep this file manageable
+// Actually: we inline it directly below using a script placeholder.
+// The real approach: override key UI functions before the core runs.
+
+// All the algorithm functions are inlined below as the "coreAlgo" section.
+// We override the DOM-mutating helpers here:
+
+// updateCounts override
+function updateCounts() {
+  const n = Object.keys(state.boxes).length;
+  const ne = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+  const calibrationReady = isCalibrationReady();
+
+  // Update new lead grid
+  updateLeadGrid();
+  buildLeadListAdvanced();
+
+  // Lead count badges
+  const lc = document.getElementById('leadCount');
+  if (lc) lc.textContent = `${n}/12`;
+
+  // Status bar
+  const sl = document.getElementById('statusLeads');
+  if (sl) sl.textContent = `${n}/12 导联`;
+  const se = document.getElementById('statusExtract');
+  if (se) {
+    if (ne > 0) {
+      se.innerHTML = `<span style="color:var(--green)">✓ ${ne}导联已提取</span>`;
+    } else if (!calibrationReady && n > 0) {
+      se.textContent = '请先完成标定';
+    } else {
+      se.textContent = '未提取';
+    }
+  }
+
+  // Button states
+  const hasSrc = !!state.image;
+  ['btnExtract','btnExtract2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !hasSrc;
+  });
+  const hasExtracted = !!(state.extractedMV && Object.keys(state.extractedMV).length);
+  ['btnSave2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !hasExtracted;
+  });
+  ['btnClear','btnClear2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = n === 0;
+  });
+  ['btnPreset'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !hasSrc;
+  });
+  ['btnPerspectiveMode','btnAutoCorners'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !hasSrc;
+  });
+  document.getElementById('btnResetPerspective')?.toggleAttribute('disabled', !state.originalImage);
+  document.getElementById('btnApplyPerspective')?.toggleAttribute('disabled', state.perspectivePoints.length !== 4);
+
+  // Lead annotation result
+  if (n > 0) {
+    const r3 = document.getElementById('result3');
+    const r3t = document.getElementById('result3Title');
+    const r3d = document.getElementById('result3Detail');
+    if (r3) r3.classList.add('show');
+    if (r3t) r3t.textContent = `${n} 个导联区域已标注`;
+    if (r3d) r3d.textContent = `已标注：${Object.keys(state.boxes).join('、')}`;
+    document.getElementById('toStep4Btn')?.removeAttribute('disabled');
+    document.getElementById('btnExtract')?.removeAttribute('disabled');
+    document.getElementById('btnExtract2')?.removeAttribute('disabled');
+  }
+
+  updateCalibAxisUI();
+  updateLeadGrid();
+}
+
+// buildLeadList for advanced panel
+function buildLeadList() {
+  buildLeadGrid();
+  buildLeadListAdvanced();
+}
+
+function buildLeadListAdvanced() {
+  const list = document.getElementById('leadList');
+  if (!list) return;
+  list.innerHTML = '';
+  LEADS_ORDER.forEach(lead => {
+    const hasBox = !!state.boxes[lead];
+    const hasExtract = state.extractedMV && state.extractedMV[lead];
+    const item = document.createElement('div');
+    item.id = `li-${lead}`;
+    item.style.cssText = `display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;border:1px solid ${state.selectedLead===lead?'var(--accent)':'var(--border)'};background:${state.selectedLead===lead?'var(--accent-dim)':'var(--surface2)'};cursor:pointer;font-size:12px;transition:all 0.15s`;
+    item.innerHTML = `
+      <span id="badge-${lead}" style="width:7px;height:7px;border-radius:50%;background:${hasExtract?'var(--green)':hasBox?COLORS[lead]:'var(--border2)'}"></span>
+      <span style="font-weight:600;width:30px;color:${hasBox?'var(--text)':'var(--text3)'}">${lead}</span>
+      <span id="ls-${lead}" style="flex:1;font-size:10px;color:var(--text3);font-family:var(--mono)">${hasExtract?state.extractedMV[lead].length+'pt':hasBox?`${Math.round(state.boxes[lead].x2-state.boxes[lead].x1)}×${Math.round(state.boxes[lead].y2-state.boxes[lead].y1)}px`:'未设置'}</span>
+      <span style="opacity:0;color:var(--red);cursor:pointer;font-size:11px" onmouseover="this.parentElement.querySelector('span:last-child').style.opacity=1" id="del-${lead}" onclick="event.stopPropagation();deleteBox('${lead}')">✕</span>
+    `;
+    item.onmouseenter = () => { const d = item.querySelector('#del-'+lead); if(d) d.style.opacity='1'; };
+    item.onmouseleave = () => { const d = item.querySelector('#del-'+lead); if(d) d.style.opacity='0'; };
+    item.onclick = () => selectLead(lead);
+    list.appendChild(item);
+  });
+}
+
+function updateLeadItem(lead) {
+  updateLeadGrid();
+  buildLeadListAdvanced();
+}
+
+// switchView override
+function switchView(v) {
+  const editV = document.getElementById('editView');
+  const prevV = document.getElementById('previewView');
+  const t1 = document.getElementById('vtab-edit');
+  const t2 = document.getElementById('vtab-preview');
+  if (v === 'edit') {
+    editV.style.display = '';
+    prevV.classList.remove('visible');
+    t1?.classList.add('active');
+    t2?.classList.remove('active');
+  } else {
+    editV.style.display = 'none';
+    prevV.classList.add('visible');
+    t1?.classList.remove('active');
+    t2?.classList.add('active');
+  }
+}
+
+// ─── Override applyPreset to use selectedPreset ───────────────────────────
+function applyPreset() {
+  const preset = selectedPreset || '4col';
+  const layout = LAYOUT_PRESETS[preset];
+  if (!layout || !layout.leads || !state.image) return;
+  Object.entries(layout.leads).forEach(([lead, frac]) => {
+    state.boxes[lead] = {
+      x1: frac[0] * state.imageW,
+      y1: frac[1] * state.imageH,
+      x2: frac[2] * state.imageW,
+      y2: frac[3] * state.imageH,
+    };
+    invalidateLeadCanvas(lead);
+  });
+  buildLeadList();
+  renderOverlay();
+  updateCounts();
+  toast(`✓ 已应用${preset==='4col'?'4×3':'2×6'}预设，共 ${Object.keys(layout.leads).length} 个导联`);
+}
+
+// ─── Override autoDetectLeads (no-op placeholder) ─────────────────────────
+function autoDetectLeads() { toast('自动检测功能需手动校准', 'warn'); }
+
+// ─── selectLead override to also update lead grid ────────────────────────
+const _coreSL_placeholder = null; // will be set after core loads
+
+// ─── runExtraction hook ───────────────────────────────────────────────────
+const _coreRunExtraction_orig = null; // will be patched
+
+// updateSaveLocationLabel (no-op)
+function updateSaveLocationLabel() {}
+
+// chooseSaveDirectory
+async function chooseSaveDirectory() {
+  if (!window.showDirectoryPicker) { toast('浏览器不支持选择目录', 'warn'); return; }
+  try {
+    const dh = await window.showDirectoryPicker();
+    state.saveConfig.dirHandle = dh;
+    state.saveConfig.dirName = dh.name;
+    toast(`已选择保存位置: ${dh.name}`);
+  } catch (e) {
+    if (e?.name !== 'AbortError') toast('选择失败', 'warn');
+  }
+}
+
+// renderCurrentCSVPreview
+function renderCurrentCSVPreview(csv) {
+  const csvText = csv || buildCSVString();
+  if (!csvText) { toast('无可回绘数据', 'warn'); return; }
+  const parsed = parseCSVString(csvText);
+  if (!parsed) return;
+  const panel = document.getElementById('csvRenderPanel');
+  const wrap = document.getElementById('csvRenderWrap');
+  const info = document.getElementById('csvRenderInfo');
+  if (!panel || !wrap) return;
+  wrap.innerHTML = '';
+  const speed = parseFloat(document.getElementById('paramSpeed').value)||25;
+  const gain = parseFloat(document.getElementById('paramGain').value)||10;
+  const n = parsed.leads.length, t = parsed.times.length;
+  const H = n * 60, W = Math.min(1400, Math.max(600, t));
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H; canvas.style.width = '100%';
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fffdf7'; ctx.fillRect(0,0,W,H);
+  const rowH = H/n;
+  parsed.leads.forEach((lead, li) => {
+    const sig = parsed.series[lead];
+    const yOff = li * rowH + rowH/2;
+    const pxPerMv = rowH * 0.35;
+    const pxPerSample = W/sig.length;
+    ctx.strokeStyle = COLORS[lead] || '#ef4444'; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    sig.forEach((v,i) => {
+      const x=i*pxPerSample, y=yOff-v*pxPerMv;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.font='bold 10px monospace';
+    ctx.fillText(lead, 4, li*rowH+14);
+  });
+  wrap.appendChild(canvas);
+  if (info) info.textContent = `${n}导联 · ${t}点 · 纸速${speed} · 增益${gain}`;
+  panel.style.display = 'block';
+  switchView('preview');
+}
+
+</script>
+
+<!-- ══════════ CORE ALGORITHM (injected) ══════════ -->
+<script>
+// ════════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════════
+const LAYOUT_PRESETS = {
+  // 4列×3行 (GE/Philips 标准)
+  '4x3': {
+    desc: '4列×3行 GE/Philips 标准',
+    leads: {
+      'I':[0.000,0.10,0.250,0.43],'aVR':[0.250,0.10,0.500,0.43],
+      'V1':[0.500,0.10,0.750,0.43],'V4':[0.750,0.10,1.000,0.43],
+      'II':[0.000,0.43,0.250,0.67],'aVL':[0.250,0.43,0.500,0.67],
+      'V2':[0.500,0.43,0.750,0.67],'V5':[0.750,0.43,1.000,0.67],
+      'III':[0.000,0.67,0.250,0.90],'aVF':[0.250,0.67,0.500,0.90],
+      'V3':[0.500,0.67,0.750,0.90],'V6':[0.750,0.67,1.000,0.90],
+    }
+  },
+  // 3列×4行
+  '3x4': {
+    desc: '3列×4行',
+    leads: {
+      'I':[0.000,0.08,0.333,0.31],'aVR':[0.333,0.08,0.667,0.31],'V1':[0.667,0.08,1.000,0.31],
+      'II':[0.000,0.31,0.333,0.54],'aVL':[0.333,0.31,0.667,0.54],'V2':[0.667,0.31,1.000,0.54],
+      'III':[0.000,0.54,0.333,0.77],'aVF':[0.333,0.54,0.667,0.77],'V3':[0.667,0.54,1.000,0.77],
+      'V4':[0.000,0.77,0.333,1.00],'V5':[0.333,0.77,0.667,1.00],'V6':[0.667,0.77,1.000,1.00],
+    }
+  },
+  // 2列×6行
+  '2x6': {
+    desc: '2列×6行',
+    leads: {
+      'I':[0.000,0.05,0.500,0.22],'V1':[0.500,0.05,1.000,0.22],
+      'II':[0.000,0.22,0.500,0.39],'V2':[0.500,0.22,1.000,0.39],
+      'III':[0.000,0.39,0.500,0.56],'V3':[0.500,0.39,1.000,0.56],
+      'aVR':[0.000,0.56,0.500,0.73],'V4':[0.500,0.56,1.000,0.73],
+      'aVL':[0.000,0.73,0.500,0.88],'V5':[0.500,0.73,1.000,0.88],
+      'aVF':[0.000,0.88,0.500,1.00],'V6':[0.500,0.88,1.000,1.00],
+    }
+  },
+  // 1列×12行
+  '12x1': {
+    desc: '12行单列',
+    leads: {
+      'I':[0.0,0.000,1.0,0.083],'II':[0.0,0.083,1.0,0.167],
+      'III':[0.0,0.167,1.0,0.250],'aVR':[0.0,0.250,1.0,0.333],
+      'aVL':[0.0,0.333,1.0,0.417],'aVF':[0.0,0.417,1.0,0.500],
+      'V1':[0.0,0.500,1.0,0.583],'V2':[0.0,0.583,1.0,0.667],
+      'V3':[0.0,0.667,1.0,0.750],'V4':[0.0,0.750,1.0,0.833],
+      'V5':[0.0,0.833,1.0,0.917],'V6':[0.0,0.917,1.0,1.000],
+    }
+  },
+  // 4×3 + 节律条 (II导全长)
+  '4x3r': {
+    desc: '4列×3行 + 节律II',
+    rhythmLead: 'II',
+    leads: {
+      'I':[0.000,0.08,0.250,0.33],'aVR':[0.250,0.08,0.500,0.33],
+      'V1':[0.500,0.08,0.750,0.33],'V4':[0.750,0.08,1.000,0.33],
+      'II':[0.000,0.33,0.250,0.58],'aVL':[0.250,0.33,0.500,0.58],
+      'V2':[0.500,0.33,0.750,0.58],'V5':[0.750,0.33,1.000,0.58],
+      'III':[0.000,0.58,0.250,0.80],'aVF':[0.250,0.58,0.500,0.80],
+      'V3':[0.500,0.58,0.750,0.80],'V6':[0.750,0.58,1.000,0.80],
+      'II_R':[0.000,0.80,1.000,1.00],
+    }
+  },
+  // 2×6 + 节律条
+  '2x6r': {
+    desc: '2列×6行 + 节律II',
+    rhythmLead: 'II',
+    leads: {
+      'I':[0.000,0.04,0.500,0.19],'V1':[0.500,0.04,1.000,0.19],
+      'II':[0.000,0.19,0.500,0.34],'V2':[0.500,0.19,1.000,0.34],
+      'III':[0.000,0.34,0.500,0.49],'V3':[0.500,0.34,1.000,0.49],
+      'aVR':[0.000,0.49,0.500,0.64],'V4':[0.500,0.49,1.000,0.64],
+      'aVL':[0.000,0.64,0.500,0.79],'V5':[0.500,0.64,1.000,0.79],
+      'aVF':[0.000,0.79,0.500,0.92],'V6':[0.500,0.79,1.000,0.92],
+      'II_R':[0.000,0.92,1.000,1.00],
+    }
+  },
+  'custom': { desc: '手动拖拽为每个导联绘制区域', leads: {} }
+};
+
+// Alias for backward compat
+LAYOUT_PRESETS['4col'] = LAYOUT_PRESETS['4x3'];
+LAYOUT_PRESETS['2col'] = LAYOUT_PRESETS['2x6'];
 
 // ════════════════════════════════════════════════════════
 //  STATE
@@ -1034,21 +2650,7 @@ function updateGridGuideHint() {
   btn.classList.toggle('guide-pulse', shouldShow && !btn.disabled);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  buildLeadList();
-  initCalibrationUI();
-  setupDrop();
-  document.getElementById('fileInput').addEventListener('change', e => {
-    if (e.target.files.length > 0) batchLoadFiles(e.target.files);
-    e.target.value = ''; // reset so same files can be re-selected
-  });
-  document.addEventListener('keydown', onKeyDown);
-  const oc = document.getElementById('overlayCanvas');
-  oc.addEventListener('wheel', onWheel, { passive: false });
-  window.addEventListener('mouseup', e => {
-    if (state.drawing || state.dragState) onMouseUp(e);
-  });
-});
+// (duplicate DOMContentLoaded removed)
 
 function initCalibrationUI() {
   const xSelect = document.getElementById('calibDistX');
@@ -1480,7 +3082,7 @@ function startManualCalibration(axis) {
   state.calibration.mode = axis;
   state.calibration.pendingPoints = [];
   updateCalibrationUI();
-  setCalibrationStatus(`请放大图片后，选择${axis === 'x' ? '横向' : '纵向'} 5 个大网格线距离。点击两下后会自动吸附到最近网格线。`, 'var(--accent)');
+  // (hint shown in calibAutoHint bar instead)
   renderOverlay();
 }
 
@@ -1491,7 +3093,8 @@ function commitManualCalibrationPoint(x, y) {
   state.calibration.pendingPoints.push(snapped);
   if (state.calibration.pendingPoints.length < 2) {
     updateCalibrationUI();
-    setCalibrationStatus('已记录第 1 个点，请继续点第 2 个点。', 'var(--amber)');
+    updateCalibPointStatus();
+    setCalibrationStatus('已记录第 1 个点，请继续点第 2 个点。右键或按 Backspace 可撤回。', 'var(--amber)');
     renderOverlay();
     return true;
   }
@@ -1517,6 +3120,7 @@ function commitManualCalibrationPoint(x, y) {
   state.calibration.source = state.calibration.auto ? 'mixed' : 'manual';
   syncDpiFromCalibration();
   updateCalibrationUI();
+  updateCalibPointStatus();
   updateCounts();
   if (axis === 'x' && !state.calibration.pxPerMmY) {
     setCalibrationStatus(`横向标定完成，已按 ${bigGrids} 个大格换算。现在继续纵向 5 个大格标定。`, 'var(--accent)');
@@ -1688,15 +3292,15 @@ function updateCounts() {
   document.getElementById('leadCount').textContent = `${n}/12`;
   document.getElementById('statusLeads').innerHTML =
     `<span class="${n===12?'hl':''}">${n}/12 导联</span>${ne>0?' <span style="color:var(--red)">'+ne+'已提取</span>':''}`;
-  document.getElementById('btnExtract').disabled = !state.image;
-  document.getElementById('btnClear').disabled = n === 0;
-  document.getElementById('btnSave').disabled = !state.image;
-  document.getElementById('btnSave2').disabled = !state.image;
-  document.getElementById('btnPreset').disabled = !state.image;
-  document.getElementById('btnPerspectiveMode').disabled = !state.image;
-  document.getElementById('btnAutoCorners').disabled = !state.image;
-  document.getElementById('btnResetPerspective').disabled = !state.originalImage;
-  document.getElementById('btnApplyPerspective').disabled = state.perspectivePoints.length !== 4;
+  {const _e=document.getElementById('btnExtract');if(_e)_e.disabled=!state.image;}
+  {const _e=document.getElementById('btnClear');if(_e)_e.disabled=n === 0;}
+  {const _e=document.getElementById('btnSave');if(_e)_e.disabled=!state.image;}
+  {const _e=document.getElementById('btnSave2');if(_e)_e.disabled=!state.image;}
+  {const _e=document.getElementById('btnPreset');if(_e)_e.disabled=!state.image;}
+  {const _e=document.getElementById('btnPerspectiveMode');if(_e)_e.disabled=!state.image;}
+  {const _e=document.getElementById('btnAutoCorners');if(_e)_e.disabled=!state.image;}
+  {const _e=document.getElementById('btnResetPerspective');if(_e)_e.disabled=!state.originalImage;}
+  {const _e=document.getElementById('btnApplyPerspective');if(_e)_e.disabled=state.perspectivePoints.length !== 4;}
   const btnPerspectiveMode = document.getElementById('btnPerspectiveMode');
   const btnAutoCorners = document.getElementById('btnAutoCorners');
   if (btnPerspectiveMode) {
@@ -1813,18 +3417,27 @@ function loadImage(file) {
       state.saveConfig.lastSavedLabel = '';
       const saveNameInput = document.getElementById('saveFileName');
       if (saveNameInput) saveNameInput.value = state.saveConfig.fileName;
-      document.getElementById('rotSlider').value = 0;
-      document.getElementById('rotVal').textContent = '0.0°';
+      const _ri2 = document.getElementById('rotInput'); if (_ri2) _ri2.value = '0';
       document.getElementById('emptyState').style.display = 'none';
       document.getElementById('canvasContainer').style.display = 'block';
       fitToWindow();
+      requestAnimationFrame(() => {
+        fitToWindow();
+        renderECG();
+        renderOverlay();
+      });
+      setTimeout(() => {
+        fitToWindow();
+        renderECG();
+        renderOverlay();
+      }, 250);
       buildLeadList();
       selectLead('I');
       renderECG(); renderOverlay();
       document.getElementById('statusImg').innerHTML =
         `<span class="hl">${file.name}</span> ${img.naturalWidth}×${img.naturalHeight}`;
-      document.getElementById('btnPreset').disabled = false;
-      document.getElementById('btnAutoDetect').disabled = false;
+      const _bp = document.getElementById('btnPreset'); if(_bp) _bp.disabled = false;
+      const _bad = document.getElementById('btnAutoDetect'); if(_bad) _bad.disabled = false;
       document.getElementById('perspectiveStatus').textContent = '可手动点选四个角点，或先尝试自动找角。';
       document.getElementById('csvRenderPanel').style.display = 'none';
       document.getElementById('csvRenderWrap').innerHTML = '';
@@ -1842,17 +3455,24 @@ function loadImage(file) {
 function fitToWindow() {
   const wrap = document.getElementById('editView');
   const pad = 32;
+  const wrapW = wrap?.clientWidth || window.innerWidth || (state.imageW + pad);
+  const wrapH = wrap?.clientHeight || Math.max(320, window.innerHeight - 120) || (state.imageH + pad);
+  const availW = Math.max(120, wrapW - pad);
+  const availH = Math.max(120, wrapH - pad);
   state.scale = Math.min(
-    (wrap.clientWidth  - pad) / state.imageW,
-    (wrap.clientHeight - pad) / state.imageH,
+    availW / state.imageW,
+    availH / state.imageH,
     1.0
   );
+  if (!Number.isFinite(state.scale) || state.scale <= 0) state.scale = 1.0;
   applyScale();
 }
 
 function applyScale() {
-  const w = Math.round(state.imageW * state.scale);
-  const h = Math.round(state.imageH * state.scale);
+  const safeScale = (!Number.isFinite(state.scale) || state.scale <= 0) ? 1.0 : state.scale;
+  const w = Math.max(1, Math.round(state.imageW * safeScale));
+  const h = Math.max(1, Math.round(state.imageH * safeScale));
+  state.scale = safeScale;
   const c1 = document.getElementById('ecgCanvas');
   const c2 = document.getElementById('overlayCanvas');
   c1.width = w; c1.height = h;
@@ -1899,7 +3519,7 @@ function startPerspectiveSelection() {
   resetCalibrationState(true);
   updateCounts();
   renderOverlay();
-  setPerspectiveStatus('请按顺序点击四个角点：左上、右上、右下、左下。', 'var(--amber)');
+  setPerspectiveStatus('请依次点击图像四个角（左上→右上→右下→左下）', 'var(--amber)');
   toast('已进入透视校正模式');
 }
 
@@ -2091,7 +3711,7 @@ function autoDetectPerspectiveCorners() {
   state.selectedPerspectivePoint = -1;
   updateCounts();
   renderOverlay();
-  setPerspectiveStatus('已生成纸张轮廓预设，请拖动四个角点微调后再应用矫正。', 'var(--blue)');
+  setPerspectiveStatus('已自动框选图像范围，可拖动四个角点微调后点「确认校正」', 'var(--blue)');
   toast('已生成轮廓预设，可手动微调');
 }
 
@@ -2258,7 +3878,7 @@ function applyPerspectiveCorrection() {
   const source = getOffCanvas();
   const warped = warpCanvasPerspective(source, state.perspectivePoints);
   if (!warped) {
-    setPerspectiveStatus('Perspective correction failed. Please re-mark the corners.', 'var(--red)');
+    setPerspectiveStatus('透视校正失败，请重新标记四个角点。', 'var(--red)');
     return;
   }
   commitCanvasAsImage(warped, img => {
@@ -2266,8 +3886,7 @@ function applyPerspectiveCorrection() {
     state.imageW = img.width;
     state.imageH = img.height;
     state.rotation = 0;
-    document.getElementById('rotSlider').value = 0;
-    document.getElementById('rotVal').textContent = '0.0°';
+    const _ri = document.getElementById('rotInput'); if (_ri) _ri.value = 0;
     state.perspectiveMode = false;
     state.perspectiveModeSource = null;
     state.perspectivePoints = [];
@@ -2278,8 +3897,8 @@ function applyPerspectiveCorrection() {
     renderECG();
     renderOverlay();
     updateCounts();
-    setPerspectiveStatus('Perspective correction done. You can run auto lead detection now.', 'var(--accent)');
-    toast('Perspective correction done');
+    setPerspectiveStatus('透视校正完成。', 'var(--accent)');
+    toast('透视校正完成');
   });
 }
 
@@ -2289,8 +3908,7 @@ function resetPerspectiveCorrection() {
   state.imageW = state.originalImageW;
   state.imageH = state.originalImageH;
   state.rotation = 0;
-  document.getElementById('rotSlider').value = 0;
-  document.getElementById('rotVal').textContent = '0.0°';
+  const _ri2 = document.getElementById('rotInput'); if (_ri2) _ri2.value = 0;
   state.perspectiveMode = false;
   state.perspectiveModeSource = null;
   state.perspectivePoints = [];
@@ -2301,8 +3919,8 @@ function resetPerspectiveCorrection() {
   renderECG();
   renderOverlay();
   updateCounts();
-  setPerspectiveStatus('Restored to the original uploaded image.', 'var(--text2)');
-  toast('Original image restored');
+  setPerspectiveStatus('已还原为原始上传图像。', 'var(--text2)');
+  toast('已还原为原始图像');
 }
 
 // ════════════════════════════════════════════════════════
@@ -2369,7 +3987,79 @@ function renderOverlay() {
     ctx.restore();
   }
 
-  if (state.calibration.mode && state.calibration.pendingPoints.length > 0) {
+  // ─ 已完成标定线（步骤2时保留显示，可作为微调参考）
+  if (currentWizardStep === 2) {
+    const mx = state.calibration.manual?.x;
+    const my = state.calibration.manual?.y;
+    if (mx && mx.points && mx.points.length === 2) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,158,11,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      const p1 = mx.points[0], p2 = mx.points[1];
+      // 横向标定线：两个点的竖线
+      [p1, p2].forEach(p => {
+        ctx.beginPath();
+        ctx.moveTo(p.x * s, 0);
+        ctx.lineTo(p.x * s, c.height);
+        ctx.stroke();
+      });
+      // 连线
+      ctx.strokeStyle = 'rgba(245,158,11,0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p1.x * s, p1.y * s);
+      ctx.lineTo(p2.x * s, p1.y * s);
+      ctx.stroke();
+      // 点
+      ctx.fillStyle = '#f59e0b';
+      ctx.setLineDash([]);
+      [p1, p2].forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x * s, p.y * s, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(String(i+1), p.x * s - 3, p.y * s + 3);
+        ctx.fillStyle = '#f59e0b';
+      });
+      ctx.restore();
+    }
+    if (my && my.points && my.points.length === 2) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(34,197,94,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      const p1 = my.points[0], p2 = my.points[1];
+      // 纵向标定线：两个点的横线
+      [p1, p2].forEach(p => {
+        ctx.beginPath();
+        ctx.moveTo(0, p.y * s);
+        ctx.lineTo(c.width, p.y * s);
+        ctx.stroke();
+      });
+      ctx.strokeStyle = 'rgba(34,197,94,0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p1.x * s, p1.y * s);
+      ctx.lineTo(p1.x * s, p2.y * s);
+      ctx.stroke();
+      ctx.fillStyle = '#22c55e';
+      ctx.setLineDash([]);
+      [p1, p2].forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x * s, p.y * s, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(String(i+1), p.x * s - 3, p.y * s + 3);
+        ctx.fillStyle = '#22c55e';
+      });
+      ctx.restore();
+    }
+  }
+
+  if (currentWizardStep === 2 && state.calibration.mode && state.calibration.pendingPoints.length > 0) {
     ctx.save();
     const pts = state.calibration.pendingPoints;
     const guideColor = state.calibration.mode === 'x' ? '#f59e0b' : '#22c55e';
@@ -2526,6 +4216,12 @@ function onMouseDown(e) {
   }
   const {x,y} = getCanvasPos(e);
   if (state.calibration.mode) {
+    if (e.button === 2) {
+      // Right-click: undo last calibration point
+      e.preventDefault();
+      undoCalibPoint();
+      return;
+    }
     commitManualCalibrationPoint(x, y);
     return;
   }
@@ -2546,11 +4242,14 @@ function onMouseDown(e) {
       if (state.perspectivePoints.length === 4) {
         setPerspectiveStatus('角点已选完，确认顺序后点击“应用矫正”。', 'var(--accent)');
       } else {
-        setPerspectiveStatus(`已记录 ${state.perspectivePoints.length}/4 个角点。`, 'var(--amber)');
+        setPerspectiveStatus(`已选 ${state.perspectivePoints.length}/4 个角，继续点选`, 'var(--amber)');
       }
     }
     return;
   }
+  // 只在步骤3（标注导联）才允许框选和拖动
+  if (currentWizardStep !== 3) return;
+
   const hit = getLeadHitAt(x, y);
   if (hit) {
     if (state.selectedLead !== hit.lead) selectLead(hit.lead);
@@ -2694,8 +4393,13 @@ function zoom(f) {
 function resetZoom() { if (state.image) fitToWindow(); }
 function onWheel(e) { e.preventDefault(); zoom(e.deltaY<0?1.12:0.88); }
 function onRotate(val) {
-  state.rotation=parseFloat(val);
-  document.getElementById('rotVal').textContent=parseFloat(val).toFixed(1)+'°';
+  const v = parseFloat(val) || 0;
+  state.rotation = v;
+  // Sync display elements
+  const rotVal = document.getElementById('rotVal');
+  if (rotVal) rotVal.textContent = v.toFixed(1) + '°';
+  const rotInput = document.getElementById('rotInput');
+  if (rotInput && document.activeElement !== rotInput) rotInput.value = v;
   state.offCanvas=null; // invalidate master
   state.leadCanvases={}; // all crops must be rebuilt from new rotation
   state.repairedLeads=new Set();
@@ -2721,10 +4425,18 @@ function onKeyDown(e) {
     state.calibration.mode = null;
     state.calibration.pendingPoints = [];
     updateCalibrationUI();
+    updateCalibPointStatus();
     setCalibrationStatus('已退出手动标定模式。', 'var(--text3)');
     renderOverlay();
     return;
   }
+  // Backspace/Delete: undo last calibration point while in calibration mode
+  if ((e.key === 'Backspace' || e.key === 'Delete') && state.calibration.mode) {
+    e.preventDefault();
+    undoCalibPoint();
+    return;
+  }
+
   if ((e.key==='+' || e.key==='=') && !e.ctrlKey) { e.preventDefault(); zoom(1.2); }
   if (e.key==='-' && !e.ctrlKey) { e.preventDefault(); zoom(1/1.2); }
   if (e.key==='0') resetZoom();
@@ -3440,7 +5152,7 @@ async function runExtraction() {
   const progWrap = document.getElementById('extractProgress');
   const progFill = document.getElementById('progressFill');
   progWrap.style.display='block'; progFill.style.width='0%';
-  document.getElementById('btnExtract').disabled=true;
+  {const _e=document.getElementById('btnExtract');if(_e)_e.disabled=true;}
 
   // Ensure master offCanvas exists (but we won't read from it directly per-lead)
   getOffCanvas();
@@ -3478,7 +5190,7 @@ async function runExtraction() {
   }
 
   progWrap.style.display='none';
-  document.getElementById('btnExtract').disabled=false;
+  {const _e=document.getElementById('btnExtract');if(_e)_e.disabled=false;}
   updateCounts();
   setStep(getCurrentWorkflowStep());
 
@@ -4752,109 +6464,812 @@ async function downloadAllCSV() {
 //  Init
 document.getElementById('epMethod').value = 'track';
 selectLead('I');
+
 </script>
+
 <script>
-(function(){
-  function toFileFromDataUrl(dataUrl, filename){
-    if(!dataUrl || dataUrl.indexOf(',') < 0) return null;
-    var arr = dataUrl.split(',');
-    var mime = ((arr[0].match(/:(.*?);/) || [])[1]) || 'application/octet-stream';
-    var bstr = atob(arr[1] || '');
-    var n = bstr.length;
-    var u8 = new Uint8Array(n);
-    while(n--) u8[n] = bstr.charCodeAt(n);
-    return new File([u8], filename || 'ecg_image.png', { type: mime });
-  }
+// ════════════════════════════════════════════════════════
+//  UI OVERRIDES (must come after core algo)
+// ════════════════════════════════════════════════════════
 
-  function importDataUrl(dataUrl, filename){
-    try{
-      var f = toFileFromDataUrl(dataUrl, filename);
-      if(!f) return false;
-      if(typeof loadImage === 'function'){ loadImage(f); return true; }
-      if(typeof batchLoadFiles === 'function'){
-        var dt = new DataTransfer(); dt.items.add(f); batchLoadFiles(dt.files); return true;
+// Override loadImage — wraps the core version to also update wizard UI
+(function() {
+  const _coreLoad = loadImage;
+  window.loadImage = function(file) {
+    // Call the real core loadImage (renders canvas, sets state.image, etc.)
+    try {
+      _coreLoad.call(this, file);
+    } catch(err) {
+    }
+    // After core loadImage fires img.onload asynchronously,
+    // poll until state.image is set, then update wizard UI
+    const t0 = Date.now();
+    const check = setInterval(() => {
+      if (state.image || Date.now() - t0 > 5000) {
+        clearInterval(check);
+        if (state.image) {
+          onImageLoaded(file);
+        } else {
+        }
       }
-      return false;
-    }catch(e){ console.warn('importDataUrl error', e); return false; }
+    }, 80);
+  };
+})();
+
+
+// Override toast
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'toast show' + (type === 'error' ? ' error' : type === 'warn' ? ' warn' : type === 'success' ? ' success' : '');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// Override setStep
+function setStep(n) {
+  if (n >= 5) {
+    ['btnSave','btnSave2','btnSave3'].forEach(id => {
+      document.getElementById(id)?.removeAttribute('disabled');
+    });
+  }
+}
+
+// Override getCurrentWorkflowStep
+function getCurrentWorkflowStep() {
+  if (!state.image) return 1;
+  if (!isCalibrationReady()) return 2;
+  if (!Object.keys(state.boxes).length) return 3;
+  if (!state.extractedMV || !Object.keys(state.extractedMV).length) return 4;
+  return 5;
+}
+
+// Override renderRequiredSteps (no-op)
+function renderRequiredSteps() {}
+
+// Override updateGridGuideHint (no-op)
+function updateGridGuideHint() {}
+
+// Override explainBlockedAction
+function explainBlockedAction(action) {
+  if (!state.image) { toast('请先图像预处理', 'warn'); return true; }
+  if (!isCalibrationReady()) {
+    toast('请先完成横向和纵向 5 大格标定', 'warn');
+    goToStep(2);
+    return true;
+  }
+  if (!Object.keys(state.boxes).length) {
+    toast('请先标注至少 1 个导联区域', 'warn');
+    goToStep(3);
+    return true;
+  }
+  if (action === 'save' && (!state.extractedMV || !Object.keys(state.extractedMV).length)) {
+    toast('请先点击「▶ 提取预览」', 'warn');
+    return true;
+  }
+  return false;
+}
+
+// Override updateSaveLocationLabel (no-op)
+function updateSaveLocationLabel() {}
+
+// Override switchView
+function switchView(v) {
+  const editV = document.getElementById('editView');
+  const prevV = document.getElementById('previewView');
+  const t1 = document.getElementById('vtab-edit');
+  const t2 = document.getElementById('vtab-preview');
+  // Don't switch to preview if not yet extracted
+  if (v === 'preview' && t2?.classList.contains('disabled')) return;
+  if (v === 'edit') {
+    editV.style.display = '';
+    prevV.classList.remove('visible');
+    t1?.classList.add('active');
+    t2?.classList.remove('active');
+  } else {
+    editV.style.display = 'none';
+    prevV.classList.add('visible');
+    t1?.classList.remove('active');
+    t2?.classList.add('active');
+  }
+}
+
+// Override setCalibrationStatus
+function setCalibrationStatus(msg, color) {
+  const box = document.getElementById('calibMsg');
+  const txt = document.getElementById('calibMsgText');
+  if (!box || !txt) return;
+  box.classList.remove('ok', 'warn', 'info');
+  box.classList.add('show');
+  const c = color || 'var(--text3)';
+  if (c.includes('accent') || c.includes('green')) {
+    box.classList.add('ok');
+    box.querySelector('.rb-icon').textContent = '✅';
+  } else if (c.includes('amber') || c.includes('orange')) {
+    box.classList.add('warn');
+    box.querySelector('.rb-icon').textContent = '⚠️';
+  } else {
+    box.classList.add('info');
+    box.querySelector('.rb-icon').textContent = 'ℹ️';
+  }
+  txt.textContent = msg;
+}
+
+// Override setPerspectiveStatus
+function setPerspectiveStatus(msg, color) {
+  const el = document.getElementById('perspectiveStatus');
+  if (el) { el.textContent = msg; el.style.color = color || 'var(--text3)'; }
+}
+
+// Override updateCalibrationUI
+function updateCalibrationUI() {
+  updateCalibAxisUI();
+  const hasImage = !!state.image;
+  ['btnCalibX','btnCalibY','btnGridClear'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !hasImage;
+  });
+  updateCalibPointStatus();
+}
+
+// Override buildLeadList
+function buildLeadList() {
+  buildLeadGrid();
+  buildLeadListAdvanced();
+}
+
+// Override updateLeadItem
+function updateLeadItem(lead) {
+  updateLeadGrid();
+  // Also update advanced panel
+  const badge = document.getElementById('badge-' + lead);
+  const ls = document.getElementById('ls-' + lead);
+  const hasExtract = state.extractedMV && state.extractedMV[lead];
+  const hasBox = !!state.boxes[lead];
+  if (badge) badge.style.background = hasExtract ? 'var(--green)' : hasBox ? (COLORS[lead]||'var(--border2)') : 'var(--border2)';
+  if (ls) ls.textContent = hasExtract ? state.extractedMV[lead].length+'pt' : hasBox ? Math.round(state.boxes[lead].x2-state.boxes[lead].x1)+'×'+Math.round(state.boxes[lead].y2-state.boxes[lead].y1)+'px' : '未设置';
+}
+
+// Override updateCounts
+function updateCounts() {
+  const n = Object.keys(state.boxes).length;
+  const ne = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+  const calibrationReady = isCalibrationReady();
+
+  updateLeadGrid();
+  buildLeadListAdvanced();
+
+  const lc = document.getElementById('leadCount');
+  if (lc) lc.textContent = n + '/12';
+
+  const sl = document.getElementById('statusLeads');
+  if (sl) sl.textContent = n + '/12 导联';
+
+  const se = document.getElementById('statusExtract');
+  if (se) {
+    if (ne > 0) se.innerHTML = '<span style="color:var(--green)">✓ ' + ne + '导联已提取</span>';
+    else if (!calibrationReady && n > 0) se.textContent = '请先完成标定';
+    else se.textContent = '未提取';
   }
 
-  async function importFromRemoteUrl(url, filename){
-    if(!url) return false;
-    try{
-      var r = await fetch(url);
-      if(!r.ok) return false;
-      var b = await r.blob();
-      var f = new File([b], filename || 'ecg_image.png', { type: b.type || 'image/png' });
-      if(typeof loadImage === 'function'){ loadImage(f); return true; }
-      if(typeof batchLoadFiles === 'function'){
-        var dt = new DataTransfer(); dt.items.add(f); batchLoadFiles(dt.files); return true;
-      }
-      return false;
-    }catch(e){ console.warn('importFromRemoteUrl error', e); return false; }
+  const hasSrc = !!state.image;
+  ['btnExtract','btnExtract2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !hasSrc;
+  });
+  const hasExtracted = !!(state.extractedMV && Object.keys(state.extractedMV).length);
+  ['btnSave2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !hasExtracted;
+  });
+  ['btnClear','btnClear2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = n === 0;
+  });
+  document.getElementById('btnPreset')?.toggleAttribute('disabled', !hasSrc);
+  document.getElementById('btnPerspectiveMode')?.toggleAttribute('disabled', !hasSrc);
+  document.getElementById('btnAutoCorners')?.toggleAttribute('disabled', !hasSrc);
+  document.getElementById('btnResetPerspective')?.toggleAttribute('disabled', !state.originalImage);
+  document.getElementById('btnApplyPerspective')?.toggleAttribute('disabled', state.perspectivePoints.length !== 4);
+
+  if (n > 0) {
+    const r3 = document.getElementById('result3');
+    const r3t = document.getElementById('result3Title');
+    const r3d = document.getElementById('result3Detail');
+    if (r3) r3.classList.add('show');
+    if (r3t) r3t.textContent = n + ' 个导联区域已标注';
+    if (r3d) r3d.textContent = '已标注：' + Object.keys(state.boxes).join('、');
+    document.getElementById('toStep4Btn')?.removeAttribute('disabled');
+    document.getElementById('btnExtract')?.removeAttribute('disabled');
+    document.getElementById('btnExtract2')?.removeAttribute('disabled');
   }
 
-  function notifyReady(){
-    var launchId = '';
-    try{ launchId = new URL(window.location.href).searchParams.get('heartosLaunch') || ''; }catch(_){}
-    try{ parent.postMessage({ type:'HEARTOS_TOOL_READY', launchId: launchId, tool:'handecg' }, '*'); }catch(_){}
-    try{ parent.postMessage({ type:'TOOL_READY', launchId: launchId, tool:'handecg' }, '*'); }catch(_){}
-  }
+  updateCalibAxisUI();
+  refreshWizardSteps();
+}
 
-  function notifyImportDone(filename){
-    var launchId = '';
-    try{ launchId = new URL(window.location.href).searchParams.get('heartosLaunch') || ''; }catch(_){}
-    try{
-      parent.postMessage({
-        type:'HEARTOS_IMPORT_DONE',
-        launchId: launchId,
-        tool:'handecg',
-        filename: filename || 'ecg_image.png'
-      }, '*');
-    }catch(_){}
-  }
+// Override selectLayout
+function selectLayout(layout) {
+  if (layout) selectedPreset = layout;
+  ['4col','2col','custom'].forEach(p => {
+    document.getElementById('preset-'+p)?.classList.toggle('selected', p === layout);
+    document.getElementById('tab-'+p)?.classList.toggle('active', p === layout);
+  });
+}
 
-  window.addEventListener('message', function(evt){
-    var d = evt.data || {};
-    var t = d.type || '';
-    if(['HEARTOS_OPEN_FILE','HEARTOS_ECG_IMAGE','HAND_ECG_IMAGE','ECG_IMAGE','IMPORT_IMAGE','HEARTOS_FILE_PAYLOAD'].indexOf(t) < 0) return;
-    var filename = d.filename || d.name || 'ecg_image.png';
-    var dataUrl = d.dataUrl || d.imageDataUrl || d.image || '';
-    var remote = d.uploadedUrl || d.remoteUrl || d.url || d.imageUrl || '';
-    if(dataUrl && importDataUrl(dataUrl, filename)){ notifyImportDone(filename); return; }
-    if(remote){
-      importFromRemoteUrl(remote, filename).then(function(ok){
-        if(ok) notifyImportDone(filename);
-      });
+// Override applyPreset
+function applyPreset() {
+  const preset = selectedPreset || '4x3';
+  const layout = LAYOUT_PRESETS[preset];
+  if (!layout || !layout.leads || !state.image) return;
+  state.boxes = {};
+  Object.entries(layout.leads).forEach(([lead, frac]) => {
+    state.boxes[lead] = {
+      x1: frac[0] * state.imageW,
+      y1: frac[1] * state.imageH,
+      x2: frac[2] * state.imageW,
+      y2: frac[3] * state.imageH,
+    };
+    invalidateLeadCanvas(lead);
+  });
+  rebuildLeadGrid(preset);
+  buildLeadList();
+  renderOverlay();
+  updateCounts();
+}
+
+// Override buildBatchQueue
+function buildBatchQueue() {
+  const qEl = document.getElementById('batchQueue');
+  const sec = document.getElementById('batchSection');
+  if (!qEl || !sec) return;
+  if (!batch.files || batch.files.length <= 1) { sec.classList.remove('show'); return; }
+  sec.classList.add('show');
+  qEl.innerHTML = '';
+  batch.files.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'batch-item' + (i === batch.current ? ' active' : '') + (batch.results[f.name] ? ' done' : '');
+    item.id = 'bi-' + i;
+    item.innerHTML = '<span class="bi-name">' + f.name + '</span><span class="bi-status">' + (batch.results[f.name] ? '✓' : '') + '</span>';
+    item.onclick = () => batchJumpTo(i);
+    qEl.appendChild(item);
+  });
+  const btnNext = document.getElementById('btnNextImage');
+  if (btnNext) { btnNext.style.display = batch.files.length > 1 ? '' : 'none'; btnNext.disabled = false; }
+}
+
+// Override updateBatchProgress
+function updateBatchProgress() {
+  const done = Object.keys(batch.results || {}).length;
+  const total = batch.files?.length || 0;
+  const t = document.getElementById('batchProgressText');
+  const f = document.getElementById('batchBarFill');
+  if (t) t.textContent = done + ' / ' + total + ' 完成';
+  if (f) f.style.width = total ? (done/total*100) + '%' : '0%';
+  const btn = document.getElementById('btnDownloadAll');
+  if (btn) btn.disabled = done === 0;
+}
+
+// Override renderCurrentCSVPreview
+function renderCurrentCSVPreview(csv) {
+  const csvText = csv || buildCSVString();
+  if (!csvText) { toast('无可回绘数据', 'warn'); return; }
+  const parsed = parseCSVString(csvText);
+  if (!parsed) return;
+  const panel = document.getElementById('csvRenderPanel');
+  const wrap = document.getElementById('csvRenderWrap');
+  const info = document.getElementById('csvRenderInfo');
+  if (!panel || !wrap) return;
+  wrap.innerHTML = '';
+  const speed = parseFloat(document.getElementById('paramSpeed').value)||25;
+  const gain = parseFloat(document.getElementById('paramGain').value)||10;
+  const n = parsed.leads.length, t = parsed.times.length;
+  const H = n * 60, W = Math.min(1400, Math.max(600, t));
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H; canvas.style.width = '100%';
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fffdf7'; ctx.fillRect(0,0,W,H);
+  parsed.leads.forEach((lead, li) => {
+    const sig = parsed.series[lead];
+    const yOff = li * (H/n) + (H/n)/2;
+    const pxPerMv = (H/n) * 0.35;
+    const pxPerSample = W/sig.length;
+    ctx.strokeStyle = COLORS[lead] || '#ef4444'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    sig.forEach((v,i) => {
+      const x = i * pxPerSample, y = yOff - v * pxPerMv;
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.font = 'bold 10px monospace';
+    ctx.fillText(lead, 4, li*(H/n)+14);
+  });
+  wrap.appendChild(canvas);
+  if (info) info.textContent = n + '导联 · ' + t + '点 · 纸速' + speed + ' · 增益' + gain;
+  panel.style.display = 'block';
+  switchView('preview');
+}
+
+</script>
+
+
+<script>
+
+// ════════════════════════════════════════════════════════
+//  旋转辅助函数
+// ════════════════════════════════════════════════════════
+// 统一更新旋转值的函数 - 同步输入框、滑块、状态
+function nudgeRotation(delta) {
+  const input = document.getElementById('rotInput');
+  const current = parseFloat(input?.value) || state.rotation || 0;
+  const next = Math.round((current + delta) * 10) / 10;
+  if (input) input.value = next;
+  onRotate(next);
+}
+
+function resetRotation() {
+  const input = document.getElementById('rotInput');
+  if (input) input.value = 0;
+  onRotate(0);
+}
+
+function setRotationFromInput(val) {
+  const v = parseFloat(val);
+  if (!isNaN(v)) onRotate(v);
+}
+
+// ════════════════════════════════════════════════════════
+//  标定撤回函数
+// ════════════════════════════════════════════════════════
+
+// 撤回当前取点中的最后一个点（取点第1点后可撤回）
+function undoCalibPoint() {
+  if (!state.calibration.mode) return;
+  if (state.calibration.pendingPoints.length === 0) {
+    // 没有待定点 → 直接退出标定模式
+    state.calibration.mode = null;
+    state.calibration.pendingPoints = [];
+  } else {
+    // 移除最后一个点
+    state.calibration.pendingPoints.pop();
+  }
+  updateCalibrationUI();
+  updateCalibPointStatus();
+  renderOverlay();
+  if (state.calibration.pendingPoints.length === 0 && !state.calibration.mode) {
+    setCalibrationStatus('已退出标定，可重新开始。', 'var(--text3)');
+  } else {
+    setCalibrationStatus('已撤回，请重新点选第 1 个点。', 'var(--amber)');
+  }
+}
+
+// 重做某一轴（清除该轴已完成的标定）
+function undoCalibAxis() {
+  // 优先清除正在进行的轴；如果没有，清除纵向；再没有清除横向
+  if (state.calibration.mode) {
+    state.calibration.mode = null;
+    state.calibration.pendingPoints = [];
+    setCalibrationStatus('已取消当前轴标定。', 'var(--text3)');
+  } else if (state.calibration.pxPerMmY) {
+    state.calibration.pxPerMmY = null;
+    state.calibration.manual.y = null;
+    setCalibrationStatus('已清除纵向标定，可重新标定。', 'var(--amber)');
+  } else if (state.calibration.pxPerMmX) {
+    state.calibration.pxPerMmX = null;
+    state.calibration.manual.x = null;
+    setCalibrationStatus('已清除横向标定，可重新标定。', 'var(--amber)');
+  }
+  state.calibration.source = 'dpi';
+  syncDpiFromCalibration();
+  updateCalibrationUI();
+  updateCalibPointStatus();
+  updateCounts();
+  renderOverlay();
+}
+
+// 更新取点状态行（取点中时显示黄色提示+撤回按钮）
+function updateCalibPointStatus() {
+  // calibPointStatus hidden - hints shown in calibAutoHint only
+  const bar = document.getElementById('calibPointStatus');
+  if (bar) bar.style.display = 'none';
+  const txt = document.getElementById('calibPointText');
+  // 更新"重做此轴"按钮状态
+  const undoAxisBtn = document.getElementById('btnCalibUndoAxis');
+  if (undoAxisBtn) {
+    const hasAnything = state.calibration.mode || state.calibration.pxPerMmX || state.calibration.pxPerMmY;
+    undoAxisBtn.disabled = !hasAnything;
+    if (state.calibration.mode) {
+      undoAxisBtn.textContent = '↩ 取消此轴';
+    } else if (state.calibration.pxPerMmY) {
+      undoAxisBtn.textContent = '↩ 重做纵向';
+    } else if (state.calibration.pxPerMmX) {
+      undoAxisBtn.textContent = '↩ 重做横向';
+    } else {
+      undoAxisBtn.textContent = '↩ 重做此轴';
+    }
+  }
+}
+
+
+// 删除当前文件，回到初始状态
+function clearCurrentFile() {
+  // Reset state
+  state.image = null;
+  state.originalImage = null;
+  state.imageW = 0;
+  state.imageH = 0;
+  state.rotation = 0;
+  state.boxes = {};
+  state.extractedMV = null;
+  state.extractedSignals = null;
+  state.calibration = { pxPerMmX: null, pxPerMmY: null, mode: null, pendingPoints: [], manual: { x: null, y: null }, auto: null, source: 'dpi' };
+  state.perspectivePoints = [];
+  state.perspectiveMode = false;
+  state.repairedLeads = new Set();
+
+  // Reset UI
+  const ri = document.getElementById('rotInput'); if (ri) ri.value = 0;
+  const fileInfoRow = document.getElementById('fileInfoRow');
+  if (fileInfoRow) fileInfoRow.style.display = 'none';
+  const rotCard = document.getElementById('rotateCard');
+  if (rotCard) rotCard.style.display = 'none';
+  const perspCard = document.getElementById('perspCard');
+  if (perspCard) perspCard.style.display = 'none';
+
+  // Reset canvas
+  const container = document.getElementById('canvasContainer');
+  if (container) container.style.display = 'none';
+  const empty = document.getElementById('emptyState');
+  if (empty) empty.style.display = '';
+
+  // Reset step indicators
+  goToStep(1);
+  document.getElementById('toStep2Btn')?.setAttribute('disabled', '');
+  document.getElementById('toStep3Btn')?.setAttribute('disabled', '');
+  document.getElementById('toStep4Btn')?.setAttribute('disabled', '');
+  document.getElementById('btnExtract2')?.setAttribute('disabled', '');
+  document.getElementById('btnSave2')?.setAttribute('disabled', '');
+
+  // Clear calibration UI
+  updateCalibAxisUI();
+  buildLeadList();
+  updateCounts();
+
+  // Clear file input
+  const fi = document.getElementById('fileInput');
+  if (fi) fi.value = '';
+
+  // Reset status bar
+  const si = document.getElementById('statusImg');
+  if (si) si.textContent = '未加载图像';
+  const sb = document.getElementById('sb-img');
+  if (sb) sb.textContent = '未加载';
+  const sl = document.getElementById('statusLeads');
+  if (sl) sl.textContent = '0/12 导联';
+  const se = document.getElementById('statusExtract');
+  if (se) se.textContent = '未提取';
+  // Reset preview tab
+  const pvTab = document.getElementById('vtab-preview');
+  if (pvTab) { pvTab.style.display='none'; pvTab.style.opacity='0.4'; pvTab.style.cursor='default'; pvTab.classList.add('disabled'); }
+  switchView('edit');
+  const vb2 = document.getElementById('viewBar');
+  if (vb2) vb2.style.display = 'none';
+  toast('已清除，可重新上传图片');
+}
+
+
+function doExtractAndPreview() {
+  // 先确保预览 Tab 可见（不然核心 switchView 切不过去）
+  const pv = document.getElementById('vtab-preview');
+  if (pv) { pv.style.display = ''; pv.classList.remove('disabled'); }
+
+  window._extractionRunning = false;
+  const fn = window.runExtraction || runExtraction;
+  Promise.resolve(fn()).finally(() => {
+    // 提取完成后强制切到预览
+    const pv2 = document.getElementById('vtab-preview');
+    const ev = document.getElementById('editView');
+    const prv = document.getElementById('previewView');
+    const t1 = document.getElementById('vtab-edit');
+    if (pv2) { pv2.style.display = ''; pv2.classList.remove('disabled'); pv2.classList.add('active'); }
+    if (ev) ev.style.display = 'none';
+    if (prv) prv.classList.add('visible');
+    if (t1) t1.classList.remove('active');
+  });
+}
+
+// ── 侧边栏拖拽调宽 ──────────────────────────────────────────
+function startSidebarResize(e) {
+  e.preventDefault();
+  const sidebar = document.getElementById('sidebar');
+  const startX = e.clientX;
+  const startW = sidebar.offsetWidth;
+
+  const resizer = document.getElementById('sidebarResizer');
+  resizer.style.background = 'var(--accent)';
+  resizer.style.opacity = '0.5';
+
+  function onMove(e) {
+    const newW = Math.max(200, Math.min(480, startW + e.clientX - startX));
+    sidebar.style.width = newW + 'px';
+  }
+  function onUp() {
+    resizer.style.background = 'transparent';
+    resizer.style.opacity = '1';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ════════════════════════════════════════════════════════
+//  DOMContentLoaded - INIT
+// ════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  buildLeadList();
+  buildLeadGrid();
+  buildLeadListAdvanced();
+  setupDrop();
+  document.getElementById('fileInput').addEventListener('change', e => {
+    if (e.target.files.length > 0) batchLoadFiles(e.target.files);
+    e.target.value = '';
+  });
+  document.addEventListener('keydown', onKeyDown);
+  const oc = document.getElementById('overlayCanvas');
+  if (oc) {
+    oc.addEventListener('wheel', onWheel, { passive: false });
+  }
+  window.addEventListener('mouseup', e => {
+    if (state.drawing || state.dragState) onMouseUp(e);
+  });
+
+  // Init params
+  document.getElementById('epMethod').value = 'track';
+
+  // Select lead I
+  selectLead('I');
+
+  // Sync epMethod2 ↔ epMethod
+  ['epThreshold','epBaseline','epSmooth','epMethod'].forEach(id => {
+    const src = document.getElementById(id);
+    const dst = document.getElementById(id + '2');
+    if (src && dst) {
+      src.addEventListener('input', () => { dst.value = src.value; });
+      dst.addEventListener('input', () => { src.value = dst.value; });
+      src.addEventListener('change', () => { if(dst.tagName==='SELECT') dst.value=src.value; });
     }
   });
 
-  (function(){
-    var u = null;
-    try{ u = new URL(window.location.href); }catch(_){ return; }
-    var remote = u.searchParams.get('image') || u.searchParams.get('imageUrl') || u.searchParams.get('fileUrl') || u.searchParams.get('url') || u.searchParams.get('src') || '';
-    var dataUrl = u.searchParams.get('dataUrl') || '';
-    var filename = u.searchParams.get('filename') || 'ecg_image.png';
-    if(dataUrl){ importDataUrl(dataUrl, filename); return; }
-    if(remote) importFromRemoteUrl(remote, filename);
-  })();
+  // Calibration dropdowns (hidden compat)
+  ['paramDPI','calibDistX','calibDistY'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
-  (function(){
-    var launchId = '', fileToken = '';
+  // Set paramSpeed to input-compatible for original JS read
+  // The original JS uses parseFloat(document.getElementById('paramSpeed').value)
+  // which works fine with <select>
+
+  initCalibrationUI();
+  updateCalibAxisUI();
+});
+
+// (loadImage DOMContentLoaded patch removed)
+
+// ─── Patch selectLead to update grid ─────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const _sl = selectLead;
+  window.selectLead = function(lead) {
+    _sl.call(this, lead);
+    updateLeadGrid();
+  };
+});
+
+// ─── Patch buildPreviewPanel result ──────────────────────────────────────
+const _origBuildPreviewPanel = typeof buildPreviewPanel === 'function' ? buildPreviewPanel : null;
+
+// After extraction, update step 4 result
+const _origRunExtraction = typeof runExtraction === 'function' ? runExtraction : null;
+
+// Override runExtraction to show result afterwards
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof runExtraction === 'function') {
+    const _rx = runExtraction;
+    window.runExtraction = async function() {
+      // Guard against double-run
+      if (window._extractionRunning) return;
+      window._extractionRunning = true;
+      // Show progress in step 4 panel
+      const prog = document.getElementById('extractProg');
+      if (prog) prog.classList.add('show');
+      const pf = document.getElementById('progressFill');
+      if (pf) pf.style.width = '0%';
+      // Disable extract buttons while running
+      ['btnExtract','btnExtract2'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) { b.disabled = true; b.textContent = '提取中…'; }
+      });
+
+      // Sync fill
+      const orig_fill = document.getElementById('progressFill2');
+      const observer = new MutationObserver(() => {
+        if (pf && orig_fill) pf.style.width = orig_fill.style.width;
+      });
+      if (orig_fill) observer.observe(orig_fill, { attributes: true, attributeFilter: ['style'] });
+
+      await _rx.call(this);
+
+      if (prog) prog.classList.remove('show');
+      observer.disconnect();
+
+      // Show result
+      const ne = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+      const r4 = document.getElementById('result4');
+      const r4t = document.getElementById('result4Title');
+      const r4d = document.getElementById('result4Detail');
+      if (r4) r4.classList.add('show');
+      if (r4t) r4t.textContent = `${ne} 个导联提取完成`;
+      const fs = parseFloat(document.getElementById('paramFS')?.value)||500;
+      const pts = state.extractedMV && ne > 0 ? Object.values(state.extractedMV)[0]?.length : 0;
+      if (r4d) r4d.textContent = `采样率 ${fs}Hz · 约 ${pts} 点/导联`;
+
+      document.getElementById('btnSave')?.removeAttribute('disabled');
+      document.getElementById('btnSave2')?.removeAttribute('disabled');
+      document.getElementById('btnSave3')?.removeAttribute('disabled');
+      window._extractionRunning = false;
+      // Re-enable extract buttons
+      ['btnExtract','btnExtract2'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) { b.disabled = false; b.textContent = id === 'btnExtract2' ? '▶ 提取信号' : '▶ 提取信号'; }
+      });
+      showStepStatus(`✓ ${ne}导联提取完成`, 'ok');
+      // Enable and switch to preview tab
+      const pvTab = document.getElementById('vtab-preview');
+      if (pvTab) {
+        pvTab.style.display = '';
+        pvTab.style.opacity = '1';
+        pvTab.style.cursor = 'pointer';
+        pvTab.classList.remove('disabled');
+      }
+      // Always switch to preview view after extraction
+      setTimeout(() => {
+        const editV2 = document.getElementById('editView');
+        const prevV2 = document.getElementById('previewView');
+        const t1v = document.getElementById('vtab-edit');
+        const pvTab2 = document.getElementById('vtab-preview');
+        if (pvTab2) { pvTab2.style.display = ''; pvTab2.classList.remove('disabled'); }
+        if (editV2) editV2.style.display = 'none';
+        if (prevV2) prevV2.classList.add('visible');
+        if (t1v) t1v.classList.remove('active');
+        if (pvTab2) pvTab2.classList.add('active');
+      }, 50);
+    };
+  }
+});
+
+// Batch UI compat
+function updateBatchProgress() {
+  const done = Object.keys(batch.results || {}).length;
+  const total = batch.files?.length || 0;
+  const t = document.getElementById('batchProgressText');
+  const f = document.getElementById('batchBarFill');
+  if (t) t.textContent = `${done} / ${total} 完成`;
+  if (f) f.style.width = total ? `${done/total*100}%` : '0%';
+  const btn = document.getElementById('btnDownloadAll');
+  if (btn) btn.disabled = done === 0;
+}
+
+function buildBatchQueue() {
+  const qEl = document.getElementById('batchQueue');
+  const sec = document.getElementById('batchSection');
+  if (!qEl || !sec) return;
+  if (!batch.files || batch.files.length <= 1) { sec.classList.remove('show'); return; }
+  sec.classList.add('show');
+  qEl.innerHTML = '';
+  batch.files.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'batch-item' + (i === batch.current ? ' active' : '') + (batch.results[f.name] ? ' done' : '');
+    item.id = `bi-${i}`;
+    item.innerHTML = `<span class="bi-name">${f.name}</span><span class="bi-status">${batch.results[f.name] ? '✓' : ''}</span>`;
+    item.onclick = () => batchJumpTo(i);
+    qEl.appendChild(item);
+  });
+  const btnNext = document.getElementById('btnNextImage');
+  if (btnNext) { btnNext.style.display = batch.files.length > 1 ? '' : 'none'; btnNext.disabled = false; }
+}
+
+</script>
+
+<!-- Integration / postMessage script (original) -->
+<script>
+(function(){
+  function toFileFromDataUrl(dataUrl,filename){
+    if(!dataUrl||dataUrl.indexOf(',')<0)return null;
+    var arr=dataUrl.split(',');
+    var mime=((arr[0].match(/:(.*?);/)||[])[1])||'application/octet-stream';
+    var bstr=atob(arr[1]||'');
+    var n=bstr.length;
+    var u8=new Uint8Array(n);
+    while(n--)u8[n]=bstr.charCodeAt(n);
+    return new File([u8],filename||'ecg_image.png',{type:mime});
+  }
+  function importDataUrl(dataUrl,filename){
     try{
-      var u = new URL(window.location.href);
-      launchId = u.searchParams.get('heartosLaunch') || '';
-      fileToken = u.searchParams.get('heartosFileToken') || '';
-    }catch(_){}
-    try{ parent.postMessage({ type:'HEARTOS_REQUEST_FILE', launchId: launchId, fileToken: fileToken }, '*'); }catch(_){}
+      var f=toFileFromDataUrl(dataUrl,filename);
+      if(!f)return false;
+      if(typeof loadImage==='function'){loadImage(f);return true;}
+      if(typeof batchLoadFiles==='function'){var dt=new DataTransfer();dt.items.add(f);batchLoadFiles(dt.files);return true;}
+      return false;
+    }catch(e){return false;}
+  }
+  async function importFromRemoteUrl(url,filename){
+    if(!url)return false;
+    try{
+      var r=await fetch(url);
+      if(!r.ok)return false;
+      var b=await r.blob();
+      var f=new File([b],filename||'ecg_image.png',{type:b.type||'image/png'});
+      if(typeof loadImage==='function'){loadImage(f);return true;}
+      if(typeof batchLoadFiles==='function'){var dt=new DataTransfer();dt.items.add(f);batchLoadFiles(dt.files);return true;}
+      return false;
+    }catch(e){return false;}
+  }
+  function notifyReady(){
+    var launchId='';
+    try{launchId=new URL(window.location.href).searchParams.get('heartosLaunch')||'';}catch(_){}
+    try{parent.postMessage({type:'HEARTOS_TOOL_READY',launchId:launchId,tool:'handecg'},'*');}catch(_){}
+    try{parent.postMessage({type:'TOOL_READY',launchId:launchId,tool:'handecg'},'*');}catch(_){}
+  }
+  function notifyImportDone(filename){
+    var launchId='';
+    try{launchId=new URL(window.location.href).searchParams.get('heartosLaunch')||'';}catch(_){}
+    try{parent.postMessage({type:'HEARTOS_IMPORT_DONE',launchId:launchId,tool:'handecg',filename:filename||'ecg_image.png'},'*');}catch(_){}
+  }
+  window.addEventListener('message',function(evt){
+    var d=evt.data||{};
+    var t=d.type||'';
+    if(['HEARTOS_OPEN_FILE','HEARTOS_ECG_IMAGE','HAND_ECG_IMAGE','ECG_IMAGE','IMPORT_IMAGE','HEARTOS_FILE_PAYLOAD'].indexOf(t)<0)return;
+    var filename=d.filename||d.name||'ecg_image.png';
+    var dataUrl=d.dataUrl||d.imageDataUrl||d.image||'';
+    var remote=d.uploadedUrl||d.remoteUrl||d.url||d.imageUrl||'';
+    if(dataUrl&&importDataUrl(dataUrl,filename)){notifyImportDone(filename);return;}
+    if(remote){importFromRemoteUrl(remote,filename).then(function(ok){if(ok)notifyImportDone(filename);});}
+  });
+  (function(){
+    var u=null;
+    try{u=new URL(window.location.href);}catch(_){return;}
+    var remote=u.searchParams.get('image')||u.searchParams.get('imageUrl')||u.searchParams.get('fileUrl')||u.searchParams.get('url')||u.searchParams.get('src')||'';
+    var dataUrl=u.searchParams.get('dataUrl')||'';
+    var filename=u.searchParams.get('filename')||'ecg_image.png';
+    if(dataUrl){importDataUrl(dataUrl,filename);return;}
+    if(remote)importFromRemoteUrl(remote,filename);
   })();
-
+  (function(){
+    var launchId='',fileToken='';
+    try{var u=new URL(window.location.href);launchId=u.searchParams.get('heartosLaunch')||'';fileToken=u.searchParams.get('heartosFileToken')||'';}catch(_){}
+    try{parent.postMessage({type:'HEARTOS_REQUEST_FILE',launchId:launchId,fileToken:fileToken},'*');}catch(_){}
+  })();
   var ping=0;
-  var timer=setInterval(function(){
-    ping+=1; notifyReady();
-    if(ping>=12) clearInterval(timer);
-  },400);
+  var timer=setInterval(function(){ping+=1;notifyReady();if(ping>=12)clearInterval(timer);},400);
 })();
 </script>
+
+
+<!-- Hidden compatibility stubs -->
+<div id="requiredSteps" style="display:none"></div>
+<div id="saveLocationLabel" style="display:none"></div>
+<div id="layoutDesc" style="display:none"></div>
+<div id="autoDetectStatus" style="display:none"></div>
+<div id="gridGuideHint" style="display:none"></div>
+<div id="perspectiveSectionTitle" style="display:none"></div>
+<input type="text" id="saveFileName" value="ecg.csv" style="display:none">
+<button id="btnGridAuto" style="display:none" onclick="autoDetectGridCalibration()"></button>
+<button id="btnGridGuide" style="display:none" onclick="startGuidedGridCalibration()"></button>
+<button id="btnGridManualX" style="display:none" onclick="startManualCalibration('x')"></button>
+<button id="btnGridManualY" style="display:none" onclick="startManualCalibration('y')"></button>
+<button id="btnAutoDetect" style="display:none" onclick="autoDetectLeads()"></button>
+
 </body>
 </html>
-
