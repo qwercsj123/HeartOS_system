@@ -514,6 +514,7 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="notebook id is required")
     sources = raw.get("sources")
     msgs = raw.get("msgs")
+    analysis_files = raw.get("analysisFiles")
     return {
         "id": nid,
         "title": str(raw.get("title") or "New Conversation"),
@@ -522,6 +523,7 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
         "date": str(raw.get("date") or ""),
         "sources": sources if isinstance(sources, list) else [],
         "msgs": msgs if isinstance(msgs, list) else [],
+        "analysisFiles": analysis_files if isinstance(analysis_files, list) else [],
     }
 
 
@@ -557,6 +559,20 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
     db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
     return {"ok": True, "id": item["id"]}
+
+
+@app.delete("/api/notebooks/{notebook_id}")
+async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    db = _load_json_file(NOTEBOOKS_PATH)
+    items = db.get(uid, [])
+    if not isinstance(items, list):
+        items = []
+    before = len(items)
+    items = [it for it in items if not (isinstance(it, dict) and str(it.get("id")) == str(notebook_id))]
+    db[uid] = items
+    _save_json_file(NOTEBOOKS_PATH, db)
+    return {"ok": True, "deleted": before - len(items)}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
