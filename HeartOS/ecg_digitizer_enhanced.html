@@ -318,6 +318,11 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
 .preview-wrap{flex:1;overflow:auto;background:var(--bg);display:none;flex-direction:column;padding:14px;gap:10px}
 .preview-wrap.visible{display:flex}
 .preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.preview-grid.cols-1{grid-template-columns:1fr}
+.preview-grid.cols-2{grid-template-columns:1fr 1fr}
+.preview-grid.cols-3{grid-template-columns:repeat(3,1fr)}
+.preview-grid.cols-4{grid-template-columns:repeat(4,1fr)}
+.preview-card.span-full{grid-column:1/-1}
 .preview-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
 .preview-card-header{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--surface2)}
 .preview-card-lead{font-size:11px;font-weight:700;width:28px;font-family:var(--mono)}
@@ -1940,10 +1945,8 @@ function applyCropRegion() {
 }
 
 function _commitCropCanvas(canvas) {
-  // 淡出当前图像
   const ecgC = document.getElementById('ecgCanvas');
-  if (ecgC) { ecgC.style.transition = 'opacity 0.25s'; ecgC.style.opacity = '0'; }
-  setTimeout(() => {
+  // 先把新图画好，再做视觉过渡，避免白屏
   commitCanvasAsImage(canvas, img => {
     state.originalImage  = state.image;
     state.originalImageW = state.imageW;
@@ -1956,25 +1959,27 @@ function _commitCropCanvas(canvas) {
     state.cropQuad    = null;
     state.offCanvas   = null;
 
-    document.getElementById('cropCard').style.display  = 'none';
-    // rotateCard 已在上传时显示，无需重复
+    document.getElementById('cropCard').style.display = 'none';
 
     resetDerivedState();
     fitToWindow();
-    renderECG();
-    renderOverlay();
-    updateCounts();
-    const d = document.getElementById('result1Detail');
-    if (d) d.textContent = `${img.width} × ${img.height} 像素（已校正裁剪）`;
-    // 裁剪完成后永久启用下一步按钮（返回步骤1时也可用）
-    document.getElementById('toStep2Btn')?.removeAttribute('disabled');
-    goToStep(3);
-    // 淡入新图像
-    setTimeout(() => {
-      if (ecgC) { ecgC.style.opacity = '1'; }
-    }, 80);
+
+    // 快速淡出 → 画新图 → 淡入，整个过渡在新图就绪后进行
+    if (ecgC) { ecgC.style.transition = 'opacity 0.15s'; ecgC.style.opacity = '0'; }
+    requestAnimationFrame(() => {
+      renderECG();
+      renderOverlay();
+      updateCounts();
+      const d = document.getElementById('result1Detail');
+      if (d) d.textContent = `${img.width} × ${img.height} 像素（已校正裁剪）`;
+      document.getElementById('toStep2Btn')?.removeAttribute('disabled');
+      goToStep(3);
+      // 画完再淡入
+      requestAnimationFrame(() => {
+        if (ecgC) { ecgC.style.opacity = '1'; }
+      });
+    });
   });
-  }, 250); // 等淡出完成再裁剪
 }
 
 // 获取 getCropHandles 的四角简化版（只返回4个角）
@@ -2631,8 +2636,8 @@ async function chooseSaveDirectory() {
 }
 
 function getScaleMetrics() {
-  const speed   = parseFloat(document.getElementById('paramSpeed')?.value) || ECG_CFG.SPEED_MM_S;
-  const totalS  = ECG_CFG.STRIP_DURATION_S;
+  const speed  = parseFloat(document.getElementById('paramSpeed')?.value) || ECG_CFG.SPEED_MM_S;
+  const totalS = ECG_CFG.STRIP_DURATION_S; // 整图横向固定 = 10s
 
   // 优先使用用户手动标定值
   if (state.calibration && state.calibration.pxPerMmX && state.calibration.pxPerMmX > 0) {
@@ -2640,29 +2645,29 @@ function getScaleMetrics() {
     return { pxPerMmX, pxPerMmY: pxPerMmX, dpiEquivalentX: pxPerMmX * 25.4, dpiEquivalentY: pxPerMmX * 25.4, source: 'manual' };
   }
 
-  // 从布局定义推算每个框对应的实际时长，再算 pxPerMmX
-  const preset      = selectedPreset || '4x3';
-  const layoutLeads = LAYOUT_PRESETS[preset]?.leads || null;
-  const boxes       = state.boxes || {};
-  const samples     = [];
-
-  for (const [lead, b] of Object.entries(boxes)) {
-    const bW = Math.round(b.x2 - b.x1);
-    if (bW <= 10) continue;
-    const lr = layoutLeads?.[lead];
-    const leadDurS = lr ? (lr[2] - lr[0]) * totalS : totalS;
-    if (leadDurS > 0) samples.push(bW / (speed * leadDurS));
+  // 整图宽 = 10s：用 imageW 直接算 pxPerMmX
+  // pxPerS = imageW / 10，pxPerMmX = pxPerS / speed
+  let pxPerMmX = null;
+  if (state.imageW > 0) {
+    pxPerMmX = state.imageW / (speed * totalS);
   }
-
-  let pxPerMmX = samples.length > 0
-    ? samples.reduce((a, b) => a + b, 0) / samples.length
-    : null;
-
-  if (!pxPerMmX && state.imageW > 0) pxPerMmX = state.imageW / (speed * totalS);
-  if (!pxPerMmX) pxPerMmX = 96 / 25.4;
+  if (!pxPerMmX) pxPerMmX = 96 / 25.4; // 兜底：96dpi
 
   const pxPerMmY = pxPerMmX;
-  return { pxPerMmX, pxPerMmY, dpiEquivalentX: pxPerMmX * 25.4, dpiEquivalentY: pxPerMmY * 25.4, source: 'auto-layout' };
+  return { pxPerMmX, pxPerMmY, dpiEquivalentX: pxPerMmX * 25.4, dpiEquivalentY: pxPerMmY * 25.4, source: 'image-width' };
+}
+
+// 根据布局定义，计算某导联框对应的实际时长（秒）
+// 逻辑：该导联横向占整图的比例 × 10s
+function getLeadDurS(lead) {
+  const totalS = ECG_CFG.STRIP_DURATION_S; // 整图横向 = 10s
+  // 始终以用户实际框选宽度为准：框宽 / 图宽 × 10s
+  const b = state.boxes?.[lead];
+  if (b && state.imageW > 0) return ((b.x2 - b.x1) / state.imageW) * totalS;
+  // 兜底：查布局定义
+  const lr = LAYOUT_PRESETS[selectedPreset || '4x3']?.leads?.[lead];
+  if (lr) return (lr[2] - lr[0]) * totalS;
+  return totalS;
 }
 
 function syncDpiFromCalibration() {
@@ -3687,9 +3692,9 @@ function warpCanvasPerspective(srcCanvas, points) {
 }
 
 function commitCanvasAsImage(canvas, onDone) {
-  const img = new Image();
-  img.onload = () => onDone(img);
-  img.src = canvas.toDataURL('image/png');
+  // 直接回调 canvas，避免 toDataURL → Image.onload 的延迟导致白屏
+  // canvas 可直接用于 drawImage，width/height 属性与 HTMLImageElement 一致
+  onDone(canvas);
 }
 
 function stretchGray(gray, lo, hi) {
@@ -3706,6 +3711,7 @@ function applyPerspectiveCorrection() {
     return;
   }
   commitCanvasAsImage(warped, img => {
+    const ecgC = document.getElementById('ecgCanvas');
     state.image = img;
     state.imageW = img.width;
     state.imageH = img.height;
@@ -3717,12 +3723,19 @@ function applyPerspectiveCorrection() {
     state.selectedPerspectivePoint = -1;
     resetDerivedState();
     fitToWindow();
-    selectLead('I');
-    renderECG();
-    renderOverlay();
-    updateCounts();
-    setPerspectiveStatus('透视校正完成。', 'var(--accent)');
-    toast('透视校正完成');
+    // 新图就绪后再做淡入淡出，不留白屏窗口
+    if (ecgC) { ecgC.style.transition = 'opacity 0.15s'; ecgC.style.opacity = '0'; }
+    requestAnimationFrame(() => {
+      selectLead('I');
+      renderECG();
+      renderOverlay();
+      updateCounts();
+      setPerspectiveStatus('透视校正完成。', 'var(--accent)');
+      toast('透视校正完成');
+      requestAnimationFrame(() => {
+        if (ecgC) { ecgC.style.opacity = '1'; }
+      });
+    });
   });
 }
 
@@ -4152,9 +4165,13 @@ function getLeadHitAt(x, y) {
 }
 
 function getNextUnboxedLead(fromLead = state.selectedLead) {
-  const start = Math.max(0, LEADS_ORDER.indexOf(fromLead));
-  return LEADS_ORDER.slice(start + 1).find(lead => !state.boxes[lead]) ||
-         LEADS_ORDER.find(lead => !state.boxes[lead]) ||
+  const preset = selectedPreset || '4x3';
+  const layoutDef = LAYOUT_PRESETS[preset];
+  const hasRhythmStrip = !!(layoutDef && layoutDef.rhythmLead && layoutDef.leads && layoutDef.leads['II_R']);
+  const fullOrder = hasRhythmStrip ? [...LEADS_ORDER, 'II_R'] : LEADS_ORDER;
+  const start = Math.max(0, fullOrder.indexOf(fromLead));
+  return fullOrder.slice(start + 1).find(lead => !state.boxes[lead]) ||
+         fullOrder.find(lead => !state.boxes[lead]) ||
          null;
 }
 
@@ -4577,9 +4594,13 @@ function onKeyDown(e) {
   }
   if (e.key==='Tab') {
     e.preventDefault();
-    const idx=LEADS_ORDER.indexOf(state.selectedLead);
-    const next=e.shiftKey?Math.max(0,idx-1):Math.min(LEADS_ORDER.length-1,idx+1);
-    selectLead(LEADS_ORDER[next]);
+    const preset = selectedPreset || '4x3';
+    const layoutDef = LAYOUT_PRESETS[preset];
+    const hasRhythmStrip = !!(layoutDef && layoutDef.rhythmLead && layoutDef.leads && layoutDef.leads['II_R']);
+    const fullOrder = hasRhythmStrip ? [...LEADS_ORDER, 'II_R'] : LEADS_ORDER;
+    const idx = fullOrder.indexOf(state.selectedLead);
+    const next = e.shiftKey ? Math.max(0,idx-1) : Math.min(fullOrder.length-1,idx+1);
+    selectLead(fullOrder[next]);
   }
   if (e.key>='1' && e.key<='9' && !e.ctrlKey && !e.shiftKey) {
     const idx=parseInt(e.key)-1;
@@ -5263,7 +5284,8 @@ function resampleLinear(sig, nOut) {
 //  RUN EXTRACTION
 // ════════════════════════════════════════════════════════
 async function runExtraction() {
-  const presentLeads = LEADS_ORDER.filter(l=>state.boxes[l]);
+  const allExtractLeads = [...LEADS_ORDER, 'II_R'];
+  const presentLeads = allExtractLeads.filter(l => state.boxes[l]);
   if (explainBlockedAction('extract')) {
     return;
   }
@@ -5313,7 +5335,7 @@ async function runExtraction() {
     state.extractedSignals[lead] = rawY;
 
     const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
-    const dur_s = rawY.length / (pxPerMmX * speed);
+    const dur_s = getLeadDurS(lead); // 布局比例 × 10s，与框像素宽度无关
     const nOut = Math.round(dur_s * fs);
     state.extractedMV[lead] = resampleLinear(mv, nOut);
 
@@ -5339,64 +5361,155 @@ async function runExtraction() {
 }
 
 // ════════════════════════════════════════════════════════
-//  PREVIEW PANEL
+//  PREVIEW PANEL — 按心电图标准布局排列，包含II节律条
 // ════════════════════════════════════════════════════════
 function buildPreviewPanel(leads, dpi, speed, gain, fs) {
   const grid = document.getElementById('previewGrid');
-  grid.innerHTML='';
+  grid.innerHTML = '';
   setCSVPreviewMode(false);
   document.querySelector('.extract-controls').style.display = 'none';
   document.getElementById('previewGrid').style.display = '';
-  document.getElementById('previewEmpty').style.display='none';
-  document.getElementById('previewHeader').style.display='flex';
+  document.getElementById('previewEmpty').style.display = 'none';
+  document.getElementById('previewHeader').style.display = 'flex';
 
-  let totalSnr=0, count=0;
+  // ── 读取当前布局定义，确定列数和导联顺序 ──────────────────────────────
+  const preset = selectedPreset || '4x3';
+  const layoutDef = LAYOUT_PRESETS[preset];
+  const layoutLeads = layoutDef ? layoutDef.leads : null;
+  const hasRhythmStrip = !!(layoutDef && layoutDef.rhythmLead && layoutLeads && layoutLeads['II_R']);
 
-  leads.forEach(lead => {
+  // 从布局定义推导列数（取 x1 值的唯一数量）
+  let nCols = 2;
+  let orderedLeads = leads.filter(l => l !== 'II_R');
+
+  if (layoutLeads && Object.keys(layoutLeads).length > 0) {
+    const uniqueX = [...new Set(
+      Object.entries(layoutLeads)
+        .filter(([l]) => l !== 'II_R')
+        .map(([, r]) => r[0])
+    )].sort((a, b) => a - b);
+    nCols = uniqueX.length || 2;
+
+    // 按 y1→x1 排序（上→下，左→右），与心电图印刷顺序一致
+    const layoutEntries = Object.entries(layoutLeads)
+      .filter(([l]) => l !== 'II_R')
+      .sort(([, a], [, b]) => a[1] !== b[1] ? a[1] - b[1] : a[0] - b[0]);
+
+    const layoutOrder = layoutEntries.map(([l]) => l);
+    // 布局中有的导联按布局顺序，其余追加到末尾
+    orderedLeads = [
+      ...layoutOrder.filter(l => leads.includes(l)),
+      ...leads.filter(l => l !== 'II_R' && !layoutOrder.includes(l)),
+    ];
+  }
+
+  // 设置网格列数
+  grid.className = 'preview-grid';
+  if (nCols === 1) grid.classList.add('cols-1');
+  else if (nCols === 2) grid.classList.add('cols-2');
+  else if (nCols === 3) grid.classList.add('cols-3');
+  else if (nCols === 4) grid.classList.add('cols-4');
+
+  // ── 构建每个导联卡片 ────────────────────────────────────────────────────
+  let totalSnr = 0, count = 0;
+
+  orderedLeads.forEach(lead => {
     const b = state.boxes[lead];
     const rawY = state.extractedSignals[lead];
     const mvSig = state.extractedMV[lead];
     if (!rawY || !mvSig) return;
 
-    const bW=Math.round(b.x2-b.x1), bH=Math.round(b.y2-b.y1);
-
-    const mean = mvSig.reduce((a,b)=>a+b,0)/mvSig.length;
-    const range = Math.max(...mvSig)-Math.min(...mvSig);
-    const residual = mvSig.map(v=>v-mean);
-    const std = Math.sqrt(residual.reduce((a,b)=>a+b*b,0)/residual.length);
-    const snr = std>0 ? range/std : 0;
-    totalSnr+=snr; count++;
+    const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
+    const mean = mvSig.reduce((a, b) => a + b, 0) / mvSig.length;
+    const range = Math.max(...mvSig) - Math.min(...mvSig);
+    const residual = mvSig.map(v => v - mean);
+    const std = Math.sqrt(residual.reduce((a, b) => a + b * b, 0) / residual.length);
+    const snr = std > 0 ? range / std : 0;
+    totalSnr += snr; count++;
 
     const isRepaired = state.repairedLeads.has(lead);
-
     const card = document.createElement('div');
-    card.className='preview-card';
-    const statusIcon = snr>3 ? '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-check"/></svg>良好'
-                              : '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-warning"/></svg>检查';
-    const editLabel = isRepaired ? '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-check"/></svg>重新修复'
-                                  : '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-tool"/></svg>修复';
-    card.innerHTML=`
+    card.className = 'preview-card';
+
+    const editLabel = isRepaired
+      ? '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-check"/></svg>重新修复'
+      : '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-tool"/></svg>修复';
+
+    card.innerHTML = `
       <div class="preview-card-header">
-        <span class="preview-card-lead" style="color:${COLORS[lead]}">${lead}</span>
+        <span class="preview-card-lead" style="color:${COLORS[lead]||'#64748b'}">${lead}</span>
         <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s</span>
-        <span class="preview-card-status ${snr>3?'ok':'warn'}" style="display:inline-flex;align-items:center">${statusIcon}</span>
         ${isRepaired ? '<span style="font-size:10px;color:var(--accent);margin-left:2px;display:inline-flex;align-items:center;gap:2px"><svg class="icon icon-sm"><use href="#i-tool"/></svg>已修复</span>' : ''}
-        <button class="preview-card-edit${isRepaired?' edited':''}" id="editBtn-${lead}" onclick="event.stopPropagation();openRepairModal('${lead}')" style="display:inline-flex;align-items:center">${editLabel}</button>
+        <button class="preview-card-edit${isRepaired?' edited':''}" id="editBtn-${lead}"
+          onclick="event.stopPropagation();openRepairModal('${lead}')"
+          style="display:inline-flex;align-items:center">${editLabel}</button>
       </div>
       <div class="preview-canvas-wrap" id="pcw-${lead}"></div>
     `;
     grid.appendChild(card);
-
     drawPreviewCard(lead, card, rawY, bW, bH);
   });
 
-  // Update header quality badge
-  const avgSnr = count>0 ? totalSnr/count : 0;
+  // ── II节律条：全宽卡片，追加在最后 ────────────────────────────────────
+  if (hasRhythmStrip && state.extractedSignals && state.extractedSignals['II_R']) {
+    const rawY = state.extractedSignals['II_R'];
+    const mvSig = state.extractedMV['II_R'];
+    const b = state.boxes['II_R'];
+    if (rawY && mvSig && b) {
+      const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
+      const isRepaired = state.repairedLeads.has('II_R');
+      const editLabel = isRepaired
+        ? '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-check"/></svg>重新修复'
+        : '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-tool"/></svg>修复';
+
+      const rhythmCard = document.createElement('div');
+      rhythmCard.className = 'preview-card span-full';
+      rhythmCard.innerHTML = `
+        <div class="preview-card-header">
+          <span class="preview-card-lead" style="color:${COLORS['II']||'#34d399'}">II 节律</span>
+          <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s · 全程节律条</span>
+          ${isRepaired ? '<span style="font-size:10px;color:var(--accent);display:inline-flex;align-items:center;gap:2px"><svg class="icon icon-sm"><use href="#i-tool"/></svg>已修复</span>' : ''}
+          <button class="preview-card-edit${isRepaired?' edited':''}" id="editBtn-II_R"
+            onclick="event.stopPropagation();openRepairModal('II_R')"
+            style="display:inline-flex;align-items:center">${editLabel}</button>
+        </div>
+        <div class="preview-canvas-wrap" id="pcw-II_R"></div>
+      `;
+      grid.appendChild(rhythmCard);
+      drawPreviewCard('II_R', rhythmCard, rawY, bW, bH);
+    }
+  } else if (leads.includes('II_R')) {
+    // II_R 在 leads 里但当前 preset 没有节律条定义，也正常显示
+    const rawY = state.extractedSignals['II_R'];
+    const mvSig = state.extractedMV['II_R'];
+    const b = state.boxes['II_R'];
+    if (rawY && mvSig && b) {
+      const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
+      const rhythmCard = document.createElement('div');
+      rhythmCard.className = 'preview-card span-full';
+      rhythmCard.innerHTML = `
+        <div class="preview-card-header">
+          <span class="preview-card-lead" style="color:${COLORS['II']||'#34d399'}">II 节律</span>
+          <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s</span>
+          <button class="preview-card-edit" id="editBtn-II_R"
+            onclick="event.stopPropagation();openRepairModal('II_R')"
+            style="display:inline-flex;align-items:center">
+            <svg class="icon icon-sm" style="margin-right:3px"><use href="#i-tool"/></svg>修复</button>
+        </div>
+        <div class="preview-canvas-wrap" id="pcw-II_R"></div>
+      `;
+      grid.appendChild(rhythmCard);
+      drawPreviewCard('II_R', rhythmCard, rawY, bW, bH);
+    }
+  }
+
+  // ── 顶部汇总 ────────────────────────────────────────────────────────────
+  const avgSnr = count > 0 ? totalSnr / count : 0;
   const badge = document.getElementById('qualityBadge');
   const title = document.getElementById('previewHeaderTitle');
-  title.textContent = `${leads.length} 导联已提取 · 采样率 ${fs}Hz · ${state.extractedMV[leads[0]]?.length||0} 点/导联`;
-  badge.textContent = avgSnr>4 ? '质量: 优' : avgSnr>2 ? '质量: 良' : '质量: 差';
-  badge.className = 'quality-badge ' + (avgSnr>4?'good':avgSnr>2?'good':'warn');
+  const rhythmNote = (hasRhythmStrip && state.extractedSignals?.['II_R']) ? ' + II节律' : '';
+  title.textContent = `${orderedLeads.length} 导联${rhythmNote} · ${fs}Hz · 布局 ${preset}`;
+  if (badge) badge.textContent = '';
 }
 
 /**
@@ -6358,7 +6471,7 @@ async function applyRepairAndReextract() {
   // 6. Convert to mV and resample
   state.extractedSignals[lead] = rawY;
   const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
-  const dur_s = rawY.length / (pxPerMmX * speed);
+  const dur_s = getLeadDurS(lead);
   state.extractedMV[lead] = resampleLinear(mv, Math.round(dur_s * fs));
 
   // 7. Mark as repaired
@@ -7979,6 +8092,7 @@ function handleLayoutSelect(val) {
     const btnClear = document.getElementById('btnClear2');
     if (btnClear) btnClear.setAttribute('disabled', '');
     updateCounts();
+    setTimeout(() => selectLead('I'), 0);
   }
   selectPresetBtn(val);
 }
@@ -8008,17 +8122,17 @@ function updateScalePreview() {
     el.textContent = '请先在第 3 步框选至少一个导联区域';
     return;
   }
-  const b = boxes[leads[0]];
+  const lead0 = leads[0];
+  const b = boxes[lead0];
   const bW = Math.round(b.x2 - b.x1);
   const bH = Math.round(b.y2 - b.y1);
-  const pxPerS   = pxPerMmX * speed;
-  const durS     = bW / pxPerS;
-  const pxPerMV  = pxPerMmY * gain;
+  const durS   = getLeadDurS(lead0); // 布局比例 × 10s
+  const pxPerMV = pxPerMmY * gain;
   el.innerHTML =
     `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px">` +
-    `<span style="color:var(--text3)">横向分辨率</span><span><b>${pxPerMmX.toFixed(2)}</b> px/mm</span>` +
+    `<span style="color:var(--text3)">横向分辨率</span><span><b>${pxPerMmX.toFixed(2)}</b> px/mm（整图宽÷10s）</span>` +
     `<span style="color:var(--text3)">纵向分辨率</span><span><b>${pxPerMmY.toFixed(2)}</b> px/mm（同横向）</span>` +
-    `<span style="color:var(--text3)">导联宽度</span><span><b>${bW}</b> px = <b>${durS.toFixed(2)}</b> s</span>` +
+    `<span style="color:var(--text3)">导联 ${lead0} 时长</span><span><b>${bW}</b> px → <b>${durS.toFixed(2)}</b> s</span>` +
     `<span style="color:var(--text3)">电压比例</span><span><b>${pxPerMV.toFixed(1)}</b> px/mV</span>` +
     `<span style="color:var(--text3)">输出采样率</span><span><b>${fs}</b> Hz → <b>${Math.round(durS*fs)}</b> pts/导联</span>` +
     `</div>`;
@@ -8030,7 +8144,7 @@ function recomputeMVFromExtracted() {
   const gain   = parseFloat(document.getElementById('paramGain')?.value)  || ECG_CFG.GAIN_MM_MV;
   const fs     = parseFloat(document.getElementById('paramFS')?.value)    || ECG_CFG.FS_DEFAULT;
   const blWin  = parseFloat(document.getElementById('epBaseline')?.value) || 10;
-  const { pxPerMmX, pxPerMmY } = getScaleMetrics();
+  const { pxPerMmY } = getScaleMetrics();
   const scalePxMV = pxPerMmY * gain;
   const sigs = state.extractedSignals || {};
   state.extractedMV = {};
@@ -8040,7 +8154,7 @@ function recomputeMVFromExtracted() {
     if (!b) continue;
     const bH = Math.round(b.y2 - b.y1);
     const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
-    const durS = rawY.length / (pxPerMmX * speed);
+    const durS = getLeadDurS(lead);
     const nOut = Math.round(durS * fs);
     state.extractedMV[lead] = resampleLinear(mv, nOut);
   }
