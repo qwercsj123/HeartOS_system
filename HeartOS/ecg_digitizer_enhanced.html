@@ -69,6 +69,9 @@ header{height:var(--header);background:#fff;border-bottom:1px solid var(--border
 .wstep.active~.wstep-arrow,.wstep.active~.wstep{opacity:.4}
 .wstep-arrow{color:var(--border2);font-size:14px;margin:0 1px;flex-shrink:0}
 .header-right{display:flex;gap:6px;align-items:center;margin-left:auto;padding-left:12px}
+.step-status-pill{display:none;align-items:center;height:26px;padding:0 10px;border-radius:5px;font-size:12px;font-weight:500;color:var(--text2);background:var(--surface2);border:1px solid var(--border2);white-space:nowrap;letter-spacing:-.01em}
+.step-status-pill.show{display:flex}
+.step-status-pill.ok,.step-status-pill.info,.step-status-pill.warn{color:var(--text2);background:var(--surface2);border-color:var(--border2)}
 .heartos-return-btn{display:none;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:8px;border:1px solid var(--border2);background:#fff;color:#334155;font-family:var(--ui);font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--sh-sm);transition:border-color .14s,color .14s,background .14s}
 .heartos-return-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
 .heartos-return-btn .icon{width:17px;height:17px;stroke-width:2}
@@ -85,8 +88,8 @@ header{height:var(--header);background:#fff;border-bottom:1px solid var(--border
 .step-panel.active{display:flex;animation:panelIn .2s ease}
 
 /* Panel header：渐变背景 */
-.panel-header{display:flex;align-items:flex-start;gap:10px;padding:14px;background:linear-gradient(180deg,#fff 0%,var(--surface2) 100%);border-bottom:1px solid var(--border);margin-bottom:2px}
-.panel-num{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--mono);box-shadow:0 2px 5px rgba(37,99,235,.25)}
+.panel-header{display:flex;align-items:flex-start;gap:10px;padding:14px;background:#fff;border-bottom:1px solid var(--border);margin-bottom:2px}
+.panel-num{width:28px;height:28px;border-radius:8px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--mono)}
 .panel-title{font-size:14px;font-weight:600;color:var(--text);letter-spacing:-.02em;line-height:1.2}
 .panel-subtitle{font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4}
 
@@ -157,8 +160,8 @@ header{height:var(--header);background:#fff;border-bottom:1px solid var(--border
 .lead-cell.extracted{border:1.5px solid var(--green);background:var(--green-bg);color:var(--green2)}
 
 /* 主操作按钮 */
-.next-step-btn{width:100%;padding:10px;border-radius:var(--r);border:none;background:linear-gradient(180deg,var(--accent) 0%,var(--accent2) 100%);color:#fff;font-family:var(--ui);font-size:13.5px;font-weight:600;cursor:pointer;letter-spacing:-.01em;transition:filter .12s,box-shadow .12s;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 1px 2px rgba(37,99,235,.20),0 3px 10px rgba(37,99,235,.20);position:relative;overflow:hidden}
-.next-step-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.10) 0%,transparent 60%);pointer-events:none}
+.next-step-btn{width:100%;padding:10px;border-radius:var(--r);border:none;background:var(--accent);color:#fff;font-family:var(--ui);font-size:13.5px;font-weight:600;cursor:pointer;letter-spacing:-.01em;transition:background .12s;display:flex;align-items:center;justify-content:center;gap:6px;position:relative;overflow:hidden}
+.next-step-btn::after{content:'';display:none}
 .next-step-btn:hover{filter:brightness(1.06)} .next-step-btn:active{filter:brightness(.97)}
 .next-step-btn:disabled{background:var(--surface3);color:var(--text4);box-shadow:none;cursor:not-allowed}
 .next-step-btn:disabled::after{display:none}
@@ -224,9 +227,9 @@ header{height:var(--header);background:#fff;border-bottom:1px solid var(--border
 /* 空状态 */
 .empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;pointer-events:auto;padding:24px;overflow-y:auto}
 .es-card{background:#fff;border:2px dashed var(--border2);border-radius:var(--r-xl);padding:36px 52px;text-align:center;cursor:pointer;transition:border-color .18s,background .18s,transform .12s,box-shadow .18s;min-width:300px;max-width:420px;box-shadow:var(--sh-sm)}
-.es-card:hover{border-color:var(--accent);border-style:solid;background:var(--accent-bg);transform:translateY(-2px);box-shadow:var(--sh-md)}
+.es-card:hover{border-color:var(--accent);border-style:solid}
 .es-card.dragover{border-color:var(--accent);border-style:solid;background:var(--accent-bg);box-shadow:0 0 0 4px var(--accent-dim);transform:scale(1.01)}
-.es-icon{width:56px;height:56px;margin:0 auto 12px;background:linear-gradient(135deg,var(--accent-bg) 0%,#dbeafe 100%);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--accent);box-shadow:0 4px 12px rgba(37,99,235,.12)}
+.es-icon{width:56px;height:56px;margin:0 auto 12px;background:var(--accent-bg);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--accent)}
 .es-icon .icon{width:28px!important;height:28px!important;stroke-width:1.6}
 .es-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:6px;letter-spacing:-.02em}
 .es-sub{font-size:13px;color:var(--text3);line-height:1.55;margin-bottom:16px}
@@ -241,11 +244,14 @@ header{height:var(--header);background:#fff;border-bottom:1px solid var(--border
 /* 缩放控件 */
 .zoom-controls{position:absolute;bottom:14px;right:14px;display:flex;flex-direction:column;gap:2px;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:var(--r);padding:4px;box-shadow:var(--sh-md)}
 .zoom-btn{width:28px;height:28px;background:transparent;border:none;border-radius:var(--r-sm);color:var(--text2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s;font-family:var(--ui);font-weight:500}
-.zoom-btn:hover{background:var(--surface3);color:var(--accent)}
+.zoom-btn:hover{background:var(--surface3);color:var(--text)}
+.icon-btn{background:transparent;border:none;border-radius:var(--r-sm);color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s;font-family:var(--ui)}
+.icon-btn:hover{background:var(--surface3);color:var(--text2)}
+.lbtn{padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;font-size:12px;font-weight:600;color:#475569;cursor:pointer}
 .zoom-label{text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);padding:2px 0}
 
 /* 状态栏 */
-.statusbar{height:26px;background:linear-gradient(180deg,var(--surface) 0%,#f8fafc 100%);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px;font-size:10.5px;color:var(--text4);flex-shrink:0;font-family:var(--mono)}
+.statusbar{height:26px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px;font-size:10.5px;color:var(--text4);flex-shrink:0;font-family:var(--mono)}
 .statusbar .sep{color:var(--border2)} .statusbar .hl{color:var(--accent);font-weight:500}
 kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px;font-family:var(--mono);font-size:9.5px;padding:1px 4px;color:var(--text2);box-shadow:0 1px 0 var(--border2)}
 
@@ -275,7 +281,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
 .batch-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),#60a5fa);border-radius:2px;transition:width .4s}
 .batch-queue{display:flex;flex-direction:column;gap:3px;max-height:150px;overflow-y:auto}
 .batch-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r-sm);border:1px solid transparent;font-size:11px;cursor:pointer;background:#fff;transition:border-color .12s,transform .1s}
-.batch-item:hover{border-color:var(--border);transform:translateX(2px)}
+.batch-item:hover{border-color:var(--border)}
 .batch-item.active{border-color:var(--accent);background:var(--accent-bg);transform:translateX(3px)}
 .batch-item.done{opacity:.5}
 .batch-item .bi-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
@@ -587,8 +593,8 @@ details summary{user-select:none}
       <div class="empty-state" id="emptyState">
         <div class="es-card" onclick="document.getElementById('fileInput').click()">
           <div class="es-icon"><svg class="icon"><use href="#i-heart-pulse"/></svg></div>
-          <div class="es-title">心电图上传</div>
-          <div class="es-sub">点击此处上传图片<br>上传后可调整图像角度再继续</div>
+          <div class="es-title">导入 ECG 图像</div>
+          <div class="es-sub">支持 JPG / PNG / PDF</div>
         </div>
       </div>
       <div class="canvas-container" id="canvasContainer" style="display:none">
@@ -598,82 +604,46 @@ details summary{user-select:none}
              background:#f8fafc;border-bottom:1px solid #e2e8f0;position:relative">
           <!-- 旋转工具：步骤1 -->
           <div id="rotateFloatBar" style="display:none;align-items:center;gap:2px">
-            <button onclick="nudgeRotation(-1)" title="逆时针 1°"
-              style="width:26px;height:26px;border:none;background:transparent;border-radius:50%;cursor:pointer;
-                     display:flex;align-items:center;justify-content:center;color:#475569;transition:background 0.15s"
-              onmouseover="this.style.background='rgba(37,99,235,0.1)';this.style.color='#2563eb'"
-              onmouseout="this.style.background='transparent';this.style.color='#475569'">
+            <button onclick="nudgeRotation(-1)" title="逆时针 1°" class="icon-btn"
+              style="width:26px;height:26px;border-radius:50%">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
                 <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
               </svg>
             </button>
-            <button onclick="nudgeRotation(-0.5)"
-              style="width:22px;height:22px;border:none;background:transparent;border-radius:50%;cursor:pointer;
-                     display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:10px;font-weight:700;transition:background 0.15s"
-              onmouseover="this.style.background='rgba(37,99,235,0.08)';this.style.color='#2563eb'"
-              onmouseout="this.style.background='transparent';this.style.color='#94a3b8'">−½</button>
+            <button onclick="nudgeRotation(-0.5)" class="icon-btn"
+              style="width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:700">−½</button>
             <input type="number" id="rotInputFloat" value="0" step="0.5"
               oninput="setRotationFromInput(this.value);document.getElementById('rotInput').value=this.value"
               onkeydown="if(event.key==='ArrowUp'){event.preventDefault();nudgeRotation(0.5)}else if(event.key==='ArrowDown'){event.preventDefault();nudgeRotation(-0.5)}"
               style="width:48px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;
                      padding:3px 4px;font-family:var(--mono);font-size:13px;font-weight:700;
                      color:#2563eb;background:#fff;outline:none;-moz-appearance:textfield">
-            <button onclick="nudgeRotation(0.5)"
-              style="width:22px;height:22px;border:none;background:transparent;border-radius:50%;cursor:pointer;
-                     display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:10px;font-weight:700;transition:background 0.15s"
-              onmouseover="this.style.background='rgba(37,99,235,0.08)';this.style.color='#2563eb'"
-              onmouseout="this.style.background='transparent';this.style.color='#94a3b8'">+½</button>
-            <button onclick="nudgeRotation(1)" title="顺时针 1°"
-              style="width:26px;height:26px;border:none;background:transparent;border-radius:50%;cursor:pointer;
-                     display:flex;align-items:center;justify-content:center;color:#475569;transition:background 0.15s"
-              onmouseover="this.style.background='rgba(37,99,235,0.1)';this.style.color='#2563eb'"
-              onmouseout="this.style.background='transparent';this.style.color='#475569'">
+            <button onclick="nudgeRotation(0.5)" class="icon-btn"
+              style="width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:700">+½</button>
+            <button onclick="nudgeRotation(1)" title="顺时针 1°" class="icon-btn"
+              style="width:26px;height:26px;border-radius:50%">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
                 <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>
               </svg>
             </button>
             <div style="width:1px;height:16px;background:#e2e8f0;margin:0 2px"></div>
-            <button onclick="resetRotation()"
+            <button onclick="resetRotation()" class="icon-btn"
               style="padding:2px 7px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;
-                     font-size:11px;font-weight:700;color:#94a3b8;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.borderColor='#fca5a5';this.style.color='#dc2626'"
-              onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#94a3b8'">0°</button>
+                     font-size:11px;font-weight:700">0°</button>
           </div>
           <!-- 布局工具：步骤3 -->
           <div id="layoutFloatBar" style="display:none;align-items:center;gap:2px">
             <span style="font-size:11px;color:#94a3b8;font-weight:600;margin-right:2px">布局</span>
             <div style="width:1px;height:16px;background:#e2e8f0;margin:0 4px"></div>
-            <button id="lbtn-4x3" onclick="setLayoutFloat('4x3')"
-              style="padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;
-                     font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.background='#f1f5f9'" onmouseout="updateLayoutFloatHighlight()">3行×4列</button>
-            <button id="lbtn-3x4" onclick="setLayoutFloat('3x4')"
-              style="padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;
-                     font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.background='#f1f5f9'" onmouseout="updateLayoutFloatHighlight()">4行×3列</button>
-            <button id="lbtn-2x6" onclick="setLayoutFloat('2x6')"
-              style="padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;
-                     font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.background='#f1f5f9'" onmouseout="updateLayoutFloatHighlight()">6行×2列</button>
-            <button id="lbtn-12x1" onclick="setLayoutFloat('12x1')"
-              style="padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;
-                     font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.background='#f1f5f9'" onmouseout="updateLayoutFloatHighlight()">单列</button>
-            <button id="lbtn-4x3r" onclick="setLayoutFloat('4x3r')"
-              style="padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;
-                     font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.background='#f1f5f9'" onmouseout="updateLayoutFloatHighlight()">3行×4列+律</button>
-            <button id="lbtn-2x6r" onclick="setLayoutFloat('2x6r')"
-              style="padding:3px 9px;border-radius:10px;border:1px solid transparent;background:transparent;
-                     font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s"
-              onmouseover="this.style.background='#f1f5f9'" onmouseout="updateLayoutFloatHighlight()">6行×2列+律</button>
+            <button id="lbtn-4x3" onclick="setLayoutFloat('4x3')" class="lbtn">3行×4列</button>
+            <button id="lbtn-3x4" onclick="setLayoutFloat('3x4')" class="lbtn">4行×3列</button>
+            <button id="lbtn-2x6" onclick="setLayoutFloat('2x6')" class="lbtn">6行×2列</button>
+            <button id="lbtn-12x1" onclick="setLayoutFloat('12x1')" class="lbtn">单列</button>
+            <button id="lbtn-4x3r" onclick="setLayoutFloat('4x3r')" class="lbtn">3行×4列+律</button>
+            <button id="lbtn-2x6r" onclick="setLayoutFloat('2x6r')" class="lbtn">6行×2列+律</button>
             <div style="width:1px;height:16px;background:#e2e8f0;margin:0 4px"></div>
-            <button id="btnReopenLayoutModal" onclick="reopenLayoutModal()" title="重新选择导联布局"
-              style="width:26px;height:26px;border:none;background:transparent;border-radius:6px;
-                     cursor:pointer;display:flex;align-items:center;justify-content:center;
-                     color:#94a3b8;transition:all 0.15s"
-              onmouseover="this.style.background='rgba(37,99,235,0.1)';this.style.color='#2563eb'"
-              onmouseout="this.style.background='transparent';this.style.color='#94a3b8'">
+            <button id="btnReopenLayoutModal" onclick="reopenLayoutModal()" title="重新选择导联布局" class="icon-btn"
+              style="width:26px;height:26px;border-radius:6px">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
                 <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
@@ -682,15 +652,9 @@ details summary{user-select:none}
           </div>
           <!-- X 按钮：绝对定位右侧，不影响居中 -->
           <button onclick="clearCurrentFile()" title="删除图片，重新上传"
-            id="btnClearFile"
+            id="btnClearFile" class="icon-btn"
             style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                   width:26px;height:26px;border-radius:6px;
-                   border:1px solid #e2e8f0;background:#fff;
-                   color:#94a3b8;cursor:pointer;
-                   display:flex;align-items:center;justify-content:center;
-                   transition:all 0.15s"
-            onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626';this.style.borderColor='#fca5a5'"
-            onmouseout="this.style.background='#fff';this.style.color='#94a3b8';this.style.borderColor='#e2e8f0'">
+                   width:26px;height:26px;border-radius:6px;border:1px solid #e2e8f0;background:#fff">
             <svg class="icon icon-sm"><use href="#i-close"/></svg>
           </button>
         </div>
@@ -819,7 +783,7 @@ details summary{user-select:none}
         <div id="cropCard" style="display:none;background:var(--surface2);border:1.5px solid var(--accent);border-radius:10px;overflow:hidden">
 
           <!-- 卡片头 -->
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:linear-gradient(180deg,#fff 0%,var(--surface2) 100%);border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:#fff;border-bottom:1px solid var(--border)">
             <span style="font-size:12px;font-weight:700;color:var(--accent);display:inline-flex;align-items:center;gap:6px">
               <svg class="icon icon-md"><use href="#i-crop"/></svg><span id="cropCardTitle">框选心电图范围</span>
             </span>
@@ -868,8 +832,7 @@ details summary{user-select:none}
                     keyTimes="0;0.1;0.5;0.85;1" calcMode="spline" keySplines="0 0 1 1;0.35 0 0.2 1;0 0 1 1;0 0 1 1"/>
                   <path d="M0,0 L0,10 L3,7 L5,12 L7,11 L5,7 L9,7 Z" fill="white" stroke="#374151" stroke-width="0.6"/>
                 </g>
-                <!-- 说明 -->
-                <text x="109" y="98" font-size="8" fill="#475569" font-weight="600" text-anchor="middle" font-family="system-ui">在图上拖动，把整张心电图纸框起来</text>
+
               </svg>
             </div>
 
@@ -917,7 +880,7 @@ details summary{user-select:none}
                     <animate attributeName="opacity" values="0;0;1;1;0;0" dur="4.8s" repeatCount="indefinite" keyTimes="0;0.05;0.12;0.28;0.34;1"/>
                   </rect>
                   <text x="4" y="9" font-size="7.5" fill="white" font-weight="700" font-family="system-ui" opacity="0">
-                    拖到纸张角
+                    拖到网格角
                     <animate attributeName="opacity" values="0;0;1;1;0;0" dur="4.8s" repeatCount="indefinite" keyTimes="0;0.05;0.12;0.28;0.34;1"/>
                   </text>
                 </g>
@@ -934,7 +897,7 @@ details summary{user-select:none}
                     <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" dur="4.8s" repeatCount="indefinite" keyTimes="0;0.3;0.34;0.4;0.46;0.62;0.68;1"/>
                   </rect>
                   <text x="167" y="9" font-size="7.5" fill="white" font-weight="700" font-family="system-ui" opacity="0">
-                    拖到纸张角
+                    拖到网格角
                     <animate attributeName="opacity" values="0;0;0;0;1;1;0;0" dur="4.8s" repeatCount="indefinite" keyTimes="0;0.3;0.34;0.4;0.46;0.62;0.68;1"/>
                   </text>
                 </g>
@@ -952,7 +915,7 @@ details summary{user-select:none}
                   <text x="109" y="59" font-size="9" fill="white" font-weight="700" text-anchor="middle" font-family="system-ui">✓ 四角对齐完成</text>
                 </g>
 
-                <text x="109" y="114" font-size="8" fill="#475569" font-weight="600" text-anchor="middle" font-family="system-ui">把蓝色角点拖到心电图纸的四个角</text>
+
               </svg>
             </div>
           </div>
@@ -987,12 +950,12 @@ details summary{user-select:none}
             <button class="btn ghost sm" onclick="resetRotation()" style="font-size:11px;padding:2px 8px;color:var(--text3)">归零</button>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            <button onclick="nudgeRotation(-1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'" title="逆时针">−</button>
+            <button onclick="nudgeRotation(-1)" class="icon-btn" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:#fff;font-size:16px;flex-shrink:0" title="逆时针">−</button>
             <input type="number" id="rotInput" value="0" step="0.5"
               oninput="setRotationFromInput(this.value)"
               onkeydown="if(event.key==='ArrowUp'){event.preventDefault();nudgeRotation(0.5)}else if(event.key==='ArrowDown'){event.preventDefault();nudgeRotation(-0.5)}"
               style="flex:1;text-align:center;border:1px solid var(--border2);border-radius:8px;padding:7px 6px;font-family:var(--mono);font-size:15px;font-weight:600;color:var(--accent);background:#fff;outline:none;min-width:0">
-            <button onclick="nudgeRotation(1)" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'" title="顺时针">+</button>
+            <button onclick="nudgeRotation(1)" class="icon-btn" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:#fff;font-size:16px;flex-shrink:0" title="顺时针">+</button>
             <span style="font-size:12px;color:var(--text3);flex-shrink:0">°</span>
           </div>
           <div style="font-size:10px;color:var(--text3);margin-top:5px;text-align:center">图片有残余倾斜时微调，端正图片可跳过</div>
@@ -1300,7 +1263,9 @@ function goToStep(n) {
 
   // 非步骤4时，自动切回图像标注视图
   if (n !== 4) {
-    const pvTab = document.getElementById('vtab-preview');
+    // 确保画布可见（步骤4隐藏了它）
+    const ev = document.getElementById('editView');
+    if (ev && state.image) ev.style.display = 'flex';
     const hasExtracted = state.extractedMV && Object.keys(state.extractedMV).length > 0;
     // Only switch back if currently on preview view
     if (document.getElementById('previewView')?.classList.contains('visible')) {
@@ -1318,8 +1283,16 @@ function goToStep(n) {
     if (pill) pill.classList.remove('show');
   }
 
+  // 「图像标注」tab：仅步骤1-3显示，步骤4（提取信号）隐藏
+  const vtabEdit = document.getElementById('vtab-edit');
+  if (vtabEdit) vtabEdit.style.display = (n === 4) ? 'none' : 'inline-flex';
+
   // 进入步骤4
   if (n === 4) {
+    // 隐藏带标注的画布，避免干扰
+    const ev4 = document.getElementById('editView');
+    if (ev4) ev4.style.display = 'none';
+
     // 计算当前 boxes 的签名（判断标注是否有变化）
     const currentBoxSig = JSON.stringify(Object.keys(state.boxes || {}).sort());
     const alreadyExtracted = state.extractedMV && Object.keys(state.extractedMV).length > 0;
@@ -1329,10 +1302,8 @@ function goToStep(n) {
       // 已有提取结果且标注未变化，直接切到预览视图
       const pv = document.getElementById('vtab-preview');
       if (pv) { pv.style.display = ''; pv.classList.remove('disabled'); pv.classList.add('active'); }
-      const ev = document.getElementById('editView');
       const prv = document.getElementById('previewView');
       const t1 = document.getElementById('vtab-edit');
-      if (ev) ev.style.display = 'none';
       if (prv) prv.classList.add('visible');
       if (t1) t1.classList.remove('active');
     } else {
@@ -1363,10 +1334,30 @@ function goToStep(n) {
     if (ov) ov.style.cursor = 'crosshair';
     renderOverlay();
   }
-  // 进入步骤3时：弹出布局选择，自动选I导联
+  // 进入步骤3时：弹出布局选择；仅在尚未选中任何导联时才默认选 I
   if (n === 3) {
     showLayoutModal();
-    selectLead('I');
+    if (!state.selectedLead) selectLead('I');
+  }
+
+  // 每步状态提示（常驻右上角）
+  const pill = document.getElementById('stepStatusPill');
+  if (pill) {
+    if (!state.image) {
+      pill.textContent = '步骤 1 · 上传心电图图像';
+      pill.className = 'step-status-pill show';
+    } else if (n === 1) {
+      pill.textContent = '步骤 1 · 框选并校正图像范围';
+      pill.className = 'step-status-pill show';
+    } else if (n === 3) {
+      const nb = Object.keys(state.boxes || {}).length;
+      pill.textContent = nb > 0 ? `步骤 2 · 已标注 ${nb}/12 导联` : '步骤 2 · 在图像上标注各导联区域';
+      pill.className = 'step-status-pill show';
+    } else if (n === 4) {
+      const ne2 = state.extractedMV ? Object.keys(state.extractedMV).length : 0;
+      pill.textContent = ne2 > 0 ? `步骤 3 · 已提取 ${ne2} 个导联` : '步骤 3 · 提取信号中…';
+      pill.className = 'step-status-pill show';
+    }
   }
 }
 
@@ -1384,7 +1375,7 @@ function showStepStatus(msg, type = 'ok') {
   pill.textContent = msg;
   pill.className = 'step-status-pill show ' + type;
   clearTimeout(pill._timer);
-  pill._timer = setTimeout(() => pill.classList.remove('show'), 4000);
+  // 不自动消失，保持常驻
 }
 
 function toggleCollapse(el) {
@@ -1571,7 +1562,7 @@ function updateCalibAxisUI() {
   // Both done
   if (x && y) {
     document.getElementById('toStep3Btn')?.removeAttribute('disabled');
-    showStepStatus('✓ 参数确认完成', 'ok');
+    showStepStatus('步骤 2 · 标定完成，可标注导联区域', 'ok');
     // Auto proceed to Y calibration when X just finished
   } else if (x && !y && mode !== 'y') {
     // X done, auto start Y
@@ -1653,7 +1644,7 @@ layout含义：4col=4列×3行（GE/Philips标准），2col=2列×6行，custom=
     result.innerHTML = `
       <strong>识别结果：</strong><br>
       导联布局：${layoutMap[aiData.layout] || '未知'}<br>
-      纸速：${aiData.paper_speed || 25} mm/s，增益：${aiData.gain || 10} mm/mV<br>
+      纸速：${aiData.paper_speed || ECG_CFG.SPEED_MM_S} mm/s，增益：${aiData.gain || ECG_CFG.GAIN_MM_MV} mm/mV<br>
       图像质量：${qualityMap[aiData.quality] || '—'}<br>
       ${aiData.notes ? `备注：${aiData.notes}` : ''}
     `;
@@ -1683,7 +1674,6 @@ function applyAISuggestion() {
     if (gn) gn.value = aiData.gain;
   }
   dismissAI();
-  showStepStatus('✓ 已应用 AI 建议', 'ok');
   toast('✓ AI 建议已应用', 'success');
 }
 
@@ -1794,7 +1784,7 @@ function onImageLoaded(file) {
   const sib = document.getElementById('sb-img');
   if (sib) sib.textContent = file?.name || '已加载';
 
-  showStepStatus('✓ 图像已加载，请在右侧拖动框选心电图区域', 'ok');
+  showStepStatus('步骤 1 · 框选并校正图像范围', 'ok');
 }
 
 // ══════════════════════════════════════════════════════
@@ -1830,7 +1820,7 @@ function updateCropUI() {
       ? Math.round(Math.max(Math.hypot(q[3].x-q[0].x,q[3].y-q[0].y), Math.hypot(q[2].x-q[1].x,q[2].y-q[1].y)))
       : Math.round(r.y2 - r.y1);
 
-    if (titleEl)  titleEl.textContent = '拖动角点对齐纸张边角';
+    if (titleEl)  titleEl.textContent = '把四个角点拖到网格四边的交叉处';
     if (statusEl) {
       statusEl.textContent = '调整四角';
       statusEl.style.color = 'var(--accent2)';
@@ -2332,6 +2322,28 @@ function renderCurrentCSVPreview(csv) {
 // ════════════════════════════════════════════════════════
 //  CONSTANTS
 // ════════════════════════════════════════════════════════
+
+// ── 全局 ECG 参数配置（所有模块统一引用，禁止散落魔术数字）──
+const ECG_CFG = {
+  // 标准心电图规格
+  STRIP_DURATION_S : 10,    // 整条记录标准时长（秒）
+  SPEED_MM_S       : 25,    // 标准走纸速度（mm/s）
+  GAIN_MM_MV       : 10,    // 标准增益（mm/mV）
+  FS_DEFAULT       : 500,   // 默认采样率（Hz）
+
+  // 网格规格（从标准速度/增益推导，不得单独硬编码）
+  S_PER_BIG        : 0.2,   // 1大格时长 = 5mm / 25mm/s
+  MV_PER_BIG       : 0.5,   // 1大格电压 = 5mm / 10mm/mV
+  MM_PER_BIG       : 5,     // 1大格物理长度（mm）
+  SMALL_PER_BIG    : 5,     // 每大格包含小格数
+
+  // 渲染：每行显示的电压范围
+  MV_PER_ROW       : 4.0,   // ±2mV，= 8大格纵向
+};
+// 派生常量（由上面算出，避免重复计算）
+ECG_CFG.BIG_PER_STRIP_X = ECG_CFG.STRIP_DURATION_S / ECG_CFG.S_PER_BIG; // 横向大格总数=50
+ECG_CFG.BIG_PER_ROW_Y   = ECG_CFG.MV_PER_ROW / ECG_CFG.MV_PER_BIG;      // 纵向大格数=8
+
 const LAYOUT_PRESETS = {
   // 4列×3行 (GE/Philips 标准)
   '4x3': {
@@ -2619,42 +2631,38 @@ async function chooseSaveDirectory() {
 }
 
 function getScaleMetrics() {
-  // Auto-calibration: box width = 10 seconds = 250 mm (at 25 mm/s standard)
-  // pxPerMmX = boxWidth / (speed_mm_per_s * duration_s) = boxWidth / (speed * 10)
-  const speed = parseFloat(document.getElementById('paramSpeed')?.value) || 25;
-  const durationS = 10; // all leads are 10-second strips
+  const speed   = parseFloat(document.getElementById('paramSpeed')?.value) || ECG_CFG.SPEED_MM_S;
+  const totalS  = ECG_CFG.STRIP_DURATION_S;
 
-  // Use first available lead box to compute px/mm
-  let pxPerMmX = null;
-  const boxes = state.boxes || {};
-  const leads = Object.keys(boxes);
-  for (const lead of leads) {
-    const b = boxes[lead];
+  // 优先使用用户手动标定值
+  if (state.calibration && state.calibration.pxPerMmX && state.calibration.pxPerMmX > 0) {
+    const pxPerMmX = state.calibration.pxPerMmX;
+    return { pxPerMmX, pxPerMmY: pxPerMmX, dpiEquivalentX: pxPerMmX * 25.4, dpiEquivalentY: pxPerMmX * 25.4, source: 'manual' };
+  }
+
+  // 从布局定义推算每个框对应的实际时长，再算 pxPerMmX
+  const preset      = selectedPreset || '4x3';
+  const layoutLeads = LAYOUT_PRESETS[preset]?.leads || null;
+  const boxes       = state.boxes || {};
+  const samples     = [];
+
+  for (const [lead, b] of Object.entries(boxes)) {
     const bW = Math.round(b.x2 - b.x1);
-    if (bW > 10) {
-      pxPerMmX = bW / (speed * durationS); // px per mm
-      break;
-    }
+    if (bW <= 10) continue;
+    const lr = layoutLeads?.[lead];
+    const leadDurS = lr ? (lr[2] - lr[0]) * totalS : totalS;
+    if (leadDurS > 0) samples.push(bW / (speed * leadDurS));
   }
 
-  // Fallback: use image width if no boxes yet
-  if (!pxPerMmX && state.imageW > 0) {
-    pxPerMmX = state.imageW / (speed * durationS);
-  }
+  let pxPerMmX = samples.length > 0
+    ? samples.reduce((a, b) => a + b, 0) / samples.length
+    : null;
 
-  // Final fallback: 96dpi equivalent
+  if (!pxPerMmX && state.imageW > 0) pxPerMmX = state.imageW / (speed * totalS);
   if (!pxPerMmX) pxPerMmX = 96 / 25.4;
 
-  // Square pixels: Y scale = X scale
   const pxPerMmY = pxPerMmX;
-
-  return {
-    pxPerMmX,
-    pxPerMmY,
-    dpiEquivalentX: pxPerMmX * 25.4,
-    dpiEquivalentY: pxPerMmY * 25.4,
-    source: 'auto-10s',
-  };
+  return { pxPerMmX, pxPerMmY, dpiEquivalentX: pxPerMmX * 25.4, dpiEquivalentY: pxPerMmY * 25.4, source: 'auto-layout' };
 }
 
 function syncDpiFromCalibration() {
@@ -2924,8 +2932,8 @@ function updateCalibrationUI() {
 
   const summary = document.getElementById('calibSummary');
   if (!summary) return;
-  const speed = parseFloat(document.getElementById('paramSpeed').value) || 25;
-  const gain = parseFloat(document.getElementById('paramGain').value) || 10;
+  const speed = parseFloat(document.getElementById('paramSpeed').value) || ECG_CFG.SPEED_MM_S;
+  const gain = parseFloat(document.getElementById('paramGain').value) || ECG_CFG.GAIN_MM_MV;
   const speedText = hasX ? `时间换算：横向标定 + 纸速 ${speed} mm/s` : `时间换算：纸速 ${speed} mm/s，等待横向标定`;
   const gainText = hasY ? `振幅换算：纵向标定 + 增益 ${gain} mm/mV` : `振幅换算：增益 ${gain} mm/mV，等待纵向标定`;
   const modeText = state.calibration.mode
@@ -3820,7 +3828,7 @@ function renderOverlay() {
       const bh = Math.hypot(qs[3].x-qs[0].x, qs[3].y-qs[0].y);
       if (bw > 100 && bh > 70) {
         ctx.font = '12px system-ui,sans-serif';
-        const line1 = '把四个角拖到心电图纸的四个角';
+        const line1 = '把四个角点拖到网格四边的交叉处';
         const line2 = '图片没有歪斜？直接点「校正并裁剪」';
         const tw1 = ctx.measureText(line1).width;
         const tw2b = ctx.measureText(line2).width;
@@ -3868,7 +3876,7 @@ function renderOverlay() {
         ctx.stroke();
 
         // 标签胶囊
-        const lbl = isDrag ? '放到纸角上' : '拖到' + cornerName[i];
+        const lbl = isDrag ? '放到网格角上' : '拖到' + cornerName[i];
         ctx.font = isDrag ? 'bold 11px system-ui' : '11px system-ui';
         const tw3 = ctx.measureText(lbl).width;
         const off = labelOff[i];
@@ -5318,10 +5326,7 @@ async function runExtraction() {
   updateCounts();
   setStep(getCurrentWorkflowStep());
 
-  // Render overlay with signal lines
-  renderOverlay();
-
-  // Build preview panel
+  // 提取完成后显示导联卡片预览，切到 previewView
   buildPreviewPanel(presentLeads, dpi, speed, gain, fs);
   switchView('preview');
   document.getElementById('statusExtract').innerHTML =
@@ -5464,64 +5469,161 @@ function renderCurrentCSVPreview(csv = null) {
   const info = document.getElementById('csvRenderInfo');
   wrap.innerHTML = '';
 
-  const speed = parseFloat(document.getElementById('paramSpeed').value) || 25;
-  const gain = parseFloat(document.getElementById('paramGain').value) || 10;
-  const fs = parseFloat(document.getElementById('paramFS').value) || 500;
-  const pxPerMm = 8;
-  const msPerMm = 1000 / speed;
-  const mvPerMm = 1 / gain;
-  const leftPad = 78;
-  const rightPad = 24;
-  const topPad = 20;
-  const bottomPad = 20;
-  const leadHeight = 120;
-  const totalMs = parsed.times.length > 1 ? parsed.times[parsed.times.length - 1] - parsed.times[0] : ((parsed.times.length - 1) / fs * 1000);
-  const plotWidth = Math.max(760, Math.round((totalMs / msPerMm) * pxPerMm));
-  const width = leftPad + plotWidth + rightPad;
-  const height = Math.max(240, parsed.leads.length * leadHeight + topPad + bottomPad);
+  const speed = parseFloat(document.getElementById('paramSpeed').value) || ECG_CFG.SPEED_MM_S;
+  const gain  = parseFloat(document.getElementById('paramGain').value)  || ECG_CFG.GAIN_MM_MV;
+  const fs    = parseFloat(document.getElementById('paramFS').value)    || ECG_CFG.FS_DEFAULT;
+
+  // ── 像素优先：锁定大格像素，反推画布尺寸 ──────────────
+  const PX_PER_BIG = 40;          // 1大格（5mm / 0.2s / 0.5mV）= 40px ★锁定
+  const S_PER_BIG  = 0.2;         // 1大格 = 0.2s（25mm/s标准）
+  const MV_PER_BIG = 0.5;         // 1大格 = 0.5mV（10mm/mV标准）
+  const pxPerS  = PX_PER_BIG / S_PER_BIG;   // 200 px/s
+  const pxPerMv = PX_PER_BIG / MV_PER_BIG;  // 80 px/mV
+
+  // 总时长（秒）
+  const totalMs = parsed.times.length > 1
+    ? parsed.times[parsed.times.length - 1] - parsed.times[0]
+    : (parsed.times.length - 1) / fs * 1000;
+  const totalS = totalMs / 1000;
+  const t0ms   = parsed.times.length > 0 ? parsed.times[0] : 0;
+
+  // ── 布局：从 selectedPreset 读取行列结构 ───────────────
+  const preset     = selectedPreset || '4x3';
+  const layoutDef  = LAYOUT_PRESETS[preset];
+  const layoutLeads = layoutDef ? layoutDef.leads : null;
+
+  // 从布局定义推导行数和列数（用 x1/x2 比例归纳唯一列段）
+  let nCols = 1, nRows = parsed.leads.length;
+  let cellWpx, cellHpx, totalW, totalH;
+
+  if (layoutLeads && Object.keys(layoutLeads).length > 0) {
+    // 找出唯一 x1 值 → 列数；唯一 y1 值 → 行数
+    const uniqueX = [...new Set(Object.values(layoutLeads).map(r => r[0]))].sort((a,b)=>a-b);
+    const uniqueY = [...new Set(Object.values(layoutLeads).map(r => r[1]))].sort((a,b)=>a-b);
+    nCols = uniqueX.length;
+    nRows = uniqueY.length;
+
+    // 每列时间段 = 总时长 / 列数
+    const segS   = totalS / nCols;
+    cellWpx = Math.round(segS * pxPerS);
+    cellHpx = Math.round((MV_PER_BIG * 8) * pxPerMv / nRows) * nRows; // 每行8大格高，整除
+    cellHpx = Math.round(cellHpx / nRows);  // 单行高
+    totalW  = cellWpx * nCols;
+    totalH  = cellHpx * nRows;
+  } else {
+    // 无布局定义：单列，每行完整时长
+    cellWpx = Math.round(totalS * pxPerS);
+    cellHpx = Math.round(MV_PER_BIG * 8 * pxPerMv);  // 8大格 = 4mV
+    totalW  = cellWpx;
+    totalH  = cellHpx * parsed.leads.length;
+    nCols   = 1;
+    nRows   = parsed.leads.length;
+  }
+
+  // ── 创建 canvas（精确像素）────────────────────────────
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width  = totalW;
+  canvas.height = totalH;
   canvas.style.width = '100%';
   const ctx = canvas.getContext('2d');
+
+  // 背景
   ctx.fillStyle = '#fffaf7';
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, totalW, totalH);
 
-  const smallGridPx = pxPerMm;
-  const bigGridPx = pxPerMm * 5;
-  for (let x = leftPad; x < width - rightPad + 1; x += smallGridPx) {
-    ctx.strokeStyle = ((x - leftPad) % bigGridPx === 0) ? 'rgba(220,38,38,0.25)' : 'rgba(244,114,114,0.12)';
-    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, height); ctx.stroke();
+  // ── 网格（从像素0开始，精确对齐）────────────────────
+  const smallPx = Math.round(PX_PER_BIG / 5);  // 8px = 1小格
+  const bigPx   = PX_PER_BIG;                   // 40px = 1大格
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= totalW; x += smallPx) {
+    ctx.strokeStyle = (x % bigPx === 0) ? 'rgba(220,38,38,0.30)' : 'rgba(244,114,114,0.13)';
+    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, totalH); ctx.stroke();
   }
-  for (let y = topPad; y < height - bottomPad + 1; y += smallGridPx) {
-    ctx.strokeStyle = ((y - topPad) % bigGridPx === 0) ? 'rgba(220,38,38,0.25)' : 'rgba(244,114,114,0.12)';
-    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(width, y + 0.5); ctx.stroke();
+  for (let y = 0; y <= totalH; y += smallPx) {
+    ctx.strokeStyle = (y % bigPx === 0) ? 'rgba(220,38,38,0.30)' : 'rgba(244,114,114,0.13)';
+    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(totalW, y + 0.5); ctx.stroke();
   }
 
-  parsed.leads.forEach((lead, leadIdx) => {
-    const top = topPad + leadIdx * leadHeight;
-    const mid = top + leadHeight / 2;
+  // ── 按布局绘制每个导联 ───────────────────────────────
+  const mvHalf = (cellHpx / pxPerMv) / 2;  // 每行显示的 mV 半幅
+
+  const drawLead = (lead, x1px, y1px, x2px, y2px, tStartS, tEndS) => {
+    if (!parsed.series[lead]) return;
     const values = parsed.series[lead];
-    const yScale = pxPerMm / mvPerMm;
-    ctx.fillStyle = '#374151';
-    ctx.font = 'bold 14px JetBrains Mono, monospace';
-    ctx.fillText(lead, 18, top + 18);
-    ctx.strokeStyle = 'rgba(17,24,39,0.18)';
-    ctx.beginPath(); ctx.moveTo(leftPad, mid + 0.5); ctx.lineTo(width - rightPad, mid + 0.5); ctx.stroke();
-    ctx.strokeStyle = '#b91c1c';
-    ctx.lineWidth = 2;
+    const times  = parsed.times;
+    const cellW  = x2px - x1px;
+    const cellH  = y2px - y1px;
+    const midY   = y1px + cellH / 2;
+    const segDurS = tEndS - tStartS;
+
+    // 基线
+    ctx.strokeStyle = 'rgba(17,24,39,0.12)';
+    ctx.lineWidth = 0.8;
     ctx.beginPath();
-    values.forEach((v, idx) => {
-      const ms = parsed.times.length > 1 ? (parsed.times[idx] - parsed.times[0]) : (idx / fs * 1000);
-      const x = leftPad + (ms / msPerMm) * pxPerMm;
-      const y = mid - v * yScale;
-      idx === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
+    ctx.moveTo(x1px, midY + 0.5);
+    ctx.lineTo(x2px, midY + 0.5);
     ctx.stroke();
-  });
+
+    // 导联标签
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(lead, x1px + 4, y1px + 14);
+
+    // 波形
+    ctx.strokeStyle = '#b91c1c';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i < values.length; i++) {
+      const tMs  = times.length > 1 ? times[i] : (i / fs * 1000);
+      const tS   = (tMs - t0ms) / 1000;
+      if (tS < tStartS || tS > tEndS) continue;
+      const xPx  = x1px + ((tS - tStartS) / segDurS) * cellW;
+      const yPx  = midY - values[i] * pxPerMv;
+      first ? ctx.moveTo(xPx, yPx) : ctx.lineTo(xPx, yPx);
+      first = false;
+    }
+    ctx.stroke();
+  };
+
+  if (layoutLeads && Object.keys(layoutLeads).length > 0) {
+    const uniqueX = [...new Set(Object.values(layoutLeads).map(r => r[0]))].sort((a,b)=>a-b);
+    const segS = totalS / nCols;
+
+    for (const [lead, [lx1, ly1, lx2, ly2]] of Object.entries(layoutLeads)) {
+      if (!parsed.series[lead] && lead !== 'II_R') continue;
+      const actualLead = (lead === 'II_R') ? 'II' : lead;
+      if (!parsed.series[actualLead]) continue;
+
+      const x1px = Math.round(lx1 * totalW);
+      const y1px = Math.round(ly1 * totalH);
+      const x2px = Math.round(lx2 * totalW);
+      const y2px = Math.round(ly2 * totalH);
+
+      // 时间段：按 x1 比例对应第几列
+      const colIdx  = uniqueX.indexOf(lx1);
+      const tStartS = (lead === 'II_R') ? 0 : colIdx * segS;
+      const tEndS   = (lead === 'II_R') ? totalS : tStartS + segS;
+
+      drawLead(actualLead, x1px, y1px, x2px, y2px, tStartS, tEndS);
+    }
+  } else {
+    // 无布局：逐行画完整时长
+    parsed.leads.forEach((lead, li) => {
+      drawLead(lead, 0, li * cellHpx, totalW, (li + 1) * cellHpx, 0, totalS);
+    });
+  }
+
+  // 列分隔线
+  for (let c = 1; c < nCols; c++) {
+    const xSep = c * cellWpx;
+    ctx.strokeStyle = 'rgba(220,38,38,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xSep + 0.5, 0); ctx.lineTo(xSep + 0.5, totalH); ctx.stroke();
+  }
 
   wrap.appendChild(canvas);
-  info.textContent = `${parsed.leads.length} 导联 · ${parsed.times.length} 点 · 纸速 ${speed} · 增益 ${gain}`;
+  info.textContent = `${parsed.leads.length} 导联 · ${parsed.times.length} 点 · ${speed} mm/s · ${gain} mm/mV · 布局 ${preset} · 1大格=${PX_PER_BIG}px`;
   setCSVPreviewMode(true);
   panel.style.display = 'block';
   switchView('preview');
@@ -5734,7 +5836,7 @@ function emitExtractionToHeartOS(presentLeads, fs) {
     fs: fs,
     pointsPerLead: leads.length ? ((state.extractedMV && state.extractedMV[leads[0]]) ? state.extractedMV[leads[0]].length : 0) : 0,
     waveforms: waveforms,
-    previewImageDataUrl: buildHeartOSPreviewImageDataUrl(leads, fs || 500),
+    previewImageDataUrl: buildHeartOSPreviewImageDataUrl(leads, fs || ECG_CFG.FS_DEFAULT),
     ts: Date.now()
   };
   try { parent.postMessage(payload, '*'); } catch (_) {}
@@ -5748,9 +5850,9 @@ function emitCSVToHeartOS(fileName, csv, presentLeads, fs, maxN) {
     sourceName: state.saveConfig.sourceName || '',
     csv: csv || '',
     leads: Array.isArray(presentLeads) ? presentLeads.slice() : [],
-    fs: fs || 500,
+    fs: fs || ECG_CFG.FS_DEFAULT,
     pointsPerLead: maxN || 0,
-    previewImageDataUrl: buildHeartOSPreviewImageDataUrl(presentLeads, fs || 500),
+    previewImageDataUrl: buildHeartOSPreviewImageDataUrl(presentLeads, fs || ECG_CFG.FS_DEFAULT),
     ts: Date.now()
   };
   try { parent.postMessage(payload, '*'); } catch (_) {}
@@ -6220,9 +6322,9 @@ async function applyRepairAndReextract() {
 
   // 3. Read extraction params
   const dpi    = parseFloat(document.getElementById('paramDPI').value)  || 96;
-  const speed  = parseFloat(document.getElementById('paramSpeed').value) || 25;
-  const gain   = parseFloat(document.getElementById('paramGain').value)  || 10;
-  const fs     = parseFloat(document.getElementById('paramFS').value)    || 500;
+  const speed  = parseFloat(document.getElementById('paramSpeed').value) || ECG_CFG.SPEED_MM_S;
+  const gain   = parseFloat(document.getElementById('paramGain').value)  || ECG_CFG.GAIN_MM_MV;
+  const fs     = parseFloat(document.getElementById('paramFS').value)    || ECG_CFG.FS_DEFAULT;
   const thresh = parseFloat(document.getElementById('epThreshold').value)|| 150;
   const blWin  = parseFloat(document.getElementById('epBaseline').value) || 10;
   const smooth = parseFloat(document.getElementById('epSmooth').value)   || 0;
@@ -6637,17 +6739,62 @@ function batchNext() {
 
 function buildCSVString() {
   if (!state.extractedMV || Object.keys(state.extractedMV).length === 0) return null;
-  const fs = parseFloat(document.getElementById('paramFS').value) || 500;
+  const fs = parseFloat(document.getElementById('paramFS').value) || ECG_CFG.FS_DEFAULT;
   const presentLeads = LEADS_ORDER.filter(l => state.extractedMV && state.extractedMV[l]);
   if (presentLeads.length === 0) return null;
-  const maxN = Math.max(...presentLeads.map(l => state.extractedMV[l].length));
+
+  // 从布局定义获取每个导联的时间偏移
+  const preset      = selectedPreset || '4x3';
+  const layoutDef   = LAYOUT_PRESETS[preset];
+  const layoutLeads = layoutDef ? layoutDef.leads : null;
+  const totalS      = ECG_CFG.STRIP_DURATION_S;
+
+  // leadOffsetMs[lead] = 该导联信号在整条记录中的起始时间(ms)
+  const leadOffsetMs = {};
+  for (const lead of presentLeads) {
+    if (layoutLeads && layoutLeads[lead]) {
+      const [lx1] = layoutLeads[lead];
+      leadOffsetMs[lead] = lx1 * totalS * 1000;
+    } else {
+      leadOffsetMs[lead] = 0;
+    }
+  }
+
+  // 每个导联独立写出，time_ms 加上偏移
+  // 统一对齐：找所有导联覆盖的时间点并集，缺失处留空
   const dt = 1000 / fs;
+  const maxN = Math.max(...presentLeads.map(l => state.extractedMV[l].length));
+
+  // 收集所有时间点（各导联可能不同长度、不同偏移）
+  const timeSet = new Set();
+  presentLeads.forEach(lead => {
+    const n = state.extractedMV[lead].length;
+    const offset = leadOffsetMs[lead] || 0;
+    for (let i = 0; i < n; i++) {
+      timeSet.add(Math.round((offset + i * dt) * 1000) / 1000);
+    }
+  });
+  const times = Array.from(timeSet).sort((a, b) => a - b);
+
+  // 构建每个导联的时间→值映射（快速查找）
+  const leadMaps = {};
+  presentLeads.forEach(lead => {
+    const s = state.extractedMV[lead];
+    const offset = leadOffsetMs[lead] || 0;
+    const m = new Map();
+    for (let i = 0; i < s.length; i++) {
+      const key = Math.round((offset + i * dt) * 1000) / 1000;
+      m.set(key, s[i]);
+    }
+    leadMaps[lead] = m;
+  });
+
   let csv = 'time_ms,' + presentLeads.join(',') + '\n';
-  for (let i = 0; i < maxN; i++) {
-    const row = [(i*dt).toFixed(3)];
-    presentLeads.forEach(l => {
-      const s = state.extractedMV[l];
-      row.push(s && s[i] !== undefined ? s[i].toFixed(6) : '');
+  for (const t of times) {
+    const row = [t.toFixed(3)];
+    presentLeads.forEach(lead => {
+      const v = leadMaps[lead].get(t);
+      row.push(v !== undefined ? v.toFixed(6) : '');
     });
     csv += row.join(',') + '\n';
   }
@@ -6929,13 +7076,11 @@ function updateCounts() {
   const pill = document.getElementById('stepStatusPill');
   if (pill) {
     if (n > 0 && currentWizardStep === 3) {
-      pill.textContent = n + '/12 导联已标注';
-      pill.className = 'step-status-pill show ' + (n >= 12 ? 'ok' : 'info');
+      pill.textContent = `步骤 2 · 已标注 ${n}/12 导联`;
+      pill.className = 'step-status-pill show';
     } else if (ne > 0) {
-      pill.textContent = '✓ 已提取 ' + ne + ' 个导联';
-      pill.className = 'step-status-pill show ok';
-    } else {
-      pill.classList.remove('show');
+      pill.textContent = `步骤 3 · 已提取 ${ne} 个导联`;
+      pill.className = 'step-status-pill show';
     }
   }
 
@@ -7053,38 +7198,153 @@ function renderCurrentCSVPreview(csv) {
   const parsed = parseCSVString(csvText);
   if (!parsed) return;
   const panel = document.getElementById('csvRenderPanel');
-  const wrap = document.getElementById('csvRenderWrap');
-  const info = document.getElementById('csvRenderInfo');
+  const wrap  = document.getElementById('csvRenderWrap');
+  const info  = document.getElementById('csvRenderInfo');
   if (!panel || !wrap) return;
   wrap.innerHTML = '';
-  const speed = parseFloat(document.getElementById('paramSpeed').value)||25;
-  const gain = parseFloat(document.getElementById('paramGain').value)||10;
-  const n = parsed.leads.length, t = parsed.times.length;
-  const H = n * 60, W = Math.min(1400, Math.max(600, t));
+
+  const speed = parseFloat(document.getElementById('paramSpeed').value) || ECG_CFG.SPEED_MM_S;
+  const gain  = parseFloat(document.getElementById('paramGain').value)  || ECG_CFG.GAIN_MM_MV;
+  const fs    = parseFloat(document.getElementById('paramFS').value)    || ECG_CFG.FS_DEFAULT;
+
+  // ── CSV 时间轴 ────────────────────────────────────────
+  const t0ms  = parsed.times.length > 0 ? parsed.times[0] : 0;
+  const totalMs = parsed.times.length > 1
+    ? parsed.times[parsed.times.length - 1] - parsed.times[0]
+    : (parsed.times.length - 1) / fs * 1000;
+  const totalS = totalMs / 1000;
+
+  // ── 布局行列结构 ──────────────────────────────────────
+  const preset      = selectedPreset || '4x3';
+  const layoutDef   = LAYOUT_PRESETS[preset];
+  const layoutLeads = layoutDef ? layoutDef.leads : null;
+
+  // ── 从布局 x 比例直接算每个导联的时间偏移和时长 ──────
+  // x1比例 × totalS = 偏移，(x2-x1)比例 × totalS = 时长
+  const leadTimeMap = {};
+  if (layoutLeads) {
+    for (const [lead, [lx1, ly1, lx2, ly2]] of Object.entries(layoutLeads)) {
+      const actualLead = (lead === 'II_R') ? 'II' : lead;
+      leadTimeMap[lead] = {
+        tStartS: lx1 * totalS,
+        tEndS:   lx2 * totalS,
+      };
+    }
+  }
+
+  let nCols = 1, nRows = parsed.leads.length;
+  if (layoutLeads && Object.keys(layoutLeads).length > 0) {
+    const uniqueX = [...new Set(Object.values(layoutLeads).map(r => r[0]))].sort((a,b)=>a-b);
+    const uniqueY = [...new Set(Object.values(layoutLeads).map(r => r[1]))].sort((a,b)=>a-b);
+    nCols = uniqueX.length;
+    nRows = uniqueY.length;
+  }
+
+  // ── 像素优先：容器宽反推大格像素，纵向=横向（正方形网格）──
+  const S_PER_BIG  = ECG_CFG.S_PER_BIG;
+  const MV_PER_BIG = ECG_CFG.MV_PER_BIG;
+  const MV_PER_ROW = ECG_CFG.MV_PER_ROW;
+  const segS    = totalS / nCols;
+  const totalW  = wrap.clientWidth || 1200;
+  const cellWpx = Math.floor(totalW / nCols);
+  const bigPx   = Math.floor(cellWpx / (segS / S_PER_BIG));
+  const smallPx = Math.max(1, Math.round(bigPx / 5));
+  const cellHpx = bigPx * Math.round(MV_PER_ROW / MV_PER_BIG);
+  const exactW  = cellWpx * nCols;
+  const totalH  = cellHpx * nRows;
+  const pxPerMv = bigPx / MV_PER_BIG;
+
+  // ── Canvas ───────────────────────────────────────────
   const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H; canvas.style.width = '100%';
+  canvas.width  = exactW;
+  canvas.height = totalH;
+  canvas.style.width = '100%';
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fffdf7'; ctx.fillRect(0,0,W,H);
-  parsed.leads.forEach((lead, li) => {
-    const sig = parsed.series[lead];
-    const yOff = li * (H/n) + (H/n)/2;
-    const pxPerMv = (H/n) * 0.35;
-    const pxPerSample = W/sig.length;
-    ctx.strokeStyle = COLORS[lead] || '#ef4444'; ctx.lineWidth = 1.5;
+  ctx.fillStyle = '#fffaf7';
+  ctx.fillRect(0, 0, exactW, totalH);
+
+  // ── 网格（从0开始，整数步长）────────────────────────
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= exactW; x += smallPx) {
+    ctx.strokeStyle = (x % bigPx === 0) ? 'rgba(220,38,38,0.30)' : 'rgba(244,114,114,0.13)';
+    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, totalH); ctx.stroke();
+  }
+  for (let y = 0; y <= totalH; y += smallPx) {
+    ctx.strokeStyle = (y % bigPx === 0) ? 'rgba(220,38,38,0.30)' : 'rgba(244,114,114,0.13)';
+    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(exactW, y + 0.5); ctx.stroke();
+  }
+
+  // ── 绘制单个导联 ─────────────────────────────────────
+  const drawLead = (lead, x1, y1, x2, y2, tStartS, tEndS) => {
+    if (!parsed.series[lead]) return;
+    const values  = parsed.series[lead];
+    const times   = parsed.times;
+    const cellW   = x2 - x1;
+    const cellH   = y2 - y1;
+    const midY    = y1 + cellH / 2;
+    const segDurS = tEndS - tStartS;
+    if (segDurS <= 0) return;
+
+    ctx.strokeStyle = 'rgba(17,24,39,0.12)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(x1, midY + 0.5); ctx.lineTo(x2, midY + 0.5); ctx.stroke();
+
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold ' + Math.max(10, Math.round(bigPx * 0.3)) + 'px monospace';
+    ctx.fillText(lead === 'II_R' ? 'II(律)' : lead, x1 + 4, y1 + Math.max(12, bigPx * 0.4));
+
+    ctx.strokeStyle = '#b91c1c';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    sig.forEach((v,i) => {
-      const x = i * pxPerSample, y = yOff - v * pxPerMv;
-      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-    });
+    let first = true;
+    for (let i = 0; i < values.length; i++) {
+      const tMs = times.length > 1 ? times[i] : (i / fs * 1000);
+      const tS  = (tMs - t0ms) / 1000;
+      if (tS < tStartS - 0.001 || tS > tEndS + 0.001) continue;
+      const xPx = x1 + ((tS - tStartS) / segDurS) * cellW;
+      const yPx = midY - values[i] * pxPerMv;
+      first ? ctx.moveTo(xPx, yPx) : ctx.lineTo(xPx, yPx);
+      first = false;
+    }
     ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.font = 'bold 10px monospace';
-    ctx.fillText(lead, 4, li*(H/n)+14);
-  });
+  };
+
+  // ── 按布局渲染 ───────────────────────────────────────
+  if (layoutLeads && Object.keys(layoutLeads).length > 0) {
+    for (const [lead, [lx1, ly1, lx2, ly2]] of Object.entries(layoutLeads)) {
+      const actualLead = (lead === 'II_R') ? 'II' : lead;
+      if (!parsed.series[actualLead]) continue;
+      const x1px = Math.round(lx1 * exactW);
+      const y1px = Math.round(ly1 * totalH);
+      const x2px = Math.round(lx2 * exactW);
+      const y2px = Math.round(ly2 * totalH);
+      const tm   = leadTimeMap[lead] || leadTimeMap[actualLead];
+      const tStartS = tm ? tm.tStartS : lx1 * totalS;
+      const tEndS   = tm ? tm.tEndS   : lx2 * totalS;
+      drawLead(actualLead, x1px, y1px, x2px, y2px, tStartS, tEndS);
+    }
+  } else {
+    parsed.leads.forEach((lead, li) => {
+      const tm = leadTimeMap[lead];
+      const tStartS = tm ? tm.tStartS : 0;
+      const tEndS   = tm ? tm.tEndS   : totalS;
+      drawLead(lead, 0, li * cellHpx, exactW, (li + 1) * cellHpx, tStartS, tEndS);
+    });
+  }
+
+  for (let c = 1; c < nCols; c++) {
+    const xSep = c * cellWpx;
+    ctx.strokeStyle = 'rgba(220,38,38,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xSep + 0.5, 0); ctx.lineTo(xSep + 0.5, totalH); ctx.stroke();
+  }
+
   wrap.appendChild(canvas);
-  if (info) info.textContent = n + '导联 · ' + t + '点 · 纸速' + speed + ' · 增益' + gain;
+  if (info) info.textContent = parsed.leads.length + ' 导联 · ' + parsed.times.length + ' 点 · ' + speed + ' mm/s · ' + gain + ' mm/mV · 布局 ' + preset + ' · 1大格=' + bigPx + 'px';
   panel.style.display = 'block';
   switchView('preview');
 }
+
 
 </script>
 
@@ -7465,7 +7725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const b = document.getElementById(id);
         if (b) { b.disabled = false; b.textContent = id === 'btnExtract2' ? '▶ 提取信号' : '▶ 提取信号'; }
       });
-      showStepStatus(`✓ ${ne}导联提取完成`, 'ok');
+      showStepStatus(`步骤 3 · 已提取 ${ne} 个导联`, 'ok');
       // Enable and switch to preview tab
       const pvTab = document.getElementById('vtab-preview');
       if (pvTab) {
@@ -7739,9 +7999,9 @@ function updateScalePreview() {
   const el = document.getElementById('scalePreviewBody');
   if (!el) return;
   const { pxPerMmX, pxPerMmY, source } = getScaleMetrics();
-  const speed = parseFloat(document.getElementById('paramSpeed')?.value) || 25;
-  const gain  = parseFloat(document.getElementById('paramGain')?.value)  || 10;
-  const fs    = parseFloat(document.getElementById('paramFS')?.value)    || 500;
+  const speed = parseFloat(document.getElementById('paramSpeed')?.value) || ECG_CFG.SPEED_MM_S;
+  const gain  = parseFloat(document.getElementById('paramGain')?.value)  || ECG_CFG.GAIN_MM_MV;
+  const fs    = parseFloat(document.getElementById('paramFS')?.value)    || ECG_CFG.FS_DEFAULT;
   const boxes = state.boxes || {};
   const leads = Object.keys(boxes);
   if (leads.length === 0) {
@@ -7766,9 +8026,9 @@ function updateScalePreview() {
 
 function recomputeMVFromExtracted() {
   // Re-scale already-extracted signals with new params without re-running pixel tracing
-  const speed  = parseFloat(document.getElementById('paramSpeed')?.value) || 25;
-  const gain   = parseFloat(document.getElementById('paramGain')?.value)  || 10;
-  const fs     = parseFloat(document.getElementById('paramFS')?.value)    || 500;
+  const speed  = parseFloat(document.getElementById('paramSpeed')?.value) || ECG_CFG.SPEED_MM_S;
+  const gain   = parseFloat(document.getElementById('paramGain')?.value)  || ECG_CFG.GAIN_MM_MV;
+  const fs     = parseFloat(document.getElementById('paramFS')?.value)    || ECG_CFG.FS_DEFAULT;
   const blWin  = parseFloat(document.getElementById('epBaseline')?.value) || 10;
   const { pxPerMmX, pxPerMmY } = getScaleMetrics();
   const scalePxMV = pxPerMmY * gain;
