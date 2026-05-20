@@ -220,7 +220,7 @@ header{height:var(--header);background:#fff;border-bottom:1px solid var(--border
 .view-bar-right{margin-left:auto;display:flex;gap:6px;align-items:center;font-size:10.5px;color:var(--text4);font-family:var(--mono)}
 .view-bar-right .sep{color:var(--border2)}
 .canvas-wrap{flex:1;overflow:auto;position:relative;background-color:var(--bg);background-image:radial-gradient(circle at 1px 1px,rgba(15,23,42,.05) 1px,transparent 0);background-size:20px 20px;display:flex;align-items:flex-start;justify-content:flex-start;padding:20px}
-.canvas-container{position:relative;display:inline-flex;flex-direction:column;line-height:0;user-select:none;flex-shrink:0;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-md);border:1px solid var(--border2);background:#fff}
+.canvas-container{position:relative;display:inline-flex;flex-direction:column;line-height:0;user-select:none;flex-shrink:0;border-radius:var(--r);overflow:visible;box-shadow:var(--sh-md);border:1px solid var(--border2);background:#fff}
 #ecgCanvas{display:block;image-rendering:auto;filter:contrast(1.06)}
 #overlayCanvas{position:absolute;top:0;left:0;pointer-events:auto;cursor:crosshair}
 
@@ -1921,22 +1921,53 @@ function applyCropRegion() {
 
   const src = getOffCanvas();
 
+  // 图像坐标 → offCanvas 画布坐标的转换
+  // getOffCanvas 的画布中心 = 旋转原点，与 renderECG 保持一致
+  function imgToOff(ix, iy) {
+    if (!state.rotation) return { x: ix, y: iy };
+    const sinA = Math.abs(Math.sin(state.rotation * Math.PI / 180));
+    const cosA = Math.abs(Math.cos(state.rotation * Math.PI / 180));
+    const effW = state.imageW * cosA + state.imageH * sinA;
+    const effH = state.imageW * sinA + state.imageH * cosA;
+    const rad = state.rotation * Math.PI / 180;
+    const lx = ix - state.imageW / 2, ly = iy - state.imageH / 2;
+    return {
+      x: lx * Math.cos(rad) - ly * Math.sin(rad) + effW / 2,
+      y: lx * Math.sin(rad) + ly * Math.cos(rad) + effH / 2,
+    };
+  }
+
+  // 如果有旋转，把 cropQuad 坐标从图像坐标转成 offCanvas 坐标
+  const qOff = q ? q.map(p => imgToOff(p.x, p.y)) : null;
+  const rOff = r ? (() => {
+    const tl = imgToOff(r.x1, r.y1), tr = imgToOff(r.x2, r.y1);
+    const br = imgToOff(r.x2, r.y2), bl = imgToOff(r.x1, r.y2);
+    return {
+      x1: Math.min(tl.x, tr.x, br.x, bl.x),
+      y1: Math.min(tl.y, tr.y, br.y, bl.y),
+      x2: Math.max(tl.x, tr.x, br.x, bl.x),
+      y2: Math.max(tl.y, tr.y, br.y, bl.y),
+    };
+  })() : null;
+
   // 如果有四角且不是标准矩形，走透视变换
-  const isRect = q && (
-    Math.abs(q[0].x - q[3].x) < 2 && Math.abs(q[1].x - q[2].x) < 2 &&
-    Math.abs(q[0].y - q[1].y) < 2 && Math.abs(q[3].y - q[2].y) < 2
+  const isRect = qOff && (
+    Math.abs(qOff[0].x - qOff[3].x) < 2 && Math.abs(qOff[1].x - qOff[2].x) < 2 &&
+    Math.abs(qOff[0].y - qOff[1].y) < 2 && Math.abs(qOff[3].y - qOff[2].y) < 2
   );
 
-  if (q && !isRect) {
-    // 透视变换：使用已有的 warpCanvasPerspective（接受排序后的4点）
-    const warped = warpCanvasPerspective(src, q);
+  if (qOff && !isRect) {
+    // 透视变换：使用已转换到 offCanvas 坐标的四角点
+    const warped = warpCanvasPerspective(src, qOff);
     if (!warped) { toast('校正失败，请重新框选', 'warn'); return; }
     _commitCropCanvas(warped);
   } else {
-    // 普通矩形裁剪
-    const rect = r || { x1: q[0].x, y1: q[0].y, x2: q[2].x, y2: q[2].y };
+    // 普通矩形裁剪（使用转换后的坐标）
+    const rect = rOff || (qOff ? { x1: qOff[0].x, y1: qOff[0].y, x2: qOff[2].x, y2: qOff[2].y } : null);
+    if (!rect) { toast('请先框选心电图区域', 'warn'); return; }
     const cw = Math.round(rect.x2 - rect.x1);
     const ch = Math.round(rect.y2 - rect.y1);
+    if (cw < 10 || ch < 10) { toast('框选区域太小，请重新框选', 'warn'); return; }
     const out = document.createElement('canvas');
     out.width = cw; out.height = ch;
     out.getContext('2d').drawImage(src, Math.round(rect.x1), Math.round(rect.y1), cw, ch, 0, 0, cw, ch);
@@ -1958,6 +1989,10 @@ function _commitCropCanvas(canvas) {
     state.cropRegion  = null;
     state.cropQuad    = null;
     state.offCanvas   = null;
+    // 裁剪后的新图已经是旋转后的内容，重置旋转角度避免步骤3再次旋转
+    state.rotation = 0;
+    const ri = document.getElementById('rotInput'); if (ri) ri.value = 0;
+    const rif = document.getElementById('rotInputFloat'); if (rif) rif.value = 0;
 
     document.getElementById('cropCard').style.display = 'none';
 
@@ -3275,6 +3310,21 @@ function loadImage(file) {
   reader.readAsDataURL(file);
 }
 
+/** 计算图像旋转任意角度后的外接矩形尺寸（确保图像四角不被裁切） */
+function getEffectiveImageSize() {
+  const deg = state.rotation || 0;
+  if (deg === 0) return { w: state.imageW || 1, h: state.imageH || 1 };
+  const rad = Math.abs(deg * Math.PI / 180);
+  const sinA = Math.abs(Math.sin(rad));
+  const cosA = Math.abs(Math.cos(rad));
+  const W = state.imageW || 1;
+  const H = state.imageH || 1;
+  // 旋转后外接矩形：对角线投影公式
+  const effW = Math.round(W * cosA + H * sinA);
+  const effH = Math.round(W * sinA + H * cosA);
+  return { w: effW, h: effH };
+}
+
 function fitToWindow() {
   const wrap = document.getElementById('editView');
   const toolbar = document.getElementById('canvasToolbar');
@@ -3284,9 +3334,11 @@ function fitToWindow() {
   const wrapH = wrap?.clientHeight || Math.max(320, window.innerHeight - 120) || (state.imageH + pad);
   const availW = Math.max(120, wrapW - pad);
   const availH = Math.max(120, wrapH - pad - toolbarH);
+  // 使用旋转后的有效尺寸计算缩放比，避免90°/270°时宽高比例错误
+  const eff = getEffectiveImageSize();
   state.scale = Math.min(
-    availW / state.imageW,
-    availH / state.imageH,
+    availW / eff.w,
+    availH / eff.h,
     1.0
   );
   if (!Number.isFinite(state.scale) || state.scale <= 0) state.scale = 1.0;
@@ -3295,21 +3347,33 @@ function fitToWindow() {
 
 function applyScale() {
   const safeScale = (!Number.isFinite(state.scale) || state.scale <= 0) ? 1.0 : state.scale;
-  const w = Math.max(1, Math.round(state.imageW * safeScale));
-  const h = Math.max(1, Math.round(state.imageH * safeScale));
+  // 使用旋转后的有效尺寸设置画布大小，确保旋转后图像完整显示
+  const eff = getEffectiveImageSize();
+  const w = Math.max(1, Math.round(eff.w * safeScale));
+  const h = Math.max(1, Math.round(eff.h * safeScale));
   state.scale = safeScale;
   const c1 = document.getElementById('ecgCanvas');
   const c2 = document.getElementById('overlayCanvas');
-  c1.width = w; c1.height = h;
-  c2.width = w; c2.height = h;
-  c1.style.width = w+'px'; c1.style.height = h+'px';
-  c2.style.width = w+'px'; c2.style.height = h+'px';
-  // overlayCanvas 的 top 对齐 ecgCanvas（工具栏下方）
   const toolbar = document.getElementById('canvasToolbar');
   const toolbarH = toolbar ? toolbar.offsetHeight : 0;
+
+  // 同步更新 ecgCanvas 和 overlayCanvas 的像素尺寸与 CSS 尺寸
+  c1.width = w; c1.height = h;
+  c1.style.width = w + 'px'; c1.style.height = h + 'px';
+
+  c2.width = w; c2.height = h;
+  c2.style.width = w + 'px'; c2.style.height = h + 'px';
   c2.style.top = toolbarH + 'px';
-  document.getElementById('zoomLabel').textContent = Math.round(state.scale*100)+'%';
-  document.getElementById('statusZoom').textContent = Math.round(state.scale*100)+'%';
+
+  // 显式设置 canvas-container 的宽高，避免 overflow:hidden 截断旋转后的图像
+  const container = document.getElementById('canvasContainer');
+  if (container) {
+    container.style.width = w + 'px';
+    container.style.height = (h + toolbarH) + 'px';
+  }
+
+  document.getElementById('zoomLabel').textContent = Math.round(state.scale * 100) + '%';
+  document.getElementById('statusZoom').textContent = Math.round(state.scale * 100) + '%';
   renderECG(); renderOverlay();
 }
 
@@ -3769,12 +3833,30 @@ function renderECG() {
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.clearRect(0,0,c.width,c.height);
+  ctx.clearRect(0, 0, c.width, c.height);
+
   if (state.rotation !== 0) {
+    const rad = state.rotation * Math.PI / 180;
+    const sinA = Math.abs(Math.sin(rad));
+    const cosA = Math.abs(Math.cos(rad));
+    const W = state.imageW, H = state.imageH;
+    // 画布尺寸已经是旋转后外接矩形×scale，反推原图在此画布下的显示尺寸
+    // 外接矩形: effW = W*cosA + H*sinA, effH = W*sinA + H*cosA
+    // 画布 cw = effW * scale → scale = cw / effW
+    // 图像显示尺寸: dw = W * scale, dh = H * scale
+    const effW = W * cosA + H * sinA;
+    const effH = W * sinA + H * cosA;
+    // 用画布实际尺寸反推 scale，避免浮点累积误差
+    const scaleX = c.width / effW;
+    const scaleY = c.height / effH;
+    const sc = Math.min(scaleX, scaleY); // 取最小保证不超出
+    const dw = W * sc;
+    const dh = H * sc;
+
     ctx.save();
-    ctx.translate(c.width/2, c.height/2);
-    ctx.rotate(state.rotation * Math.PI / 180);
-    ctx.drawImage(state.image, -c.width/2, -c.height/2, c.width, c.height);
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate(rad);
+    ctx.drawImage(state.image, -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
   } else {
     ctx.drawImage(state.image, 0, 0, c.width, c.height);
@@ -3786,6 +3868,37 @@ function renderOverlay() {
   const c = document.getElementById('overlayCanvas');
   const ctx = c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
+
+  // ── 坐标变换辅助：图像坐标 → 画布像素坐标 ──
+  // 与 renderECG 保持完全一致的变换链
+  const rot = state.rotation || 0;
+  let _sc = state.scale; // 无旋转时直接用
+  let _offX = 0, _offY = 0; // 无旋转时图像左上角在画布上的偏移
+  let _cosR = 1, _sinR = 0; // 无旋转时旋转矩阵
+  if (rot !== 0) {
+    const sinA = Math.abs(Math.sin(rot * Math.PI / 180));
+    const cosA = Math.abs(Math.cos(rot * Math.PI / 180));
+    const effW = state.imageW * cosA + state.imageH * sinA;
+    const effH = state.imageW * sinA + state.imageH * cosA;
+    _sc = Math.min(c.width / effW, c.height / effH);
+    const rad = rot * Math.PI / 180;
+    _cosR = Math.cos(rad); _sinR = Math.sin(rad);
+  }
+
+  function imgToCanvas(imgX, imgY) {
+    if (rot === 0) {
+      return { x: imgX * _sc, y: imgY * _sc };
+    }
+    // 图像坐标 → 以图像中心为原点
+    const lx = (imgX - state.imageW / 2) * _sc;
+    const ly = (imgY - state.imageH / 2) * _sc;
+    // 旋转
+    const rx = lx * _cosR - ly * _sinR;
+    const ry = lx * _sinR + ly * _cosR;
+    // 移到画布中心
+    return { x: rx + c.width / 2, y: ry + c.height / 2 };
+  }
+
   const s = state.scale;
 
   // ── Crop region overlay (step 1) ──
@@ -3805,7 +3918,7 @@ function renderOverlay() {
     // ═══ A: 四角调整模式 ═══
     if (drawQuad && drawQuad.length === 4) {
       const q = drawQuad;
-      const qs = q.map(p => ({ x: p.x * s, y: p.y * s }));
+      const qs = q.map(p => imgToCanvas(p.x, p.y));
 
       // 框外变暗
       ctx.beginPath();
@@ -3904,21 +4017,36 @@ function renderOverlay() {
     // ═══ B: 正在拖框中 ═══
     } else if (drawRect) {
       const r2 = drawRect;
+      const tl = imgToCanvas(r2.x1, r2.y1);
+      const br = imgToCanvas(r2.x2, r2.y2);
+      const tr = imgToCanvas(r2.x2, r2.y1);
+      const bl = imgToCanvas(r2.x1, r2.y2);
+      // 矩形框（旋转后用多边形）
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.fillRect(0,0,c.width,r2.y1*s);
-      ctx.fillRect(0,r2.y1*s,r2.x1*s,(r2.y2-r2.y1)*s);
-      ctx.fillRect(r2.x2*s,r2.y1*s,c.width-r2.x2*s,(r2.y2-r2.y1)*s);
-      ctx.fillRect(0,r2.y2*s,c.width,c.height-r2.y2*s);
+      ctx.fillRect(0, 0, c.width, c.height);
+      // 挖空选区
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+      ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
       ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2;
       ctx.setLineDash([6,4]);
-      ctx.strokeRect(r2.x1*s+.5,r2.y1*s+.5,(r2.x2-r2.x1)*s-1,(r2.y2-r2.y1)*s-1);
+      ctx.beginPath();
+      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+      ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+      ctx.closePath(); ctx.stroke();
       ctx.setLineDash([]);
-      const fw=(r2.x2-r2.x1)*s, fh=(r2.y2-r2.y1)*s;
-      if (fw>80 && fh>50) {
+      const fw = Math.hypot(tr.x-tl.x, tr.y-tl.y);
+      const fh = Math.hypot(bl.x-tl.x, bl.y-tl.y);
+      if (fw > 80 && fh > 50) {
+        const cxM = (tl.x+br.x)/2, cyM = (tl.y+br.y)/2;
         ctx.font='11px system-ui';
         const hint='松开鼠标完成框选';
         const tw=ctx.measureText(hint).width;
-        const tx=r2.x1*s+fw/2-tw/2, ty=r2.y1*s+fh/2;
+        const tx=cxM-tw/2, ty=cyM;
         ctx.fillStyle='rgba(37,99,235,0.85)';
         ctx.beginPath(); ctx.roundRect(tx-6,ty-12,tw+12,18,4); ctx.fill();
         ctx.fillStyle='#fff'; ctx.fillText(hint,tx,ty);
@@ -3941,21 +4069,19 @@ function renderOverlay() {
     ctx.lineWidth = 2;
     ctx.beginPath();
     pts.forEach((p, i) => {
-      const px = p.x * s;
-      const py = p.y * s;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+      const cp = imgToCanvas(p.x, p.y);
+      if (i === 0) ctx.moveTo(cp.x, cp.y);
+      else ctx.lineTo(cp.x, cp.y);
     });
     if (pts.length >= 3) ctx.closePath();
     ctx.fill();
     ctx.stroke();
     pts.forEach((p, i) => {
-      const px = p.x * s;
-      const py = p.y * s;
+      const cp = imgToCanvas(p.x, p.y);
       const isSelected = i === state.selectedPerspectivePoint;
       ctx.fillStyle = isSelected ? '#fbbf24' : '#e5e7eb';
       ctx.beginPath();
-      ctx.arc(px, py, isSelected ? 7 : 5, 0, Math.PI * 2);
+      ctx.arc(cp.x, cp.y, isSelected ? 7 : 5, 0, Math.PI * 2);
       ctx.fill();
       if (isSelected) {
         ctx.strokeStyle = '#f59e0b';
@@ -3964,7 +4090,7 @@ function renderOverlay() {
       }
       ctx.fillStyle = isSelected ? '#0d0f0e' : '#111827';
       ctx.font = 'bold 10px JetBrains Mono, monospace';
-      ctx.fillText(String(i + 1), px - 3, py + 3);
+      ctx.fillText(String(i + 1), cp.x - 3, cp.y + 3);
     });
     ctx.restore();
   }
@@ -3979,30 +4105,31 @@ function renderOverlay() {
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 4]);
       const p1 = mx.points[0], p2 = mx.points[1];
+      const cp1 = imgToCanvas(p1.x, p1.y), cp2 = imgToCanvas(p2.x, p2.y);
       // 横向标定线：两个点的竖线
-      [p1, p2].forEach(p => {
+      [cp1, cp2].forEach(cp => {
         ctx.beginPath();
-        ctx.moveTo(p.x * s, 0);
-        ctx.lineTo(p.x * s, c.height);
+        ctx.moveTo(cp.x, 0);
+        ctx.lineTo(cp.x, c.height);
         ctx.stroke();
       });
       // 连线
       ctx.strokeStyle = 'rgba(245,158,11,0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(p1.x * s, p1.y * s);
-      ctx.lineTo(p2.x * s, p1.y * s);
+      ctx.moveTo(cp1.x, cp1.y);
+      ctx.lineTo(cp2.x, cp1.y);
       ctx.stroke();
       // 点
       ctx.fillStyle = '#f59e0b';
       ctx.setLineDash([]);
-      [p1, p2].forEach((p, i) => {
+      [cp1, cp2].forEach((cp, i) => {
         ctx.beginPath();
-        ctx.arc(p.x * s, p.y * s, 5, 0, Math.PI * 2);
+        ctx.arc(cp.x, cp.y, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 9px monospace';
-        ctx.fillText(String(i+1), p.x * s - 3, p.y * s + 3);
+        ctx.fillText(String(i+1), cp.x - 3, cp.y + 3);
         ctx.fillStyle = '#f59e0b';
       });
       ctx.restore();
@@ -4013,28 +4140,29 @@ function renderOverlay() {
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 4]);
       const p1 = my.points[0], p2 = my.points[1];
+      const cp1 = imgToCanvas(p1.x, p1.y), cp2 = imgToCanvas(p2.x, p2.y);
       // 纵向标定线：两个点的横线
-      [p1, p2].forEach(p => {
+      [cp1, cp2].forEach(cp => {
         ctx.beginPath();
-        ctx.moveTo(0, p.y * s);
-        ctx.lineTo(c.width, p.y * s);
+        ctx.moveTo(0, cp.y);
+        ctx.lineTo(c.width, cp.y);
         ctx.stroke();
       });
       ctx.strokeStyle = 'rgba(34,197,94,0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(p1.x * s, p1.y * s);
-      ctx.lineTo(p1.x * s, p2.y * s);
+      ctx.moveTo(cp1.x, cp1.y);
+      ctx.lineTo(cp1.x, cp2.y);
       ctx.stroke();
       ctx.fillStyle = '#22c55e';
       ctx.setLineDash([]);
-      [p1, p2].forEach((p, i) => {
+      [cp1, cp2].forEach((cp, i) => {
         ctx.beginPath();
-        ctx.arc(p.x * s, p.y * s, 5, 0, Math.PI * 2);
+        ctx.arc(cp.x, cp.y, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 9px monospace';
-        ctx.fillText(String(i+1), p.x * s - 3, p.y * s + 3);
+        ctx.fillText(String(i+1), cp.x - 3, cp.y + 3);
         ctx.fillStyle = '#22c55e';
       });
       ctx.restore();
@@ -4049,28 +4177,27 @@ function renderOverlay() {
     ctx.fillStyle = guideColor;
     ctx.lineWidth = 2;
     pts.forEach((p, idx) => {
-      const px = p.x * s;
-      const py = p.y * s;
+      const cp = imgToCanvas(p.x, p.y);
       ctx.beginPath();
-      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.arc(cp.x, cp.y, 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillText(String(idx + 1), px + 8, py - 8);
+      ctx.fillText(String(idx + 1), cp.x + 8, cp.y - 8);
     });
     if (pts.length === 1) {
-      const px = state.cursorPos.x * s;
-      const py = state.cursorPos.y * s;
+      const cp0 = imgToCanvas(pts[0].x, pts[0].y);
+      const cpc = imgToCanvas(state.cursorPos.x, state.cursorPos.y);
       ctx.setLineDash([5, 4]);
       ctx.beginPath();
       if (state.calibration.mode === 'x') {
-        ctx.moveTo(pts[0].x * s, pts[0].y * s);
-        ctx.lineTo(px, pts[0].y * s);
-        ctx.moveTo(px, 0);
-        ctx.lineTo(px, c.height);
+        ctx.moveTo(cp0.x, cp0.y);
+        ctx.lineTo(cpc.x, cp0.y);
+        ctx.moveTo(cpc.x, 0);
+        ctx.lineTo(cpc.x, c.height);
       } else {
-        ctx.moveTo(pts[0].x * s, pts[0].y * s);
-        ctx.lineTo(pts[0].x * s, py);
-        ctx.moveTo(0, py);
-        ctx.lineTo(c.width, py);
+        ctx.moveTo(cp0.x, cp0.y);
+        ctx.lineTo(cp0.x, cpc.y);
+        ctx.moveTo(0, cpc.y);
+        ctx.lineTo(c.width, cpc.y);
       }
       ctx.stroke();
       ctx.setLineDash([]);
@@ -4081,28 +4208,38 @@ function renderOverlay() {
   Object.entries(state.boxes).forEach(([lead, b]) => {
     const isActive = lead === state.selectedLead;
     const color = COLORS[lead] || '#4ade80';
-    const x1=b.x1*s, y1=b.y1*s, w=(b.x2-b.x1)*s, h=(b.y2-b.y1)*s;
+    const tl = imgToCanvas(b.x1, b.y1);
+    const br = imgToCanvas(b.x2, b.y2);
+    const tr = imgToCanvas(b.x2, b.y1);
+    const bl = imgToCanvas(b.x1, b.y2);
+    const w = (b.x2-b.x1)*_sc, h = (b.y2-b.y1)*_sc;
 
+    // 填充
     ctx.fillStyle = isActive ? color+'25' : color+'0d';
-    ctx.fillRect(x1,y1,w,h);
+    ctx.beginPath();
+    ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y); ctx.lineTo(bl.x,bl.y);
+    ctx.closePath(); ctx.fill();
+    // 边框
     ctx.strokeStyle = isActive ? color : color+'99';
     ctx.lineWidth = isActive ? 1.5 : 1;
-    ctx.strokeRect(x1+.5, y1+.5, w-1, h-1);
+    ctx.beginPath();
+    ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y); ctx.lineTo(bl.x,bl.y);
+    ctx.closePath(); ctx.stroke();
+    // 标签
     ctx.fillStyle = color;
     ctx.font = `bold ${isActive?12:10}px JetBrains Mono,monospace`;
-    ctx.fillText(lead, x1+5, y1+14);
+    ctx.fillText(lead, tl.x+5, tl.y+14);
 
     // Draw extracted signal line on top of box (red)
     if (state.extractedSignals && state.extractedSignals[lead]) {
-      const sig = state.extractedSignals[lead]; // raw y coords in image space
+      const sig = state.extractedSignals[lead];
       ctx.beginPath();
       ctx.strokeStyle = '#f87171';
       ctx.lineWidth = 1.5;
       ctx.globalAlpha = 0.9;
       for (let i=0; i<sig.length; i++) {
-        const px = (b.x1 + i) * s;
-        const py = (b.y1 + sig[i]) * s;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        const cp = imgToCanvas(b.x1 + i, b.y1 + sig[i]);
+        i === 0 ? ctx.moveTo(cp.x, cp.y) : ctx.lineTo(cp.x, cp.y);
       }
       ctx.stroke();
       ctx.globalAlpha = 1;
@@ -4110,25 +4247,30 @@ function renderOverlay() {
 
     if (isActive) {
       getHandles(b).forEach(({hx,hy}) => {
+        const cp = imgToCanvas(hx, hy);
         ctx.fillStyle = color;
-        ctx.fillRect(hx*s-4, hy*s-4, 8, 8);
+        ctx.fillRect(cp.x-4, cp.y-4, 8, 8);
         ctx.strokeStyle = '#0d0f0e';
         ctx.lineWidth = 1;
-        ctx.strokeRect(hx*s-4, hy*s-4, 8, 8);
+        ctx.strokeRect(cp.x-4, cp.y-4, 8, 8);
       });
     }
   });
 
   if (state.drawing && state.drawStart) {
     const {sx,sy}=state.drawStart, {x,y}=state.cursorPos;
-    const x1=Math.min(sx,x), y1=Math.min(sy,y);
-    const w=Math.abs(x-sx)*s, h=Math.abs(y-sy)*s;
+    const x1=Math.min(sx,x), y1=Math.min(sy,y), x2=Math.max(sx,x), y2=Math.max(sy,y);
+    const tl=imgToCanvas(x1,y1), tr=imgToCanvas(x2,y1), br=imgToCanvas(x2,y2), bl=imgToCanvas(x1,y2);
     const color=COLORS[state.selectedLead]||'#4ade80';
     ctx.fillStyle=color+'22';
-    ctx.fillRect(x1*s,y1*s,w,h);
+    ctx.beginPath();
+    ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y); ctx.lineTo(bl.x,bl.y);
+    ctx.closePath(); ctx.fill();
     ctx.strokeStyle=color; ctx.lineWidth=1.5;
     ctx.setLineDash([4,3]);
-    ctx.strokeRect(x1*s+.5,y1*s+.5,w-1,h-1);
+    ctx.beginPath();
+    ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y); ctx.lineTo(bl.x,bl.y);
+    ctx.closePath(); ctx.stroke();
     ctx.setLineDash([]);
   }
 }
@@ -4181,9 +4323,39 @@ function getNextUnboxedLead(fromLead = state.selectedLead) {
 function getCanvasPos(e) {
   const c2 = document.getElementById('overlayCanvas');
   const rect = c2.getBoundingClientRect();
+  // 鼠标在画布上的像素坐标
+  const canvasX = e.clientX - rect.left;
+  const canvasY = e.clientY - rect.top;
+
+  if (!state.rotation) {
+    // 无旋转：直接除以 scale
+    return {
+      x: Math.max(0, Math.min(state.imageW, canvasX / state.scale)),
+      y: Math.max(0, Math.min(state.imageH, canvasY / state.scale)),
+    };
+  }
+
+  // 有旋转：需要反旋转变换到原始图像坐标
+  // 1. 相对画布中心
+  const cx = canvasX - c2.width / 2;
+  const cy = canvasY - c2.height / 2;
+  // 2. 反旋转（旋转 -θ）
+  const rad = -state.rotation * Math.PI / 180;
+  const cosR = Math.cos(rad), sinR = Math.sin(rad);
+  const rx = cx * cosR - cy * sinR;
+  const ry = cx * sinR + cy * cosR;
+  // 3. 计算图像绘制时的 sc（与 renderECG 保持一致）
+  const sinA = Math.abs(Math.sin(state.rotation * Math.PI / 180));
+  const cosA = Math.abs(Math.cos(state.rotation * Math.PI / 180));
+  const effW = state.imageW * cosA + state.imageH * sinA;
+  const effH = state.imageW * sinA + state.imageH * cosA;
+  const sc = Math.min(c2.width / effW, c2.height / effH);
+  // 4. 映射到图像坐标（图像绘制时以中心为原点）
+  const imgX = rx / sc + state.imageW / 2;
+  const imgY = ry / sc + state.imageH / 2;
   return {
-    x: Math.max(0, Math.min(state.imageW, (e.clientX-rect.left)/state.scale)),
-    y: Math.max(0, Math.min(state.imageH, (e.clientY-rect.top)/state.scale)),
+    x: Math.max(0, Math.min(state.imageW, imgX)),
+    y: Math.max(0, Math.min(state.imageH, imgY)),
   };
 }
 
@@ -4557,7 +4729,8 @@ function onRotate(val) {
   state.selectedPerspectivePoint = -1;
   updateCounts();
   setPerspectiveStatus('旋转已更新。如果还需要透视校正，请重新标记四个角点。');
-  renderECG();
+  // 旋转后重新 fit + 更新画布尺寸（90°/270°时宽高互换需重算 scale）
+  fitToWindow();
 }
 
 // ════════════════════════════════════════════════════════
@@ -4663,16 +4836,22 @@ function setupDrop() {
 function getOffCanvas() {
   if (state.offCanvas) return state.offCanvas;
   const oc = document.createElement('canvas');
-  oc.width = state.imageW; oc.height = state.imageH;
-  const ctx = oc.getContext('2d');
   if (state.rotation !== 0) {
+    // 用旋转后的外接矩形尺寸，确保旋转内容不被裁切
+    const sinA = Math.abs(Math.sin(state.rotation * Math.PI / 180));
+    const cosA = Math.abs(Math.cos(state.rotation * Math.PI / 180));
+    const effW = Math.round(state.imageW * cosA + state.imageH * sinA);
+    const effH = Math.round(state.imageW * sinA + state.imageH * cosA);
+    oc.width = effW; oc.height = effH;
+    const ctx = oc.getContext('2d');
     ctx.save();
-    ctx.translate(state.imageW/2, state.imageH/2);
+    ctx.translate(effW / 2, effH / 2);
     ctx.rotate(state.rotation * Math.PI / 180);
-    ctx.drawImage(state.image, -state.imageW/2, -state.imageH/2);
+    ctx.drawImage(state.image, -state.imageW / 2, -state.imageH / 2);
     ctx.restore();
   } else {
-    ctx.drawImage(state.image, 0, 0);
+    oc.width = state.imageW; oc.height = state.imageH;
+    oc.getContext('2d').drawImage(state.image, 0, 0);
   }
   state.offCanvas = oc;
   return oc;

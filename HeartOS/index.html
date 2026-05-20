@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
@@ -81,9 +81,14 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .nb-menu-pop button.danger{color:#dc2626;}
 
 /* NOTEBOOK LAYOUT */
-.nb-layout{--source-col:268px;--studio-col:312px;flex:1;display:grid;grid-template-columns:var(--source-col) minmax(0,1fr) var(--studio-col);overflow:hidden;height:calc(100vh - 56px);transition:grid-template-columns .18s ease;}
+.nb-layout{--source-col:268px;--studio-col:380px;flex:1;display:grid;grid-template-columns:var(--source-col) 6px minmax(0,1fr) 6px var(--studio-col);overflow:hidden;height:calc(100vh - 56px);transition:grid-template-columns .18s ease;}
 .nb-layout.sources-collapsed{--source-col:58px;}
 .nb-layout.studio-collapsed{--studio-col:76px;}
+.nb-resizer{position:relative;background:transparent;cursor:col-resize;z-index:5;}
+.nb-resizer::after{content:'';position:absolute;top:0;bottom:0;left:2px;width:2px;background:transparent;border-radius:2px;transition:background .15s;}
+.nb-resizer:hover::after,.nb-layout.resizing .nb-resizer.active::after{background:#c7d2fe;}
+.nb-layout.sources-collapsed #sourceResizer,.nb-layout.studio-collapsed #studioResizer{cursor:default;pointer-events:none;}
+.nb-layout.sources-collapsed #sourceResizer::after,.nb-layout.studio-collapsed #studioResizer::after{display:none;}
 
 /* LEFT PANEL */
 .panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);border-right:1px solid var(--border);}
@@ -205,25 +210,51 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .studio-panel.collapsed .studio-head{justify-content:center;padding:12px 6px;}
 .studio-panel.collapsed .studio-title,.studio-panel.collapsed .studio-top,.studio-panel.collapsed .studio-divider,.studio-panel.collapsed .studio-result{display:none;}
 .studio-panel.collapsed .studio-mini-rail{display:flex;}
-.studio-top{padding:12px 12px 10px;flex-shrink:0;}
+.studio-top{padding:14px 12px 10px;flex-shrink:0;}
 .studio-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px 14px;color:var(--text3);gap:10px;}
 .studio-empty-icon{font-size:26px;opacity:.5;}
 .studio-empty p{font-size:12px;line-height:1.65;}
-.sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.sc{border-radius:18px;border:1px solid rgba(216,220,230,.82);padding:12px 12px;min-height:62px;cursor:pointer;transition:all .18s;display:grid;grid-template-columns:36px 1fr 16px;align-items:center;gap:10px;position:relative;box-shadow:var(--sh0);}
+.sc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;}
+.sc{border-radius:15px;border:1px solid rgba(216,220,230,.70);padding:10px 9px 9px 13px;min-height:58px;cursor:pointer;transition:all .18s;display:grid;grid-template-columns:minmax(0,1fr) 32px;grid-template-rows:20px auto;align-items:center;gap:2px 7px;position:relative;box-shadow:none;}
 .sc::after{content:'›';font-size:20px;line-height:1;color:#9aa3b2;justify-self:end;}
+.sc::after{display:none;}
 .sc:hover{transform:translateY(-1px);box-shadow:var(--sh1);border-color:#ced6e5;}
 .sc.active-card{box-shadow:0 0 0 2px rgba(47,99,217,.9), var(--sh1);transform:none;border-color:transparent;}
-.sc-icon{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:rgba(255,255,255,.72);color:#344054;border:1px solid rgba(255,255,255,.78);}
-.sc-icon svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
-.sc-name{font-size:12px;font-weight:650;line-height:1.35;color:var(--text);}
+.sc-icon{grid-column:1;grid-row:1;width:20px;height:20px;border-radius:0;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:transparent!important;color:#344054;border:none;}
+.sc-icon svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+.sc-name{grid-column:1;grid-row:2;font-size:12px;font-weight:700;line-height:1.2;color:var(--text);letter-spacing:0;align-self:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sc-desc{display:none;}
-.sc.ml-card{background:linear-gradient(140deg,#edf4ff,#f7faff);}
-.sc.dl-card{background:linear-gradient(140deg,#edf9f1,#f8fcf9);}
-.sc.ecg-card{background:linear-gradient(140deg,#fbf1f5,#fff8fb);}
-.sc.stats-card{background:linear-gradient(140deg,#fbf7e9,#fffdf5);}
-.sc.agent-card{background:linear-gradient(140deg,#f2f3fb,#fafbff);}
-.sc.ecgd-card{background:linear-gradient(140deg,#eef8fa,#f8fdff);}
+.sc-toggle{grid-column:2;grid-row:1 / span 2;width:32px;height:32px;border:none;border-radius:50%;background:rgba(15,23,42,.055);color:#344054;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:21px;line-height:1;transition:all .16s;align-self:center;justify-self:end;font-weight:500;}
+.sc-toggle:hover{background:rgba(15,23,42,.10);color:#1f2937;box-shadow:none;}
+.studio-intro-modal{position:fixed;inset:0;z-index:26000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.38);backdrop-filter:blur(3px);}
+.studio-intro-modal.open{display:flex;}
+.studio-intro-dialog{width:min(560px,calc(100vw - 32px));max-height:min(680px,calc(100vh - 48px));overflow:auto;border-radius:18px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);}
+.studio-intro-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px 14px;border-bottom:1px solid #eef2f7;}
+.studio-intro-title{font-size:18px;font-weight:750;color:var(--text);letter-spacing:-.02em;line-height:1.35;}
+.studio-intro-sub{font-size:12px;color:var(--text3);line-height:1.6;margin-top:4px;}
+.studio-intro-close{width:32px;height:32px;border:1px solid var(--border);border-radius:10px;background:#fff;color:#667085;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.studio-intro-close:hover{background:var(--bg3);color:var(--text);}
+.studio-intro-body{padding:16px 20px 20px;display:grid;gap:12px;}
+.studio-intro-block{border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;padding:12px 13px;}
+.studio-intro-k{font-size:12px;font-weight:750;color:var(--text);margin-bottom:5px;}
+.studio-intro-v{font-size:13px;color:#475467;line-height:1.7;}
+.csv-xml-modal{position:fixed;inset:0;z-index:26050;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.38);backdrop-filter:blur(3px);}
+.csv-xml-modal.open{display:flex;}
+.csv-xml-dialog{width:min(420px,calc(100vw - 32px));border-radius:16px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);padding:18px;}
+.csv-xml-title{font-size:17px;font-weight:750;color:var(--text);line-height:1.35;}
+.csv-xml-sub{font-size:12px;color:var(--text3);line-height:1.7;margin:6px 0 14px;}
+.csv-xml-field label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;}
+.csv-xml-field input{width:100%;height:40px;border:1px solid var(--border2);border-radius:10px;padding:0 10px;font-size:14px;outline:none;}
+.csv-xml-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,99,217,.12);}
+.csv-xml-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+.csv-xml-actions button{height:34px;padding:0 13px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--text2);font:inherit;font-size:12px;font-weight:650;cursor:pointer;}
+.csv-xml-actions .primary{border-color:var(--accent);background:var(--accent);color:#fff;}
+.sc.ml-card{background:#eaf2ff;}
+.sc.dl-card{background:#eaf7ee;}
+.sc.ecg-card{background:#f8edf2;}
+.sc.stats-card{background:#f7f4e8;}
+.sc.agent-card{background:#eef0fa;}
+.sc.ecgd-card{background:#eaf7fb;}
 .add-note-b{width:100%;margin-top:10px;padding:10px 12px;border-radius:16px;border:1px dashed var(--border2);background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;gap:7px;transition:all .15s;font-weight:500;}
 .add-note-b:hover{background:var(--bg3);color:var(--text2);border-color:var(--border);}
 .studio-divider{height:1px;background:var(--border);flex-shrink:0;}
@@ -249,7 +280,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .result-file-meta{font-size:10px;color:var(--text3);margin-top:2px;}
 .result-file-kebab{position:absolute;top:10px;right:10px;width:26px;height:26px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text3);cursor:pointer;line-height:18px;font-size:16px;}
 .result-file-kebab:hover{background:var(--bg3);color:var(--text2);}
-.result-file-menu{display:none;position:absolute;right:7px;top:34px;z-index:4;width:92px;border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:var(--sh2);overflow:hidden;}
+.result-file-menu{display:none;position:absolute;right:7px;top:34px;z-index:4;width:104px;border:1px solid var(--border);border-radius:8px;background:#fff;box-shadow:var(--sh2);overflow:hidden;}
 .result-file-menu.open{display:block;}
 .result-file-menu button{display:block;width:100%;border:none;background:#fff;text-align:left;padding:7px 10px;font-size:12px;color:var(--text2);cursor:pointer;}
 .result-file-menu button:hover{background:var(--bg2);color:var(--text);}
@@ -300,6 +331,16 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .hecg-fallback-wave{margin-top:8px;}
 .hecg-native-preview{margin-top:10px;overflow-x:auto;overflow-y:visible;border:1px solid #dbeafe;border-radius:8px;background:#eef4fb;}
 .hecg-native-preview img{display:block;width:100%;height:auto;min-width:0;cursor:zoom-in;}
+.autoecg-compare-card{border:1px solid #dbeafe;background:#f8fbff;border-radius:8px;padding:10px;margin-bottom:10px;}
+.autoecg-compare-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.autoecg-compare-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.35;}
+.autoecg-compare-sub{font-size:11px;color:var(--text3);line-height:1.5;margin-top:2px;}
+.autoecg-preview{border:1px solid #dbeafe;border-radius:8px;background:#fff;overflow:auto;max-height:520px;}
+.autoecg-preview img{display:block;width:100%;height:auto;cursor:zoom-in;}
+.autoecg-legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0 0;font-size:11px;color:var(--text3);}
+.autoecg-legend span{display:inline-flex;align-items:center;gap:5px;}
+.autoecg-dot{width:18px;height:3px;border-radius:999px;display:inline-block;background:#ef4444;}
+.autoecg-dot.box{background:#2563eb;}
 .src-preview-body{padding:0 22px 22px;overflow:auto;max-height:72vh;}
 .src-preview-body img{max-width:100%;height:auto;display:block;border-radius:8px;border:1px solid var(--border);background:#fff;}
 .src-preview-body iframe{width:100%;height:68vh;border:1px solid var(--border);border-radius:8px;background:#fff;}
@@ -434,17 +475,29 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 }
 .ecg-loading p{font-size:12px;color:#98a2b3;}
 
-/* Source added notification */
-.src-added-notif{
-  display:flex;align-items:center;gap:10px;
-  padding:10px 14px;border-radius:var(--r2);
+/* Source card inside chat */
+.source-chat-card{
+  display:flex;gap:14px;align-items:center;
+  padding:14px 16px;border-radius:18px;
   background:var(--bg);border:1px solid var(--border);
-  font-size:13px;color:var(--text2);
-  box-shadow:var(--sh0);
+  box-shadow:var(--sh0);cursor:pointer;
+  transition:border-color .16s,box-shadow .16s,transform .16s;
+  margin-bottom:14px;
 }
-.san-icon{font-size:18px;flex-shrink:0;}
-.san-text{flex:1;line-height:1.5;}
-.san-name{font-weight:600;color:var(--text);}
+.source-chat-card:hover{border-color:#bfdbfe;box-shadow:var(--sh1);transform:translateY(-1px);}
+.source-chat-thumb{
+  width:74px;height:54px;border-radius:10px;overflow:hidden;
+  border:1px solid var(--border);background:var(--bg2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent);font-weight:700;font-size:18px;flex-shrink:0;
+}
+.source-chat-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.source-chat-info{min-width:0;flex:1;}
+.source-chat-kicker{font-size:12px;color:var(--text3);margin-bottom:4px;}
+.source-chat-name{font-size:15px;font-weight:650;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.source-chat-meta{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+.source-chat-pill{font-size:12px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:4px 9px;}
+.source-chat-open{font-size:12px;color:var(--accent);font-weight:600;white-space:nowrap;}
 
 /* API Config Modal */
 .api-cfg-modal .mo-box{width:520px;}
@@ -473,45 +526,129 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
 ::-webkit-scrollbar-track{background:transparent;}
-.auth-gate{position:fixed;inset:0;background:#f6f8fc;z-index:20000;display:flex;align-items:center;justify-content:center;padding:16px;}
-.auth-card{width:min(440px,92vw);background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 10px 40px rgba(15,23,42,.12);padding:20px;}
-.auth-title{font-size:20px;font-weight:700;color:#0f172a;margin-bottom:6px;}
-.auth-sub{font-size:12px;color:#64748b;margin-bottom:14px;}
-.auth-row{margin-bottom:10px;}
-.auth-row label{display:block;font-size:12px;color:#334155;margin-bottom:4px;}
-.auth-row input{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px;font-size:13px;}
-.auth-actions{display:flex;gap:8px;margin-top:10px;}
-.auth-actions button{height:36px;padding:0 14px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;}
-.auth-actions .pri{background:#2563eb;border-color:#2563eb;color:#fff;}
-.auth-msg{min-height:20px;font-size:12px;color:#b91c1c;margin-top:8px;}
-.auth-help{font-size:12px;color:#64748b;margin-top:5px;}
+@keyframes ecg-scan-unused{}
+@keyframes ecg-glow{0%,100%{opacity:.3}50%{opacity:.7}}
+@keyframes heartbeat{0%,70%,100%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}}
+@keyframes pulse-ring{0%{transform:scale(.85);opacity:.6}100%{transform:scale(1.8);opacity:0}}
+@keyframes float-particle{0%,100%{transform:translateY(0) scale(1);opacity:.4}50%{transform:translateY(-18px) scale(1.15);opacity:.8}}
+@keyframes blink-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.auth-gate{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:28px;background:linear-gradient(135deg,#070d18 0%,#0b1322 52%,#07111e 100%);overflow:hidden;}
+.auth-gate::before{content:'';position:absolute;inset:0;background:
+  radial-gradient(ellipse 820px 520px at 25% 38%,rgba(220,38,38,.12) 0%,transparent 70%),
+  radial-gradient(ellipse 680px 460px at 72% 58%,rgba(14,165,233,.055) 0%,transparent 72%),
+  radial-gradient(ellipse 520px 360px at 50% 52%,rgba(100,116,139,.10) 0%,transparent 70%);pointer-events:none;}
+.auth-gate::after{content:'';position:absolute;inset:0;background:
+  linear-gradient(rgba(148,163,184,.045) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(148,163,184,.035) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(circle at 50% 50%,rgba(0,0,0,.70) 0%,rgba(0,0,0,.35) 42%,transparent 78%);pointer-events:none;}
+.auth-ecg-bg{display:none;}
+.auth-ecg-line svg{display:none;}
+.auth-card{position:relative;z-index:1;width:min(1000px,94vw);min-height:560px;background:rgba(10,18,32,.88);border:1px solid rgba(220,38,38,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.34),0 8px 24px rgba(220,38,38,.08);display:grid;grid-template-columns:minmax(0,1.08fr) 420px;overflow:hidden;backdrop-filter:blur(18px);pointer-events:auto;}
+.auth-visual{position:relative;padding:40px 42px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(8,15,28,.94));color:#e5e7eb;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;border-right:1px solid rgba(148,163,184,.14);}
+.auth-visual::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 48%,rgba(220,38,38,.12) 0%,transparent 58%);pointer-events:none;}
+.auth-heart-container{position:relative;width:220px;height:220px;display:flex;align-items:center;justify-content:center;margin-bottom:36px;}
+.auth-heart-ring{position:absolute;inset:0;border:1.5px solid rgba(220,38,38,.20);border-radius:50%;animation:pulse-ring 2.4s ease-out infinite;}
+.auth-heart-ring:nth-child(2){animation-delay:.6s;}
+.auth-heart-ring:nth-child(3){animation-delay:1.2s;}
+.auth-heart-svg{position:relative;z-index:2;animation:heartbeat 1.8s ease-in-out infinite;}
+.auth-heart-svg svg{width:96px;height:96px;filter:drop-shadow(0 12px 28px rgba(220,38,38,.32));}
+.auth-heart-svg svg path:first-child{fill:rgba(220,38,38,.85);stroke:#dc2626;}
+.auth-heart-svg svg path:last-child{stroke:rgba(255,255,255,.9);}
+.auth-ecg-line{position:absolute;bottom:60px;left:0;right:0;height:60px;overflow:hidden;}
+.auth-ecg-line canvas{display:block;width:100%;height:100%;}
+.auth-visual-text{position:relative;text-align:center;z-index:2;}
+.auth-kicker{font-size:12px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#ef4444;}
+.auth-brand{position:absolute;top:28px;left:32px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;letter-spacing:.02em;color:#cbd5e1;z-index:3;}
+.auth-brand-mark{width:36px;height:36px;border-radius:10px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.30);display:flex;align-items:center;justify-content:center;}
+.auth-brand-mark svg{width:20px;height:20px;stroke:#ef4444;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;filter:none;}
+.auth-particles{position:absolute;inset:0;pointer-events:none;z-index:1;}
+.auth-particle{position:absolute;width:3px;height:3px;background:rgba(220,38,38,.28);border-radius:50%;animation:float-particle 4s ease-in-out infinite;}
+.auth-particle:nth-child(1){left:15%;top:25%;animation-delay:0s;}
+.auth-particle:nth-child(2){left:80%;top:20%;animation-delay:1s;background:rgba(14,165,233,.18);}
+.auth-particle:nth-child(3){left:60%;top:75%;animation-delay:2s;}
+.auth-particle:nth-child(4){left:25%;top:70%;animation-delay:1.5s;background:rgba(14,165,233,.16);}
+.auth-particle:nth-child(5){left:45%;top:15%;animation-delay:.7s;width:2px;height:2px;}
+.auth-particle:nth-child(6){left:75%;top:55%;animation-delay:2.5s;width:2px;height:2px;background:rgba(14,165,233,.14);}
+.auth-form{position:relative;z-index:2;padding:48px 42px;display:flex;flex-direction:column;justify-content:center;background:rgba(7,13,24,.54);}
+.auth-title{font-size:27px;font-weight:750;color:#f8fafc;margin-bottom:6px;letter-spacing:-.45px;}
+.auth-sub{font-size:13px;color:#94a3b8;margin-bottom:30px;line-height:1.65;}
+.auth-row{margin-bottom:16px;}
+.auth-row label{display:block;font-size:12px;color:#cbd5e1;margin-bottom:8px;font-weight:650;letter-spacing:.02em;}
+.auth-row input{width:100%;height:46px;border:1px solid rgba(203,213,225,.28);border-radius:12px;padding:0 15px;font-size:14px;background:#eaf2ff;color:#020617;outline:none;transition:border-color .18s,box-shadow .18s,background .18s;font-family:inherit;}
+.auth-row input::placeholder{color:#64748b;}
+.auth-row input:focus{background:#f8fbff;border-color:#ef4444;box-shadow:0 0 0 4px rgba(220,38,38,.12);}
+.auth-actions{display:flex;gap:10px;margin-top:12px;}
+.auth-actions button{position:relative;z-index:3;height:44px;padding:0 20px;border-radius:12px;border:1px solid rgba(148,163,184,.26);background:rgba(15,23,42,.70);cursor:pointer;font:inherit;font-size:13px;font-weight:700;color:#cbd5e1;transition:background .18s,border-color .18s,box-shadow .18s;}
+.auth-actions button:hover{background:rgba(30,41,59,.82);border-color:rgba(148,163,184,.42);box-shadow:0 8px 18px rgba(0,0,0,.18);}
+.auth-actions .pri{background:#dc2626;border-color:#ef4444;color:#fff;box-shadow:0 10px 20px rgba(220,38,38,.28);letter-spacing:.02em;}
+.auth-actions .pri:hover{background:#b91c1c;box-shadow:0 12px 24px rgba(220,38,38,.32);}
+.auth-msg{min-height:22px;font-size:12px;color:#fca5a5;margin-top:14px;font-weight:550;}
+.auth-help{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5;}
 .auth-hidden{display:none !important;}
+.auth-footer{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-size:11px;color:#94a3b8;letter-spacing:.06em;z-index:1;pointer-events:none;}
+@media (max-width: 860px){.auth-card{grid-template-columns:1fr;min-height:0;width:min(460px,94vw)}.auth-visual{display:none}.auth-form{padding:36px 28px}.auth-title{font-size:24px}}
 </style>
 </head>
 <body>
 <div id="authGate" class="auth-gate">
-  <div class="auth-card">
-    <div class="auth-title">HeartOS 登录</div>
-    <div class="auth-sub">请先登录后再使用系统功能</div>
-    <div class="auth-row">
-      <label>用户名</label>
-      <input id="authUsername" placeholder="请输入用户名" autocomplete="username" />
-    </div>
-    <div class="auth-row">
-      <label>密码</label>
-      <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="current-password" />
-      <div class="auth-help auth-hidden" id="authPasswordHelp">注册密码需至少 6 位，并同时包含字母和数字。</div>
-    </div>
-    <div class="auth-row auth-hidden" id="authDisplayWrap">
-      <label>显示名称（注册可选）</label>
-      <input id="authDisplayName" placeholder="例如：张三" />
-    </div>
-    <div class="auth-actions">
-      <button class="pri" id="authLoginBtn" onclick="submitAuthLogin()">登录</button>
-      <button id="authRegisterBtn" onclick="toggleAuthMode()">切换到注册</button>
-    </div>
-    <div class="auth-msg" id="authMsg"></div>
+  <!-- Seamless ECG background canvas -->
+  <canvas id="authEcgCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
+  <!-- Floating particles -->
+  <div class="auth-particles">
+    <div class="auth-particle"></div><div class="auth-particle"></div><div class="auth-particle"></div>
+    <div class="auth-particle"></div><div class="auth-particle"></div><div class="auth-particle"></div>
   </div>
+  <div class="auth-card">
+    <div class="auth-visual">
+      <div class="auth-brand">
+        <div class="auth-brand-mark">
+          <svg viewBox="0 0 24 24"><path d="M19 14c1.5-1.2 2-3.5.8-5.2-1-1.5-2.8-2.1-4.4-1.7C14.6 5.2 12.8 4 10.8 4 7.6 4 5 6.6 5 9.8c0 .4 0 .8.1 1.2C3.8 11.8 3 13.2 3 14.8 3 17.1 4.9 19 7.2 19H18"/><path d="M7 14h3l1.4-3.8 2.1 6.3L15 14h3"/></svg>
+        </div>
+        <span>HeartOS</span>
+      </div>
+      <!-- Pulsing heart with rings -->
+      <div class="auth-heart-container">
+        <div class="auth-heart-ring"></div>
+        <div class="auth-heart-ring"></div>
+        <div class="auth-heart-ring"></div>
+        <div class="auth-heart-svg">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="rgba(220,38,38,.85)" stroke="#dc2626" stroke-width=".5"/>
+            <path d="M5 12h3l1-2.5 1.5 5L12 12h2.5l1-2 1.5 4L18.5 12H21" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="auth-visual-text">
+        <div class="auth-kicker">AI ECG PLATFORM</div>
+      </div>
+      <!-- ECG line at bottom of visual -->
+      <div class="auth-ecg-line">
+        <canvas id="authScanCanvas" style="width:100%;height:100%;display:block;"></canvas>
+      </div>
+    </div>
+    <div class="auth-form">
+      <div class="auth-title">欢迎回到 HeartOS</div>
+      <div class="auth-sub">登录后进入你的心电研究空间</div>
+      <div class="auth-row">
+        <label>用户名</label>
+        <input id="authUsername" placeholder="请输入用户名" autocomplete="username" />
+      </div>
+      <div class="auth-row">
+        <label>密码</label>
+        <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="current-password" />
+        <div class="auth-help auth-hidden" id="authPasswordHelp">注册密码需至少 6 位，并同时包含字母和数字。</div>
+      </div>
+      <div class="auth-row auth-hidden" id="authDisplayWrap">
+        <label>显示名称（注册可选）</label>
+        <input id="authDisplayName" placeholder="例如：张三" />
+      </div>
+      <div class="auth-actions">
+        <button class="pri" id="authLoginBtn" onclick="submitAuthLogin()">登录</button>
+        <button id="authRegisterBtn" onclick="toggleAuthMode()">注册</button>
+      </div>
+      <div class="auth-msg" id="authMsg"></div>
+    </div>
+  </div>
+  <div class="auth-footer">HeartOS &mdash; Electrocardiogram Intelligence System</div>
 </div>
 
 <!-- ==================== HOME ==================== -->
@@ -587,6 +724,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="srcs-list" id="srcsList"></div>
       <div class="source-mini-rail" id="sourceMiniRail"></div>
     </div>
+    <div class="nb-resizer" id="sourceResizer" title="拖动调整来源栏宽度"></div>
 
     <!-- CENTER -->
     <div class="chat-panel">
@@ -614,6 +752,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     </div>
 
     <!-- RIGHT: STUDIO -->
+    <div class="nb-resizer" id="studioResizer" title="拖动调整 Studio 宽度"></div>
     <div class="studio-panel" id="studioPanel">
       <div class="studio-head">
         <span class="studio-title">Studio</span>
@@ -792,6 +931,7 @@ window.__heartosLastImageSource = null;
 let __nbLoaded = false;
 let __nbSaveTimer = null;
 let __initialUploadPromptShown = false;
+window.__heartosJustAddedSourceId = null;
 
 function updateChatSendButton(){
   const btn = document.getElementById('chatSendBtn');
@@ -1106,6 +1246,7 @@ function syncPanelCollapseState(){
   if(layout){
     layout.classList.toggle('sources-collapsed', !!sourcePanelCollapsed);
     layout.classList.toggle('studio-collapsed', !!studioPanelCollapsed);
+    applyNotebookColumnWidths();
   }
   if(sourcePanel) sourcePanel.classList.toggle('collapsed', !!sourcePanelCollapsed);
   if(studioPanel) studioPanel.classList.toggle('collapsed', !!studioPanelCollapsed);
@@ -1119,6 +1260,89 @@ function syncPanelCollapseState(){
     studioBtn.textContent = studioPanelCollapsed ? '◧' : '◨';
     studioBtn.title = studioPanelCollapsed ? '展开 Studio' : '收缩 Studio';
   }
+}
+
+function clampNumber(n, min, max){
+  n = Number(n);
+  if(!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function getNotebookColumnWidths(){
+  let source = 268;
+  let studio = 380;
+  try{
+    const saved = JSON.parse(localStorage.getItem('heartos_nb_cols') || '{}');
+    if(saved && Number.isFinite(Number(saved.source))) source = Number(saved.source);
+    if(saved && Number.isFinite(Number(saved.studio))) studio = Number(saved.studio);
+  }catch(_){ }
+  return {
+    source: clampNumber(source, 210, 420),
+    studio: clampNumber(studio, 280, 540)
+  };
+}
+
+function saveNotebookColumnWidths(widths){
+  try{
+    localStorage.setItem('heartos_nb_cols', JSON.stringify({
+      source: Math.round(widths.source),
+      studio: Math.round(widths.studio)
+    }));
+  }catch(_){ }
+}
+
+function applyNotebookColumnWidths(){
+  const layout = document.getElementById('nbLayout');
+  if(!layout) return;
+  const widths = getNotebookColumnWidths();
+  if(!sourcePanelCollapsed) layout.style.setProperty('--source-col', widths.source + 'px');
+  if(!studioPanelCollapsed) layout.style.setProperty('--studio-col', widths.studio + 'px');
+}
+
+function initNotebookResizers(){
+  const layout = document.getElementById('nbLayout');
+  if(!layout || layout.dataset.resizeReady === '1') return;
+  layout.dataset.resizeReady = '1';
+  applyNotebookColumnWidths();
+  const sourceHandle = document.getElementById('sourceResizer');
+  const studioHandle = document.getElementById('studioResizer');
+  function start(side, evt){
+    if(evt.button !== 0) return;
+    if((side === 'source' && sourcePanelCollapsed) || (side === 'studio' && studioPanelCollapsed)) return;
+    evt.preventDefault();
+    const startX = evt.clientX;
+    const startWidths = getNotebookColumnWidths();
+    const startSource = startWidths.source;
+    const startStudio = startWidths.studio;
+    const handle = side === 'source' ? sourceHandle : studioHandle;
+    layout.classList.add('resizing');
+    if(handle) handle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    function move(e){
+      const dx = e.clientX - startX;
+      const next = getNotebookColumnWidths();
+      if(side === 'source'){
+        next.source = clampNumber(startSource + dx, 210, 420);
+      }else{
+        next.studio = clampNumber(startStudio - dx, 280, 540);
+      }
+      saveNotebookColumnWidths(next);
+      applyNotebookColumnWidths();
+    }
+    function up(){
+      layout.classList.remove('resizing');
+      if(handle) handle.classList.remove('active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }
+  if(sourceHandle) sourceHandle.addEventListener('mousedown', start.bind(null, 'source'));
+  if(studioHandle) studioHandle.addEventListener('mousedown', start.bind(null, 'studio'));
 }
 
 function toggleSourcePanel(){
@@ -1148,6 +1372,7 @@ function renderSourceMiniRail(){
 
 function renderSrcs(){
   const el = document.getElementById('srcsList');
+  initNotebookResizers();
   syncPanelCollapseState();
   if(!sources.length){
     el.innerHTML=`<div class="empty-srcs">
@@ -1164,12 +1389,6 @@ function renderSrcs(){
     <span style="margin-left:auto;color:var(--accent);font-size:13px;">✓</span>
   </div>` + sources.map(s=>{
     const isImg = ['png','jpg','jpeg','bmp','tiff'].includes((s.type||'').toLowerCase());
-    const ecgBtn = isImg
-      ? `<span onclick="openHandEcgFromSource(${s.id}, event)"
-           style="font-size:9px;padding:3px 7px;border-radius:999px;background:#f5f7fb;color:#667085;
-                  border:1px solid #dde3ed;cursor:pointer;white-space:nowrap;flex-shrink:0;font-weight:600;"
-           title="在 HandECG 中打开">HandECG</span>`
-      : '';
     return `<div class="src-item" onclick="previewSource(${s.id}, event)" title="点击预览来源">
       <div class="src-cb ${s.checked?'chk':''}" onclick="togSrc(${s.id}, event)"></div>
       ${fileIco(s.type)}
@@ -1177,7 +1396,6 @@ function renderSrcs(){
         <div class="src-name">${s.name}</div>
         <div class="src-type">${s.type.toUpperCase()}${isImg?' · ECG图像':''}</div>
       </div>
-      ${ecgBtn}
       <div class="src-menu-wrap">
         <button class="src-menu-btn" title="来源操作" onclick="toggleSourceMenu(${s.id}, event)">⋮</button>
         <div class="src-menu" id="srcMenu-${s.id}" onclick="event.stopPropagation()">
@@ -1224,7 +1442,7 @@ function renameSource(id, evt){
 async function sourceDataUrl(src){
   if(!src) return '';
   if(src.imageDataUrl) return src.imageDataUrl;
-  if(src.fileObj && /^image\//i.test(String(src.fileObj.type||''))){
+  if(isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type||''))){
     return await new Promise(resolve=>{
       try{
         const r = new FileReader();
@@ -1254,7 +1472,7 @@ async function sourceDataUrl(src){
 
 async function sourceObjectUrl(src){
   if(!src) return '';
-  if(src.fileObj) return URL.createObjectURL(src.fileObj);
+  if(isBlobLike(src.fileObj)) return URL.createObjectURL(src.fileObj);
   const fileId = src.fileId || src.serverFileId || '';
   if(fileId){
     try{
@@ -1277,6 +1495,13 @@ function sourceMime(src){
   return String((src && src.fileObj && src.fileObj.type) || (src && src.mime) || '').toLowerCase();
 }
 
+function isBlobLike(obj){
+  return !!(obj && typeof obj === 'object' &&
+    typeof obj.arrayBuffer === 'function' &&
+    typeof obj.slice === 'function' &&
+    typeof obj.size === 'number');
+}
+
 function formatFileSize(bytes){
   const n = Number(bytes);
   if(!Number.isFinite(n) || n < 0) return '未知';
@@ -1296,7 +1521,7 @@ function isTextLikeSource(src){
 
 async function readTextFromSource(src){
   if(!src) return '';
-  if(src.fileObj && typeof src.fileObj.text === 'function'){
+  if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
   const fileId = src.fileId || src.serverFileId || '';
@@ -1309,12 +1534,311 @@ async function readTextFromSource(src){
   return String(src.content || '');
 }
 
+function isImageLikeSource(src){
+  const ext = sourceExt(src);
+  const mime = sourceMime(src);
+  return !!(src && src.imageDataUrl) || ['png','jpg','jpeg','bmp','tif','tiff','webp','pdf'].includes(ext) || /^image\//i.test(mime) || /pdf/i.test(mime);
+}
+
+function sourceKindLabel(src){
+  const ext = sourceExt(src);
+  if(ext === 'pdf' || /pdf/i.test(sourceMime(src))) return 'PDF 文件';
+  if(isImageLikeSource(src)) return '图像文件';
+  if(ext === 'csv') return 'CSV 表格';
+  if(ext === 'tsv') return 'TSV 表格';
+  if(ext === 'xml') return 'XML 文件';
+  if(isTextLikeSource(src)) return '文本文件';
+  return '文件';
+}
+
+async function getImageSourceSize(src){
+  try{
+    const dataUrl = await sourceDataUrl(src);
+    if(!dataUrl) return null;
+    return await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth || img.width || 0, height: img.naturalHeight || img.height || 0 });
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }catch(_){
+    return null;
+  }
+}
+
+async function buildSourceInitialSummary(src){
+  if(!src) return { html:'', actions:'' };
+  const name = src.name || '未命名来源';
+  const size = src && src.fileObj && Number.isFinite(src.fileObj.size) ? formatFileSize(src.fileObj.size) : '';
+  const ext = (sourceExt(src) || '').toUpperCase();
+  const kind = sourceKindLabel(src);
+  const meta = [kind, ext, size].filter(Boolean).join(' · ');
+  const chips = [];
+  let body = '';
+  let actions = '';
+
+  if(isImageLikeSource(src)){
+    const dims = await getImageSourceSize(src);
+    if(dims && dims.width && dims.height) chips.push('尺寸 ' + dims.width + '×' + dims.height);
+    if(size) chips.push('大小 ' + size);
+    if(ext) chips.push('格式 ' + ext);
+    body = '已对该图像完成基础解析。系统已读取文件信息' + (dims && dims.width ? '和图像尺寸' : '') + '，可继续使用手动数字化或自动数字化功能进行波形提取、导联识别和参数分析。';
+    actions = `<button class="sq" onclick="runStudio('ecg')">手动数字化提取波形</button>
+      <button class="sq" onclick="runStudio('ecgsmart')">自动数字化提取波形</button>`;
+  }else if(ext.toLowerCase() === 'pdf' || /pdf/i.test(sourceMime(src))){
+    if(size) chips.push('大小 ' + size);
+    body = '已识别为 PDF 来源。系统可预览文件内容，并在需要时把第 1 页转换为图像发送到 ECG 工具；如果 PDF 内含可复制文本，也可以继续进行内容问答和摘要。';
+    actions = `<button class="sq" onclick="runStudio('ecg')">手动数字化提取波形</button>
+      <button class="sq" onclick="runStudio('ecgsmart')">自动数字化提取波形</button>`;
+  }else if(isTextLikeSource(src)){
+    const text = await readTextFromSource(src);
+    const lines = text ? text.split(/\r?\n/).filter(x => x.trim()).length : 0;
+    if(size) chips.push('大小 ' + size);
+    if(lines) chips.push(lines + ' 行文本');
+    if(text) chips.push(text.length + ' 字符');
+    if(['csv','tsv'].includes(sourceExt(src))){
+      const delimiter = sourceExt(src) === 'tsv' ? '\t' : ',';
+      const rows = parseDelimitedRows(text, delimiter, 12).filter(r => r.some(c => String(c).trim()));
+      const cols = rows.length ? rows.reduce((m, r) => Math.max(m, r.length), 0) : 0;
+      if(rows.length) chips.push(Math.max(rows.length - 1, 0) + '+ 行数据');
+      if(cols) chips.push(cols + ' 列');
+      body = '已完成表格结构初步解析。若这是心电图时序信号 CSV，可继续进行心电图补全，或确认采样率后进行心电图特征提取。';
+      actions = `<button class="sq" onclick="runStudio('ecgrecon')">心电图补全</button>
+        <button class="sq" onclick="runStudio('ecgd')">心电图特征提取</button>`;
+    }else if(sourceExt(src) === 'xml'){
+      const root = String(text || '').match(/<([A-Za-z_][\w:.-]*)[\s>]/);
+      if(root) chips.push('根节点 ' + root[1]);
+      body = '已完成 XML 文本初步解析，识别到结构化标签内容。若这是 ECG XML，可继续运行心电图特征提取。';
+      actions = `<button class="sq" onclick="runStudio('ecgd')">心电图特征提取</button>`;
+    }else{
+      body = '已完成文本初步解析。当前来源不直接匹配已有心电图工具工作流，因此不自动推荐数字化、补全或特征提取。';
+    }
+  }else{
+    if(size) chips.push('大小 ' + size);
+    body = '文件已添加。当前格式暂不能深度预览，但仍可保留为来源，并结合其它文本、图片或 ECG 数据一起进行分析。';
+    actions = '';
+  }
+
+  const chipHtml = chips.length
+    ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px;">' + chips.map(c => '<span style="font-size:12px;color:#475467;background:#f6f8fb;border:1px solid #e5e7eb;border-radius:999px;padding:3px 8px;">' + esc(c) + '</span>').join('') + '</div>'
+    : '';
+  return {
+    html: '<p>已加载 <strong>' + esc(name) + '</strong>' + (meta ? '（' + esc(meta) + '）' : '') + '。</p><p>' + esc(body) + '</p>' + chipHtml,
+    actions: actions
+  };
+}
+
+function summarizeTextForAI(text, maxLen){
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  if(!s) return '';
+  const limit = Math.max(500, maxLen || 2400);
+  return s.length > limit ? s.slice(0, limit) + '\n...[内容已截断]' : s;
+}
+
+function buildSummaryWorkflowActions(latestSrc, imgCount){
+  const src = latestSrc || {};
+  const ext = sourceExt(src).toLowerCase();
+  const isImg = isImageLikeSource(src);
+  const isPdf = ext === 'pdf' || /pdf/i.test(sourceMime(src));
+  const isXml = ext === 'xml';
+  const isCsv = ext === 'csv' || ext === 'tsv';
+  if(isImg || isPdf){
+    return [
+      { label:'手动数字化', action:"runStudio('ecg')" },
+      { label:'自动数字化', action:"runStudio('ecgsmart')" }
+    ];
+  }
+  if(isXml){
+    return [
+      { label:'心电图特征提取', action:"runStudio('ecgd')" }
+    ];
+  }
+  if(isCsv){
+    return [
+      { label:'心电图补全', action:"runStudio('ecgrecon')" },
+      { label:'心电图特征提取', action:"runStudio('ecgd')" }
+    ];
+  }
+  if(imgCount > 0){
+    return [
+      { label:'手动数字化', action:"runStudio('ecg')" },
+      { label:'自动数字化', action:"runStudio('ecgsmart')" }
+    ];
+  }
+  return [];
+}
+
+function renderWorkflowActions(actions){
+  const items = Array.isArray(actions) ? actions : [];
+  if(!items.length) return '';
+  return '<div class="sugg-label">建议工作流</div>' + items.map(function(item){
+    return '<button class="sq" onclick="' + escAttr(item.action || '') + '">' + esc(item.label || '') + '</button>';
+  }).join('');
+}
+
+async function buildSourceInterpretationContext(){
+  const list = Array.isArray(sources) ? sources.slice(-8) : [];
+  const parts = [];
+  for(let i=0;i<list.length;i++){
+    const src = list[i];
+    if(!src) continue;
+    const name = src.name || ('来源 ' + (i + 1));
+    const ext = sourceExt(src) || '';
+    const mime = sourceMime(src) || '';
+    const size = src.fileObj && Number.isFinite(src.fileObj.size) ? formatFileSize(src.fileObj.size) : '';
+    const kind = sourceKindLabel(src);
+    const lines = [
+      '来源 ' + (i + 1) + '：' + name,
+      '类型：' + kind + (ext ? ' / .' + ext : '') + (mime ? ' / ' + mime : '') + (size ? ' / ' + size : '')
+    ];
+    if(isImageLikeSource(src)){
+      const dims = await getImageSourceSize(src);
+      if(dims && dims.width && dims.height) lines.push('图像尺寸：' + dims.width + ' x ' + dims.height);
+      lines.push('图像解读方向：这是心电图图像来源。摘要阶段应指导用户进入参数化分析流程，重点关注导联布局、纸速、增益、心率、节律、PR 间期、QRS 时限、QT/QTc、ST-T 改变、R 波进展、异常 Q 波、噪声/基线漂移和数字化质量控制。具体数值需要通过手动数字化或自动数字化提取后确认。');
+    }
+    if(isTextLikeSource(src)){
+      const text = await readTextFromSource(src);
+      if(text){
+        const lowerExt = ext.toLowerCase();
+        if(lowerExt === 'csv' || lowerExt === 'tsv'){
+          const delimiter = lowerExt === 'tsv' ? '\t' : ',';
+          const rows = parseDelimitedRows(text, delimiter, 12).filter(r => r.some(c => String(c).trim()));
+          const headers = rows[0] || [];
+          const cols = rows.length ? rows.reduce((m, r) => Math.max(m, r.length), 0) : 0;
+          lines.push('表格结构：约 ' + Math.max(0, String(text).split(/\r?\n/).filter(Boolean).length - 1) + ' 行数据，' + cols + ' 列。');
+          if(headers.length) lines.push('字段：' + headers.slice(0, 40).join(', '));
+        }else if(lowerExt === 'xml'){
+          const root = String(text).match(/<([A-Za-z_][\w:.-]*)[\s>]/);
+          if(root) lines.push('XML 根节点：' + root[1]);
+        }
+        lines.push('文本摘录：' + summarizeTextForAI(text, 2600));
+      }
+    }else if(src.content){
+      lines.push('来源备注：' + summarizeTextForAI(src.content, 1000));
+    }
+    parts.push(lines.join('\n'));
+  }
+  return parts.join('\n\n---\n\n').slice(0, 12000);
+}
+
+async function pickSummaryImageDataUrl(latestSrc){
+  const candidates = [];
+  if(latestSrc) candidates.push(latestSrc);
+  if(Array.isArray(sources)){
+    sources.forEach(function(s){ if(s && candidates.indexOf(s) < 0) candidates.push(s); });
+  }
+  for(let i=0;i<candidates.length;i++){
+    const src = candidates[i];
+    if(!src || !isImageLikeSource(src)) continue;
+    try{
+      let dataUrl = await sourceDataUrl(src);
+      const needsPdfConvert = (sourceExt(src) === 'pdf' || /pdf/i.test(sourceMime(src))) &&
+        (!dataUrl || String(dataUrl).indexOf('data:image') !== 0);
+      if(needsPdfConvert){
+        dataUrl = await convertPdfSourceToImageDataUrl(src);
+        if(dataUrl){
+          src.imageDataUrl = dataUrl;
+          const pngName = String(src.name || 'ecg_pdf_page1.pdf').replace(/\.pdf$/i, '.png');
+          const pngFile = dataUrlToFile(dataUrl, pngName);
+          if(pngFile) src.fileObj = pngFile;
+          src.type = 'png';
+        }
+      }
+      if(dataUrl && String(dataUrl).indexOf('data:image') === 0) return dataUrl;
+    }catch(_){}
+  }
+  return '';
+}
+
+function blobToDataUrlSafe(blob){
+  return new Promise(resolve=>{
+    if(!blob){ resolve(''); return; }
+    try{
+      const r = new FileReader();
+      r.onload = ev => resolve(String((ev && ev.target && ev.target.result) || ''));
+      r.onerror = () => resolve('');
+      r.readAsDataURL(blob);
+    }catch(_){ resolve(''); }
+  });
+}
+
+async function normalizeToolImageDataUrl(dataUrl, maxDim){
+  const src = String(dataUrl || '');
+  if(src.indexOf('data:image') !== 0) return src;
+  maxDim = maxDim || 2200;
+  return await new Promise(resolve => {
+    try{
+      const img = new Image();
+      img.onload = function(){
+        const w = img.naturalWidth || img.width || 0;
+        const h = img.naturalHeight || img.height || 0;
+        if(!w || !h || Math.max(w, h) <= maxDim){
+          resolve(src);
+          return;
+        }
+        const scale = maxDim / Math.max(w, h);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = function(){ resolve(src); };
+      img.src = src;
+    }catch(_){
+      resolve(src);
+    }
+  });
+}
+
+function buildEcgVisionSummaryPrompt(contextText){
+  return `请对上传的心电图图像进行 OCR 与初步结构化解读。重点提取图像中已经印刷/机读显示的文字与参数，不要编造图上没有的数值。
+
+请优先提取：
+1. 患者及检查信息：姓名、性别、年龄、检查日期时间、设备设置、纸速、增益。
+2. 数字化/机读测量参数：HR、RR/PP、PR、P 波时限、QRS、QT/QTc、P/QRS/T 电轴、RV5/SV1 等图上可见参数。
+3. 机读诊断结论：如窦性心律/心动过速、电轴偏移、低电压、ST-T 改变、异常心电图等。
+4. 后续 HeartOS 工作流建议：手动数字化、自动数字化、ECGOmics、心电图补全或智能体分析。
+
+要求：
+- 能读到的参数请尽量给出原值和单位。
+- 读不清的字段标注“未清晰识别”，不要猜测。
+- 不要出现旧工具内部名称，统一称为“手动数字化”。
+- 只返回 JSON：{"summary":"...","patient_info":["..."],"measurements":["..."],"diagnosis":["..."],"findings":["..."],"next_steps":["..."]}。
+
+文件上下文：
+${contextText || '无额外文本上下文'}`;
+}
+
+function normalizeZhipuImageUrl(dataUrl){
+  const s = String(dataUrl || '').trim();
+  const m = s.match(/^data:image\/[a-z0-9.+-]+;base64,(.+)$/i);
+  return m ? m[1] : s;
+}
+
+async function callZhipuVisionAI(textPrompt, imageDataUrl, maxTokens=1800){
+  const imageUrl = normalizeZhipuImageUrl(imageDataUrl);
+  const messages = [{
+    role:'user',
+    content:[
+      {type:'image_url', image_url:{url:imageUrl}},
+      {type:'text', text:textPrompt}
+    ]
+  }];
+  return await callZhipuAI('', messages, maxTokens, null, 'glm-4.6v', {
+    thinking: { type: 'disabled' }
+  });
+}
+
 function parseDelimitedRows(text, delimiter, maxRows){
   const rows = [];
   let row = [];
   let cell = '';
   let quoted = false;
-  const limit = Math.max(1, maxRows || 80);
+  const limit = maxRows ? Math.max(1, maxRows) : Number.POSITIVE_INFINITY;
   const s = String(text || '').replace(/^\uFEFF/, '');
   for(let i=0;i<s.length;i++){
     const ch = s[i];
@@ -1345,31 +1869,31 @@ function parseDelimitedRows(text, delimiter, maxRows){
 
 function renderPreviewNote(kind, detail){
   return '<div class="src-preview-note"><span><strong>' + esc(kind) + '</strong>' +
-    (detail ? ' · ' + esc(detail) : '') + '</span><span>head(5) 预览</span></div>';
+    (detail ? ' · ' + esc(detail) : '') + '</span><span>完整预览</span></div>';
 }
 
 function renderDelimitedPreview(text, delimiter, label){
-  const rows = parseDelimitedRows(text, delimiter, 7).filter(r => r.some(c => String(c).trim() !== ''));
+  const rows = parseDelimitedRows(text, delimiter, 0).filter(r => r.some(c => String(c).trim() !== ''));
   if(!rows.length) return '<p style="color:var(--text3);">这个表格暂无可预览内容。</p>';
-  const colCount = Math.min(60, rows.reduce((m, r) => Math.max(m, r.length), 0));
+  const colCount = rows.reduce((m, r) => Math.max(m, r.length), 0);
   const normalized = rows.map(r => Array.from({length: colCount}, (_, i) => r[i] == null ? '' : r[i]));
   const header = normalized[0] || [];
-  const bodyRows = normalized.slice(1, 6);
+  const bodyRows = normalized.slice(1);
   const th = header.map((c, i) => '<th title="' + escAttr(c || ('列 ' + (i+1))) + '">' + esc(c || ('列 ' + (i+1))) + '</th>').join('');
   const trs = bodyRows.length
     ? bodyRows.map(r => '<tr>' + r.map(c => '<td title="' + escAttr(c) + '">' + esc(c) + '</td>').join('') + '</tr>').join('')
     : '<tr><td colspan="' + colCount + '" style="color:var(--text3);">未检测到数据行，仅识别到表头。</td></tr>';
   const totalLines = String(text || '').split(/\r?\n/).length;
-  return renderPreviewNote(label, Math.min(bodyRows.length, 5) + ' 条记录 / ' + Math.max(totalLines - 1, 0) + ' 条记录，' + colCount + ' 列') +
+  return renderPreviewNote(label, bodyRows.length + ' 条记录 / ' + Math.max(totalLines - 1, 0) + ' 条记录，' + colCount + ' 列') +
     '<div class="src-preview-table-wrap"><table class="src-preview-table"><thead><tr>' + th +
     '</tr></thead><tbody>' + trs + '</tbody></table></div>';
 }
 
 function renderPrettyCodePreview(text, label, lang){
   const lines = String(text || '').split(/\r?\n/);
-  const head = lines.slice(0, 500).join('\n');
-  return renderPreviewNote(label, Math.min(lines.length, 500) + ' / ' + lines.length + ' 行') +
-    '<pre data-lang="' + escAttr(lang || '') + '">' + esc(head.slice(0, 80000)) + '</pre>';
+  const full = lines.join('\n');
+  return renderPreviewNote(label, lines.length + ' 行') +
+    '<pre data-lang="' + escAttr(lang || '') + '">' + esc(full) + '</pre>';
 }
 
 function renderJsonPreview(text){
@@ -1491,10 +2015,15 @@ async function deleteSource(id, evt){
   showToast('来源已移除');
 }
 
-function openHandEcgFromSource(id, evt){
+async function openHandEcgFromSource(id, evt){
   if(evt){ evt.stopPropagation(); }
-  const src = sources.find(x=>x.id===id);
+  let src = sources.find(x=>x.id===id);
   if(!src){ runStudio('ecg'); return; }
+  src = await ensureEcgImageSource(src);
+  if(!src || !src.imageDataUrl){
+    showToast('当前来源格式暂不支持手动数字化，请上传 PDF、JPG 或 PNG。');
+    return;
+  }
   sources.forEach(s=>{ s.checked = (s.id===id); });
   renderSrcs();
   updateCiSrc();
@@ -1502,6 +2031,60 @@ function openHandEcgFromSource(id, evt){
 }
 
 // ======================== CHAT ========================
+function sourceKindLabel(src){
+  const t = String((src && src.type) || '').toLowerCase();
+  if(t === 'pdf') return 'PDF 文件';
+  if(['png','jpg','jpeg','bmp','tiff','webp'].includes(t)) return '图像文件';
+  if(['csv','tsv'].includes(t)) return '时序数据';
+  if(t === 'xml') return 'XML 数据';
+  if(['txt','text'].includes(t)) return '文本文件';
+  return (t ? t.toUpperCase() : '来源文件');
+}
+
+function sourceSizeLabel(src){
+  const f = src && src.fileObj;
+  const size = f && typeof f.size === 'number' ? f.size : 0;
+  if(!size) return '';
+  if(size < 1024) return size + ' B';
+  if(size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
+  return (size / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function buildSourceChatCardHTML(src, compact=false){
+  if(!src) return '';
+  const kind = sourceKindLabel(src);
+  const size = sourceSizeLabel(src);
+  const hasImage = !!src.imageDataUrl;
+  const id = Number(src.id) || 0;
+  const thumb = hasImage
+    ? `<img src="${src.imageDataUrl}" alt="${escAttr(src.name || 'source image')}">`
+    : esc(kind.replace(/文件|数据/g,'').slice(0,3) || 'FILE');
+  return `<div class="source-chat-card" data-source-import-card="${id}" onclick="previewSource(${id}, event)">
+    <div class="source-chat-thumb">${thumb}</div>
+    <div class="source-chat-info">
+      <div class="source-chat-kicker">${compact ? '新来源已添加' : '已导入来源'}</div>
+      <div class="source-chat-name" title="${escAttr(src.name || '未命名来源')}">${esc(src.name || '未命名来源')}</div>
+      <div class="source-chat-meta">
+        <span class="source-chat-pill">${esc(kind)}</span>
+        ${size ? `<span class="source-chat-pill">${esc(size)}</span>` : ''}
+      </div>
+    </div>
+    <div class="source-chat-open">预览</div>
+  </div>`;
+}
+
+function appendSourceChatCard(src){
+  const w = document.getElementById('msgsList');
+  if(!w || !src) return;
+  const id = Number(src.id) || 0;
+  if(id && w.querySelector(`[data-source-import-card="${id}"]`)) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-ai';
+  wrap.innerHTML = `<div class="ai-av">AI</div><div class="ai-body">${buildSourceChatCardHTML(src, true)}</div>`;
+  w.appendChild(wrap);
+  scrollChat();
+}
+
 function renderChat(){
   const ce = document.getElementById('chatEmpty');
   const ml = document.getElementById('msgsList');
@@ -1527,7 +2110,8 @@ function renderChat(){
   // First source ever: render the summary card skeleton + clear messages
   if(sources.length === 1){
     ml.innerHTML = '';
-    ce.innerHTML=`<div class="sum-card" id="sumCard">
+    ce.innerHTML=`${buildSourceChatCardHTML(latestSrc)}
+    <div class="sum-card" id="sumCard">
       <div class="sum-badge">✦ AI 摘要</div>
       <div class="sum-title" id="sumTitle">${curNb.title !== 'New Conversation' ? curNb.title : latestSrc.name}</div>
       <div class="sum-meta">
@@ -1547,23 +2131,17 @@ function renderChat(){
       </div>
     </div>
     <div class="sugg-qs" id="suggQs">
-      <div class="sugg-label">建议问题</div>
+      <div class="sugg-label">建议工作流</div>
     </div>`;
   } else {
     // Additional source added: update count, add a new-source notification bubble, then re-summarize
     const countEl = document.getElementById('sumSrcCount');
     if(countEl) countEl.textContent = sources.length + ' 个来源';
 
-    // Append a notification card into the messages list
-    const notif = document.createElement('div');
-    notif.className = 'src-added-notif';
-    notif.innerHTML = `
-      <div class="san-icon">${isImg?'🖼️':'📄'}</div>
-      <div class="san-text">
-        <span class="san-name">${latestSrc.name}</span> 已添加
-        ${isImg ? '· <span style="color:#db2777;cursor:pointer" onclick="runStudio(\'ecg\')">在 HandECG 中打开 →</span>' : ''}
-      </div>`;
-    ml.appendChild(notif);
+    if(window.__heartosJustAddedSourceId === latestSrc.id){
+      appendSourceChatCard(latestSrc);
+      window.__heartosJustAddedSourceId = null;
+    }
 
     // Re-summarize all sources
     const sumBody = document.getElementById('sumBody');
@@ -1583,6 +2161,7 @@ async function callClaudeForSummary(latestSrc, isImg){
   const sb = document.getElementById('sumBody');
   const sq = document.getElementById('suggQs');
   if(!sb) return;
+  const initialSummary = await buildSourceInitialSummary(latestSrc);
 
   // Build combined content from all text sources
   const textContent = sources
@@ -1592,23 +2171,27 @@ async function callClaudeForSummary(latestSrc, isImg){
     .slice(0, 8000);
 
   const imgCount = sources.filter(s => s.imageDataUrl).length;
+  const interpretContext = await buildSourceInterpretationContext();
+  const summaryImageDataUrl = await pickSummaryImageDataUrl(latestSrc);
 
   // If only images and no text, show image-specific summary
   if(!textContent && isImg){
     maybeAutoTitleNotebook(latestSrc.name);
-    sb.innerHTML = `<p>已加载 <strong>${latestSrc.name}</strong>（图像文件）。</p>
-      <p>点击右侧 <strong style="color:#475467">HandECG</strong> 分析卡片，即可在数字化工具中打开此图像，进行波形提取和 ECG 参数分析。</p>`;
-    if(sq) sq.innerHTML = `<div class="sugg-label">建议操作</div>
-      <button class="sq" onclick="runStudio('ecg')">在 HandECG 中打开图像进行数字化</button>
-      <button class="sq" onclick="askQ('这张心电图图像有什么特征？')">这张心电图有什么特征？</button>
-      <button class="sq" onclick="askQ('如何解读这张心电图？')">如何解读这张心电图？</button>`;
-    return;
+    sb.innerHTML = initialSummary.html || `<p>已加载 <strong>${latestSrc.name}</strong>（图像文件）。</p>
+      <p>点击右侧心电图分析卡片，即可在数字化工具中打开此图像，进行波形提取和 ECG 参数分析。</p>`;
+    if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
+    sb.innerHTML += `<p style="margin-top:10px;color:var(--text3);font-size:13px;">正在调用大模型解读文件信息...</p>`;
   }
 
-  if(!textContent){
+  if(!textContent && !isImg){
     maybeAutoTitleNotebook(latestSrc && latestSrc.name);
-    sb.innerHTML = `<p style="color:var(--text2)">已添加来源，可在下方提问。</p>`;
-    return;
+    sb.innerHTML = initialSummary.html || `<p style="color:var(--text2)">已添加来源，可在下方提问。</p>`;
+    if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
+    if(!interpretContext) return;
+  }
+
+  if(initialSummary.html){
+    sb.innerHTML = initialSummary.html + `<p style="margin-top:10px;color:var(--text3);font-size:13px;">正在生成 AI 摘要和建议工作流...</p>`;
   }
 
   try {
@@ -1618,9 +2201,21 @@ async function callClaudeForSummary(latestSrc, isImg){
 以JSON格式返回：{"summary":"...","questions":["...","...","..."]}
 只返回JSON，不要有其他内容。`;
 
-    const raw = await callAI(systemPrompt,
-      [{role:'user',content:`请分析以下内容（共 ${sources.length} 个来源）：\n\n${textContent}`}],
-      1000);
+    const enhancedSystemPrompt = `你是 HeartOS 的医学文件解读助手。请基于用户上传文件的可读取信息进行初步提取、解读和总结。
+要求：
+1. 不要只复述文件名，要提取文件类型、结构、关键字段/内容、医学或心电图相关线索。
+2. 如果是心电图图像，不要输出“无法读取像素/无法分析”作为主要结论；应转为参数化分析指导，说明可通过手动数字化或自动数字化提取哪些 ECG 参数。
+3. 心电图图像摘要应覆盖：导联布局、纸速/增益、心率、节律、PR、QRS、QT/QTc、ST-T、R 波进展、异常 Q 波、噪声/基线漂移、数字化质控。没有提取到波形前，不要编造具体数值或诊断。
+4. 输出应包含：总体解读、关键发现、建议下一步。建议下一步必须贴合 HeartOS 能力：手动数字化、自动数字化、ECGOmics 特征提取、心电图补全、智能体分析。
+5. 用中文，简洁但信息密度高，关键概念用 **加粗**。
+6. 不要出现旧工具内部名称，统一称为“手动数字化”。
+7. 只返回 JSON：{"summary":"...","findings":["..."],"next_steps":["..."]}`;
+    const summaryUserContent = `请解读以下 ${sources.length} 个上传来源的文件信息和可读取内容：\n\n${interpretContext || textContent}`;
+    const raw = summaryImageDataUrl
+      ? await callZhipuVisionAI(buildEcgVisionSummaryPrompt(interpretContext || textContent), summaryImageDataUrl, 1800)
+      : await callZhipuAI(enhancedSystemPrompt,
+          [{role:'user',content:summaryUserContent}],
+          1400);
     let parsed;
     try{ parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()); }
     catch{ parsed = {summary: raw, questions:[]}; }
@@ -1629,26 +2224,27 @@ async function callClaudeForSummary(latestSrc, isImg){
       maybeAutoTitleNotebook(parsed.summary || (latestSrc && latestSrc.name));
       // If there are images too, append a note
       const imgNote = imgCount > 0
-        ? `<p style="margin-top:8px;padding:8px 10px;background:#f6f8fb;border-radius:12px;font-size:13px;color:#667085;border:1px solid #e5e7eb;">另有 <strong>${imgCount}</strong> 张图像，可点击右侧 <strong>HandECG</strong> 进行数字化分析。</p>`
+        ? `<p style="margin-top:8px;padding:8px 10px;background:#f6f8fb;border-radius:12px;font-size:13px;color:#667085;border:1px solid #e5e7eb;">另有 <strong>${imgCount}</strong> 张图像，可使用心电图分析卡片进行数字化分析。</p>`
         : '';
-      sb.innerHTML = `<p>${parsed.summary.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</p>${imgNote}`;
+      const renderList = function(title, items){
+        if(!Array.isArray(items) || !items.length) return '';
+        return '<div style="margin-top:10px;"><div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">' + title + '</div><ul style="margin:0;padding-left:18px;color:var(--text2);font-size:13px;line-height:1.7;">' +
+          items.slice(0, 5).map(function(x){ return '<li>' + esc(String(x || '')).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>') + '</li>'; }).join('') +
+          '</ul></div>';
+      };
+      sb.innerHTML = `<p>${String(parsed.summary || '').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</p>` +
+        renderList('患者及检查信息', parsed.patient_info) +
+        renderList('数字化测量参数', parsed.measurements) +
+        renderList('机读诊断结论', parsed.diagnosis) +
+        renderList('关键发现', parsed.findings) +
+        renderList('建议下一步', parsed.next_steps) +
+        imgNote;
     }
-    if(sq && parsed.questions?.length){
-      // Add ECG question if images present
-      const extraQ = imgCount > 0
-        ? `<button class="sq" onclick="runStudio('ecg')">在 HandECG 中打开图像进行数字化分析</button>`
-        : '';
-      sq.innerHTML = '<div class="sugg-label">建议问题</div>'
-        + parsed.questions.map(q=>`<button class="sq" onclick="askQ('${q.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">${q}</button>`).join('')
-        + extraQ;
-    }
+    if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
   } catch(err){
-    if(sb) sb.innerHTML = `<p style="color:var(--text2)">已加载 ${sources.length} 个来源，可在下方提问。</p>
-      ${!hasServerApiKey(aiConfig.provider) ? '<p style="margin-top:6px;font-size:12px;color:#d97706;">⚠️ 后端尚未配置该模型的 API Key，请联系管理员写入。</p>' : '<p style="margin-top:6px;font-size:12px;color:#dc2626;">错误：'+err.message+'</p>'}`;
-    if(sq) sq.innerHTML = `<div class="sugg-label">建议问题</div>
-      <button class="sq" onclick="askQ('请总结所有来源的核心内容')">请总结所有来源的核心内容</button>
-      <button class="sq" onclick="askQ('文档中有哪些关键数据和发现？')">文档中有哪些关键数据和发现？</button>
-      <button class="sq" onclick="askQ('基于内容，有什么实际应用建议？')">基于内容，有什么实际应用建议？</button>`;
+    if(sb) sb.innerHTML = (initialSummary.html || `<p style="color:var(--text2)">已加载 ${sources.length} 个来源，可在下方提问。</p>`) +
+      '<p style="margin-top:10px;font-size:12px;color:#dc2626;">智谱大模型解读失败：' + esc(err && err.message ? err.message : String(err)) + '</p>';
+    if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
   }
 }
 
@@ -1681,6 +2277,34 @@ function pickImageSourceForTool(){
   return null;
 }
 
+function describeSourceFormat(src){
+  if(!src) return '未知格式';
+  const ext = sourceExt(src);
+  const mime = sourceMime(src);
+  if(ext && mime) return ext.toUpperCase() + ' / ' + mime;
+  if(ext) return ext.toUpperCase();
+  if(mime) return mime;
+  return '未知格式';
+}
+
+function isPdfSource(src){
+  return !!(src && (sourceExt(src) === 'pdf' || /pdf/i.test(sourceMime(src)) ||
+    (isBlobLike(src.fileObj) && /pdf/i.test(String(src.fileObj.type || ''))) ||
+    /\.pdf$/i.test(String(src.name || ''))));
+}
+
+function checkedSources(){
+  return Array.isArray(sources) ? sources.filter(function(s){ return !!s && !!s.checked; }) : [];
+}
+
+function unsupportedCheckedFormatMessage(toolName, expected, checked){
+  const picked = (checked && checked.length) ? checked : checkedSources();
+  const names = picked.map(function(s){
+    return (s.name || '未命名来源') + '（' + describeSourceFormat(s) + '）';
+  }).join('、');
+  return toolName + ' 需要 ' + expected + '。当前勾选来源' + (names ? '为：' + names : '不符合要求') + '，且无法自动转换。';
+}
+
 let __pdfjsReady = null;
 async function ensurePdfJsReady(){
   if(window.pdfjsLib) return window.pdfjsLib;
@@ -1711,7 +2335,7 @@ async function convertPdfSourceToImageDataUrl(src){
   if(!isPdfType) return '';
 
   let pdfBytes = null;
-  if(src.fileObj){
+  if(isBlobLike(src.fileObj)){
     pdfBytes = await src.fileObj.arrayBuffer();
   }else if(src.content && /^data:application\/pdf;base64,/i.test(String(src.content))){
     const b64 = String(src.content).split(',')[1] || '';
@@ -1719,27 +2343,92 @@ async function convertPdfSourceToImageDataUrl(src){
     const arr = new Uint8Array(raw.length);
     for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
     pdfBytes = arr.buffer;
+  }else if(src.fileId || src.serverFileId){
+    try{
+      const fileId = src.fileId || src.serverFileId;
+      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
+      if(resp && resp.ok){
+        pdfBytes = await (await resp.blob()).arrayBuffer();
+      }
+    }catch(_){ }
   }else{
     return '';
   }
+  const fileIdForBackend = src.fileId || src.serverFileId || '';
+  if(!pdfBytes && !fileIdForBackend) return '';
 
-  const pdfjsLib = await ensurePdfJsReady();
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
-  const pdf = await loadingTask.promise;
-  const page = await pdf.getPage(1);
-  const viewport = page.getViewport({ scale: 2.0 });
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = Math.floor(viewport.width);
-  canvas.height = Math.floor(viewport.height);
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  return canvas.toDataURL('image/png');
+  try{
+    const pdfjsLib = await ensurePdfJsReady();
+    const browserBytes = pdfBytes && typeof pdfBytes.slice === 'function' ? pdfBytes.slice(0) : pdfBytes;
+    const loadingTask = pdfjsLib.getDocument({ data: browserBytes });
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  }catch(frontErr){
+    return await convertPdfSourceToImageDataUrlBackend(src, pdfBytes, frontErr);
+  }
+}
+
+async function convertPdfSourceToImageDataUrlBackend(src, pdfBytes, frontErr){
+  try{
+    const fd = new FormData();
+    const fileId = src && (src.fileId || src.serverFileId || '');
+    if(fileId){
+      fd.append('file_id', String(fileId));
+    }else if(isBlobLike(src && src.fileObj)){
+      fd.append('file', src.fileObj, (src && src.name) || (src.fileObj && src.fileObj.name) || 'source.pdf');
+    }else if(pdfBytes){
+      const blob = new Blob([pdfBytes], { type:'application/pdf' });
+      fd.append('file', blob, (src && src.name) || 'source.pdf');
+    }else{
+      throw new Error('缺少可转换的 PDF 数据');
+    }
+    fd.append('scale', '1.5');
+    const resp = await apiFetch('/api/pdf/first-page-image', { method:'POST', body: fd });
+    if(!resp || !resp.ok){
+      let detail = '';
+      try{
+        const out = await resp.json();
+        detail = out && out.detail ? String(out.detail) : '';
+      }catch(_){ }
+      throw new Error(detail || ('HTTP ' + (resp ? resp.status : 0)));
+    }
+    const dataUrl = await blobToDataUrlSafe(await resp.blob());
+    if(dataUrl && String(dataUrl).indexOf('data:image') === 0) return await normalizeToolImageDataUrl(dataUrl);
+    throw new Error('后端 PDF 转图未返回图片');
+  }catch(backErr){
+    const frontMsg = frontErr && frontErr.message ? frontErr.message : String(frontErr || '');
+    const backMsg = backErr && backErr.message ? backErr.message : String(backErr || '');
+    throw new Error('PDF 转图片失败：' + (backMsg || frontMsg || '未知错误'));
+  }
 }
 
 async function ensureEcgImageSource(src){
   if(!src) return null;
-  if(src.imageDataUrl) return src;
-  if(src.fileObj && /^image\//i.test(String(src.fileObj.type||''))){
+  if(src.imageDataUrl){
+    if(String(src.imageDataUrl).indexOf('data:image') !== 0 && isPdfSource(src)){
+      src.imageDataUrl = '';
+    }else if(String(src.imageDataUrl).indexOf('data:image') !== 0){
+      return null;
+    }
+  }
+  if(src.imageDataUrl){
+    if(!src.fileObj || !/^image\//i.test(String(src.fileObj.type || ''))){
+      src.imageDataUrl = await normalizeToolImageDataUrl(src.imageDataUrl);
+      const imgName = String(src.name || 'ecg_image.png').replace(/\.pdf$/i, '.png');
+      const imgFile = dataUrlToFile(src.imageDataUrl, imgName);
+      if(imgFile) src.fileObj = imgFile;
+      if(!src.type || String(src.type).toLowerCase() === 'pdf') src.type = 'png';
+    }
+    return src;
+  }
+  if(isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type||''))){
     const dataUrl = await new Promise((resolve, reject) => {
       const r = new FileReader();
       r.onload = e => resolve(String((e && e.target && e.target.result) || ''));
@@ -1747,18 +2436,48 @@ async function ensureEcgImageSource(src){
       r.readAsDataURL(src.fileObj);
     });
     if(dataUrl){
-      src.imageDataUrl = dataUrl;
+      src.imageDataUrl = await normalizeToolImageDataUrl(dataUrl);
       return src;
     }
   }
   const pdfDataUrl = await convertPdfSourceToImageDataUrl(src);
   if(pdfDataUrl){
-    src.imageDataUrl = pdfDataUrl;
+    if(!src.originalName) src.originalName = src.name || '';
+    src.imageDataUrl = await normalizeToolImageDataUrl(pdfDataUrl);
+    const pngName = String(src.name || 'ecg_pdf_page1.pdf').replace(/\.pdf$/i, '.png');
+    const pngFile = dataUrlToFile(src.imageDataUrl, pngName);
+    if(pngFile) src.fileObj = pngFile;
     src.type = 'png';
-    if(src.name && /\.pdf$/i.test(src.name)) src.name = src.name.replace(/\.pdf$/i, '.png');
+    if(src.name && /\.pdf$/i.test(src.name)) src.name = pngName;
     return src;
   }
   return null;
+}
+
+async function ensureImageToolSource(toolName){
+  const checked = checkedSources();
+  let src = pickImageSourceForTool();
+  if(!src && !checked.length && Array.isArray(sources)){
+    for(let i=0;i<sources.length;i++){
+      const s = sources[i];
+      if(!s) continue;
+      const type = String(s.type || '').toLowerCase();
+      const name = String(s.name || '');
+      const fileType = s.fileObj ? String(s.fileObj.type || '') : '';
+      if(s.imageDataUrl || (isBlobLike(s.fileObj) && /^image\//i.test(fileType)) || type === 'pdf' || /\.pdf$/i.test(name) || /pdf/i.test(fileType)){
+        src = s;
+        break;
+      }
+    }
+  }
+  if(!src){
+    throw new Error(unsupportedCheckedFormatMessage(toolName, 'JPG/PNG/BMP/TIFF/WebP 图像；PDF 会自动提取第 1 页转为 PNG', checked));
+  }
+  const converted = await ensureEcgImageSource(src);
+  if(!converted || !converted.imageDataUrl || String(converted.imageDataUrl).indexOf('data:image') !== 0){
+    throw new Error(unsupportedCheckedFormatMessage(toolName, '可读取的图像文件；PDF 需能成功转为 PNG', checked.length ? checked : [src]));
+  }
+  return converted;
 }
 
 function _parseDataUrl(dataUrl){
@@ -2028,6 +2747,359 @@ function _extractReturnedImageDataUrl(obj){
   return '';
 }
 
+function _autoEcgLoadImage(dataUrl){
+  return new Promise(function(resolve, reject){
+    if(!dataUrl || String(dataUrl).indexOf('data:image') !== 0){
+      reject(new Error('invalid image data url'));
+      return;
+    }
+    var img = new Image();
+    img.onload = function(){ resolve(img); };
+    img.onerror = function(){ reject(new Error('image load failed')); };
+    img.src = dataUrl;
+  });
+}
+
+function _autoEcgLeadOrder(leadMap){
+  var preferred = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6','II_R'];
+  var keys = Object.keys(leadMap || {}).filter(function(k){ return Array.isArray(leadMap[k]); });
+  var out = preferred.filter(function(k){ return keys.indexOf(k) >= 0; });
+  keys.forEach(function(k){ if(out.indexOf(k) < 0) out.push(k); });
+  return out;
+}
+
+function _autoEcgStandard6x2Boxes(w, h, leadMap){
+  var order = [
+    ['I','V1'],
+    ['II','V2'],
+    ['III','V3'],
+    ['aVR','V4'],
+    ['aVL','V5'],
+    ['aVF','V6']
+  ];
+  var boxes = {};
+  var left = Math.round(w * 0.035);
+  var right = Math.round(w * 0.975);
+  var top = Math.round(h * 0.105);
+  var bottom = Math.round(h * 0.925);
+  var colGap = Math.round(w * 0.018);
+  var rowGap = Math.max(4, Math.round(h * 0.012));
+  var colW = Math.floor((right - left - colGap) / 2);
+  var rowH = Math.floor((bottom - top - rowGap * 5) / 6);
+  for(var r=0;r<order.length;r++){
+    for(var c=0;c<2;c++){
+      var lead = order[r][c];
+      if(!leadMap || !Array.isArray(leadMap[lead])) continue;
+      var x = left + c * (colW + colGap);
+      var y = top + r * (rowH + rowGap);
+      boxes[lead] = { x:x, y:y, w:colW, h:rowH };
+    }
+  }
+  if(leadMap && Array.isArray(leadMap.II_R) && !boxes.II_R){
+    boxes.II_R = {
+      x: left,
+      y: Math.round(h * 0.82),
+      w: right - left,
+      h: Math.max(rowH, Math.round(h * 0.10))
+    };
+  }
+  return boxes;
+}
+
+function _autoEcgLeadColumn(lead){
+  if(['I','II','III','aVR','aVL','aVF'].indexOf(String(lead || '')) >= 0) return 0;
+  if(['V1','V2','V3','V4','V5','V6'].indexOf(String(lead || '')) >= 0) return 1;
+  return -1;
+}
+
+function _autoEcgActivityScore(arr){
+  if(!Array.isArray(arr) || arr.length < 4) return 0;
+  var vals = arr.map(function(v){ return Number(v); }).filter(Number.isFinite);
+  if(vals.length < 4) return 0;
+  var mean = vals.reduce(function(a,b){ return a + b; }, 0) / vals.length;
+  var variance = vals.reduce(function(a,b){ var d = b - mean; return a + d * d; }, 0) / vals.length;
+  var diff = 0;
+  for(var i=1;i<vals.length;i++) diff += Math.abs(vals[i] - vals[i - 1]);
+  return Math.sqrt(variance) + diff / Math.max(1, vals.length - 1);
+}
+
+function _autoEcgSignalForFiveSecondLead(lead, arr){
+  if(!Array.isArray(arr) || arr.length < 8) return arr;
+  var mid = Math.floor(arr.length / 2);
+  var first = arr.slice(0, mid);
+  var second = arr.slice(mid);
+  var col = _autoEcgLeadColumn(lead);
+  if(col === 0) return first;
+  if(col === 1) return second;
+  var a = _autoEcgActivityScore(first);
+  var b = _autoEcgActivityScore(second);
+  return b > a * 1.15 ? second : first;
+}
+
+function _autoEcgDrawSignal(ctx, arr, box, color){
+  if(!Array.isArray(arr) || arr.length < 2 || !box) return;
+  var vals = arr.map(function(v){ return Number(v); }).filter(Number.isFinite);
+  if(vals.length < 2) return;
+  var sorted = vals.slice().sort(function(a,b){ return a-b; });
+  var lo = sorted[Math.floor(sorted.length * 0.03)] || sorted[0];
+  var hi = sorted[Math.floor(sorted.length * 0.97)] || sorted[sorted.length - 1];
+  if(!Number.isFinite(lo) || !Number.isFinite(hi) || Math.abs(hi - lo) < 1e-9){
+    lo = Math.min.apply(null, vals);
+    hi = Math.max.apply(null, vals);
+  }
+  var range = Math.max(1e-9, hi - lo);
+  var maxPts = Math.max(180, Math.min(900, Math.round(box.w)));
+  var step = Math.max(1, Math.ceil(arr.length / maxPts));
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(box.x, box.y, box.w, box.h);
+  ctx.clip();
+  ctx.beginPath();
+  for(var i=0;i<arr.length;i+=step){
+    var v = Number(arr[i]);
+    if(!Number.isFinite(v)) continue;
+    var frac = (v - lo) / range;
+    frac = Math.max(-0.25, Math.min(1.25, frac));
+    var px = box.x + (i / Math.max(1, arr.length - 1)) * box.w;
+    var py = box.y + box.h * 0.82 - frac * (box.h * 0.64);
+    if(i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = color || '#ef4444';
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(box.w, box.h) / 80));
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(239,68,68,0.65)';
+  ctx.shadowBlur = 3;
+  ctx.stroke();
+  ctx.restore();
+}
+
+async function buildAutoDigitizeCompareDataUrl(imageDataUrl, leadMap, opts){
+  opts = opts || {};
+  var img = await _autoEcgLoadImage(imageDataUrl);
+  var maxW = opts.maxW || 1500;
+  var iw = img.naturalWidth || img.width;
+  var ih = img.naturalHeight || img.height;
+  var sx = 0, sy = 0, sw = iw, sh = ih;
+  if(opts.crop === 'topRight'){
+    sx = Math.round(iw * 0.50);
+    sy = 0;
+    sw = iw - sx;
+    sh = Math.round(ih * 0.50);
+  }
+  var scale = Math.min(1, maxW / Math.max(1, sw));
+  var w = Math.max(1, Math.round(sw * scale));
+  var h = Math.max(1, Math.round(sh * scale));
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(0, 0, w, h);
+
+  var boxes = _autoEcgStandard6x2Boxes(w, h, leadMap || {});
+  var leads = _autoEcgLeadOrder(leadMap || {});
+  ctx.font = '700 ' + Math.max(12, Math.round(w / 95)) + 'px Arial, sans-serif';
+  ctx.textBaseline = 'top';
+  leads.forEach(function(lead){
+    var box = boxes[lead];
+    var arr = leadMap && leadMap[lead];
+    if(!box || !Array.isArray(arr)) return;
+    arr = _autoEcgSignalForFiveSecondLead(lead, arr);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(37,99,235,0.72)';
+    ctx.lineWidth = Math.max(1, Math.round(w / 900));
+    ctx.setLineDash([Math.max(6, Math.round(w / 180)), Math.max(4, Math.round(w / 260))]);
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(37,99,235,0.92)';
+    ctx.fillText(lead, box.x + 5, box.y + 5);
+    _autoEcgDrawSignal(ctx, arr, box, '#ef4444');
+  });
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.strokeStyle = 'rgba(203,213,225,0.95)';
+  var lh = Math.max(26, Math.round(h * 0.035));
+  ctx.fillRect(12, 12, Math.min(w - 24, 430), lh);
+  ctx.strokeRect(12, 12, Math.min(w - 24, 430), lh);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '700 ' + Math.max(12, Math.round(lh * 0.42)) + 'px Arial, sans-serif';
+  ctx.fillText('Auto digitize comparison: red = extracted waveform', 22, 12 + lh * 0.28);
+  ctx.restore();
+  return canvas.toDataURL('image/png');
+}
+
+function buildAutoDigitizeSignalPreviewDataUrl(leadMap, opts){
+  opts = opts || {};
+  var order = [
+    ['I','V1'],
+    ['II','V2'],
+    ['III','V3'],
+    ['aVR','V4'],
+    ['aVL','V5'],
+    ['aVF','V6']
+  ];
+  var pad = 28;
+  var gapX = 26;
+  var gapY = 12;
+  var cellW = opts.cellW || 640;
+  var cellH = opts.cellH || 130;
+  var w = pad * 2 + cellW * 2 + gapX;
+  var h = pad * 2 + cellH * 6 + gapY * 5;
+  var canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fffaf4';
+  ctx.fillRect(0, 0, w, h);
+
+  function drawGrid(x, y, bw, bh){
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, bw, bh);
+    ctx.clip();
+    ctx.lineWidth = 1;
+    for(var gx=0; gx<=bw; gx+=8){
+      ctx.strokeStyle = (gx % 40 === 0) ? 'rgba(239,68,68,0.28)' : 'rgba(239,68,68,0.10)';
+      ctx.beginPath();
+      ctx.moveTo(x + gx, y);
+      ctx.lineTo(x + gx, y + bh);
+      ctx.stroke();
+    }
+    for(var gy=0; gy<=bh; gy+=8){
+      ctx.strokeStyle = (gy % 40 === 0) ? 'rgba(239,68,68,0.28)' : 'rgba(239,68,68,0.10)';
+      ctx.beginPath();
+      ctx.moveTo(x, y + gy);
+      ctx.lineTo(x + bw, y + gy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawSignal(lead, arr, x, y, bw, bh){
+    drawGrid(x, y, bw, bh);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, bw, bh);
+    ctx.fillStyle = '#2563eb';
+    ctx.font = '700 18px Arial, sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.fillText(lead, x + 8, y + 7);
+    var seg = _autoEcgSignalForFiveSecondLead(lead, arr || []);
+    if(!Array.isArray(seg) || seg.length < 2) return;
+    var vals = seg.map(function(v){ return Number(v); }).filter(Number.isFinite);
+    if(vals.length < 2) return;
+    var sorted = vals.slice().sort(function(a,b){ return a-b; });
+    var lo = sorted[Math.floor(sorted.length * 0.02)] || sorted[0];
+    var hi = sorted[Math.floor(sorted.length * 0.98)] || sorted[sorted.length - 1];
+    if(!Number.isFinite(lo) || !Number.isFinite(hi) || Math.abs(hi - lo) < 1e-9){
+      lo = Math.min.apply(null, vals);
+      hi = Math.max.apply(null, vals);
+    }
+    var mid = (hi + lo) / 2;
+    var range = Math.max(1e-9, hi - lo);
+    var amp = bh * 0.72;
+    var step = Math.max(1, Math.ceil(seg.length / Math.max(180, bw)));
+    ctx.beginPath();
+    for(var i=0;i<seg.length;i+=step){
+      var v = Number(seg[i]);
+      if(!Number.isFinite(v)) continue;
+      var px = x + (i / Math.max(1, seg.length - 1)) * bw;
+      var py = y + bh * 0.5 - ((v - mid) / range) * amp;
+      py = Math.max(y + 6, Math.min(y + bh - 6, py));
+      if(i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '700 20px Arial, sans-serif';
+  ctx.fillText('Auto digitized ECG - standard 6x2 layout', pad, 8);
+  for(var r=0;r<6;r++){
+    for(var c=0;c<2;c++){
+      var lead = order[r][c];
+      var arr = leadMap && leadMap[lead];
+      var x = pad + c * (cellW + gapX);
+      var y = pad + r * (cellH + gapY);
+      drawSignal(lead, arr, x, y, cellW, cellH);
+    }
+  }
+  return canvas.toDataURL('image/png');
+}
+
+async function buildAutoDigitizeSideBySideDataUrl(sourceImageDataUrl, leadMap, opts){
+  opts = opts || {};
+  var srcImg = await _autoEcgLoadImage(sourceImageDataUrl);
+  var sigDataUrl = buildAutoDigitizeSignalPreviewDataUrl(leadMap, {
+    cellW: opts.cellW || 640,
+    cellH: opts.cellH || 130
+  });
+  var sigImg = await _autoEcgLoadImage(sigDataUrl);
+
+  var iw = srcImg.naturalWidth || srcImg.width;
+  var ih = srcImg.naturalHeight || srcImg.height;
+  var sx = 0, sy = 0, sw = iw, sh = ih;
+  if(opts.crop === 'topRight'){
+    sx = Math.round(iw * 0.50);
+    sy = 0;
+    sw = iw - sx;
+    sh = Math.round(ih * 0.50);
+  }
+
+  var panelW = opts.panelW || 900;
+  var titleH = 42;
+  var gap = 18;
+  var pad = 18;
+  var leftScale = panelW / Math.max(1, sw);
+  var leftH = Math.round(sh * leftScale);
+  var rightScale = panelW / Math.max(1, sigImg.naturalWidth || sigImg.width);
+  var rightH = Math.round((sigImg.naturalHeight || sigImg.height) * rightScale);
+  var bodyH = Math.max(leftH, rightH);
+  var canvas = document.createElement('canvas');
+  canvas.width = pad * 2 + panelW * 2 + gap;
+  canvas.height = pad * 2 + titleH + bodyH;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  function drawPanelTitle(text, x, y){
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, panelW, titleH);
+    ctx.strokeStyle = '#dbeafe';
+    ctx.strokeRect(x, y, panelW, titleH);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '700 22px Arial, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + 14, y + titleH / 2);
+  }
+
+  var lx = pad;
+  var rx = pad + panelW + gap;
+  var ty = pad;
+  var by = pad + titleH;
+  drawPanelTitle(opts.leftTitle || 'Original / API processed ECG', lx, ty);
+  drawPanelTitle('Redrawn extracted signals', rx, ty);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(lx, by, panelW, bodyH);
+  ctx.fillRect(rx, by, panelW, bodyH);
+  ctx.strokeStyle = '#dbeafe';
+  ctx.strokeRect(lx, by, panelW, bodyH);
+  ctx.strokeRect(rx, by, panelW, bodyH);
+  ctx.drawImage(srcImg, sx, sy, sw, sh, lx, by, panelW, leftH);
+  ctx.drawImage(sigImg, 0, 0, sigImg.naturalWidth || sigImg.width, sigImg.naturalHeight || sigImg.height, rx, by, panelW, rightH);
+
+  return canvas.toDataURL('image/png');
+}
+
 
 function upsertCsvSourceSafe(data){
   if(!data || !data.csv) return;
@@ -2045,25 +3117,10 @@ function upsertCsvSourceSafe(data){
 async function runToolByAction(actionName, args){
   if(actionName === 'analysis_ecg' || actionName === 'open_handecg'){
     if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
-      return { ok:false, tool:actionName, message:'你刚关闭了 HandECG，已暂时阻止自动重开（约2秒）。如需打开请稍后再点一次。' };
-    }
-    var src = pickImageSourceForTool();
-    if(!src){
-      return {
-        ok: false,
-        tool: actionName,
-        message: '没有可用图像来源。请先上传 ECG 图片，或勾选一张图片来源后重试。'
-      };
+      return { ok:false, tool:actionName, message:'你刚关闭了 手动数字化，已暂时阻止自动重开（约2秒）。如需打开请稍后再点一次。' };
     }
     try{
-      src = await ensureEcgImageSource(src);
-      if(!src || !src.imageDataUrl){
-        return {
-          ok: false,
-          tool: actionName,
-          message: '当前来源不是可直接发送的图像。若是 PDF，请确认文件可读取（将自动提取第1页）。'
-        };
-      }
+      var src = await ensureImageToolSource('手动数字化');
       window.__heartosLastImageSource = src;
       await openEcgOverlay(src);
       return {
@@ -2071,13 +3128,13 @@ async function runToolByAction(actionName, args){
         tool: actionName,
         sourceId: src.id || null,
         sourceName: src.name || '',
-        message: '已调用 HandECG，并将当前图片发送过去。'
+        message: '已调用手动数字化，并将当前图片发送过去。'
       };
     }catch(e){
       return {
         ok: false,
         tool: actionName,
-        message: '调用 HandECG 失败：' + (e && e.message ? e.message : String(e))
+        message: '调用手动数字化失败：' + (e && e.message ? e.message : String(e))
       };
     }
   }
@@ -2174,7 +3231,7 @@ async function dispatchAgentUnified(userInput, signal){
 
 function studioDispatchPrompt(type){
   const mp = {
-    ecg: '请调用 HandECG 分析当前已勾选的心电图图像，并打开工具。',
+    ecg: '请调用 手动数字化 分析当前已勾选的心电图图像，并打开工具。',
     ecgd: '请进行 ECGOmics/XML 特征提取分析。',
     agent: '请给出智能体方案设计分析。'
   };
@@ -2224,8 +3281,8 @@ async function routeByLLM(userText){
     var routerSystem = [
       '你是一个“工具路由器”，只负责判断用户意图并返回 JSON，不要返回解释。',
       '可用工具：',
-      '1) analysis_ecg: 用户要分析心电图/导联/波形/ECG/HandECG/数字化时调用。',
-      '2) open_handecg: 用户明确要求打开 HandECG 工具时调用。',
+      '1) analysis_ecg: 用户要分析心电图/导联/波形/ECG/手动数字化/数字化时调用。',
+      '2) open_handecg: 用户明确要求打开手动数字化工具时调用。',
       '3) chat_qa: 普通问答或无法确定时。',
       '输出严格 JSON：{"action":"analysis_ecg|open_handecg|chat_qa","reason":"...","args":{}}'
     ].join('\n');
@@ -2293,13 +3350,13 @@ async function sendMsg(){
       }
 
       if(endpoint === '/tool/handecg/manual'){
-        var msg3 = '已识别为手动数字化任务，正在打开 HandECG 工具。';
+        var msg3 = '已识别为手动数字化任务，正在打开手动数字化工具。';
         finishDispatchToolChat(q, msg3);
         Promise.resolve()
           .then(() => openEcgOverlay())
           .catch(e => {
             const msg = (e && e.message) ? e.message : String(e || 'unknown error');
-            try{ appendAI('打开 HandECG 失败：' + msg); }catch(_){}
+            try{ appendAI('打开手动数字化失败：' + msg); }catch(_){}
           });
         return;
       }
@@ -2477,6 +3534,33 @@ let studioCards = [
 let currentResultText = '';
 let currentResultFileName = 'analysis_result.txt';
 let analysisFiles = [];
+const studioIntroMap = {
+  agent: {
+    input: '当前勾选的来源、已上传文件内容、最近对话上下文。',
+    flow: '先理解研究目标和来源信息，再判断适合调用的分析路径，最后给出执行建议或触发相应工具。',
+    output: '结构化分析建议、下一步操作计划，必要时会在对话区返回结果说明。'
+  },
+  ecgd: {
+    input: 'ECG XML 文件，支持单个或多个来源批量处理。',
+    flow: '读取 XML 结构，调用 ECGOmics 特征提取流程，整理导联、节律和时域/形态学特征。',
+    output: '特征 CSV、处理状态报告，以及可下载的分析结果文件。'
+  },
+  ecgsmart: {
+    input: '上传的心电图图片或可转为图片的 PDF 页面。',
+    flow: '将图像提交给自动数字化接口，识别布局和导联区域，提取波形点并生成标准化导联数据。',
+    output: '接口回传诊断图、原图/拟合波形对比图、导联 CSV 和采样点统计。'
+  },
+  ecgrecon: {
+    input: '已数字化的 ECG CSV，通常包含导联名、时间序列或波形采样值。',
+    flow: '上传 CSV 到补全模型，模型推断缺失导联或缺失片段，并返回重建后的波形数据。',
+    output: '补全后的 CSV、回传波形图像，以及在分析结果区保存的文件。'
+  },
+  ecg: {
+    input: '心电图图片来源，适合扫描件、拍照图或自动识别效果不稳定的图像。',
+    flow: '打开数字化工作台，人工辅助定位导联、校正波形和检查提取质量。',
+    output: '高质量导联 CSV、波形预览、原图与提取结果对比，以及参数摘要。'
+  }
+};
 let studioRunning = false;
 let __heartosHistoryReady = false;
 let sourcePanelCollapsed = false;
@@ -2561,11 +3645,12 @@ function renderAnalysisFiles(){
     host.innerHTML = '<p style="font-size:12px;color:var(--text3);margin:0;">生成的结果文件会显示在这里。</p>';
     return;
   }
-  host.innerHTML = files.map(f => `<div class="result-file" id="resultFile-${escAttr(f.id)}">
+  host.innerHTML = files.map(f => `<div class="result-file" id="resultFile-${escAttr(f.id)}" onclick="previewAnalysisFile('${escAttr(f.id)}', event)" title="点击预览">
     <div class="result-file-name" title="${escAttr(f.name)}">${esc(f.name)}</div>
     <div class="result-file-meta">${esc((f.type || 'file').toUpperCase())}${f.source ? (' · ' + esc(f.source)) : ''}${f.createdAt ? (' · ' + esc(f.createdAt)) : ''}</div>
     <button class="result-file-kebab" onclick="toggleResultFileMenu('${escAttr(f.id)}', event)">⋯</button>
     <div class="result-file-menu" id="resultFileMenu-${escAttr(f.id)}">
+      <button onclick="previewAnalysisFile('${escAttr(f.id)}', event)">预览</button>
       <button onclick="renameAnalysisFile('${escAttr(f.id)}', event)">重命名</button>
       <button onclick="exportAnalysisFile('${escAttr(f.id)}', event)">导出</button>
       <button class="danger" onclick="deleteAnalysisFile('${escAttr(f.id)}', event)">删除</button>
@@ -2592,6 +3677,33 @@ function toggleResultFileMenu(id, evt){
   });
   const m = document.getElementById('resultFileMenu-' + id);
   if(m) m.classList.toggle('open');
+}
+
+function previewAnalysisFile(id, evt){
+  if(evt) evt.stopPropagation();
+  document.querySelectorAll('.result-file-menu.open').forEach(m => m.classList.remove('open'));
+  const f = analysisFiles.find(x => x && x.id === id);
+  if(!f) return;
+  const title = document.getElementById('srcPreviewTitle');
+  const body = document.getElementById('srcPreviewBody');
+  if(!title || !body) return;
+  const name = f.name || '分析结果文件';
+  const type = String(f.type || '').toLowerCase();
+  const mime = String(f.mime || '').toLowerCase();
+  const text = String(f.content || '');
+  title.textContent = name;
+  if(type === 'csv' || /csv/i.test(mime) || /\.csv$/i.test(name)){
+    body.innerHTML = renderDelimitedPreview(text, ',', 'CSV 结果文件');
+  }else if(type === 'tsv' || /\.tsv$/i.test(name)){
+    body.innerHTML = renderDelimitedPreview(text, '\t', 'TSV 结果文件');
+  }else if(type === 'json' || /json/i.test(mime) || /\.json$/i.test(name)){
+    body.innerHTML = renderJsonPreview(text);
+  }else if(type === 'xml' || /xml/i.test(mime) || /\.xml$/i.test(name)){
+    body.innerHTML = renderXmlPreview(text);
+  }else{
+    body.innerHTML = renderPrettyCodePreview(text, (type || 'TXT').toUpperCase() + ' 结果文件', type || 'txt');
+  }
+  openMo('srcPreviewMo');
 }
 
 function renameAnalysisFile(id, evt){
@@ -2651,12 +3763,61 @@ window.addEventListener('popstate', function(evt){
   renderHome();
 });
 
+function renderStudioIntro(card){
+  const intro = (card && (card.intro || studioIntroMap[card.id])) || {};
+  if(!intro.input && !intro.flow && !intro.output) return '';
+  return `<div class="studio-intro-block"><div class="studio-intro-k">输入</div><div class="studio-intro-v">${esc(intro.input || '-')}</div></div>
+    <div class="studio-intro-block"><div class="studio-intro-k">流程</div><div class="studio-intro-v">${esc(intro.flow || '-')}</div></div>
+    <div class="studio-intro-block"><div class="studio-intro-k">输出</div><div class="studio-intro-v">${esc(intro.output || '-')}</div></div>`;
+}
+
+function ensureStudioIntroModal(){
+  let modal = document.getElementById('studioIntroModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'studioIntroModal';
+  modal.className = 'studio-intro-modal';
+  modal.innerHTML = `<div class="studio-intro-dialog" role="dialog" aria-modal="true" aria-labelledby="studioIntroTitle" onclick="event.stopPropagation()">
+    <div class="studio-intro-head">
+      <div>
+        <div class="studio-intro-title" id="studioIntroTitle"></div>
+        <div class="studio-intro-sub" id="studioIntroSub"></div>
+      </div>
+      <button class="studio-intro-close" type="button" onclick="closeStudioIntroModal()" title="关闭">×</button>
+    </div>
+    <div class="studio-intro-body" id="studioIntroBody"></div>
+  </div>`;
+  modal.addEventListener('click', closeStudioIntroModal);
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function openStudioIntroModal(id, evt){
+  if(evt) evt.stopPropagation();
+  const card = studioCards.find(c => c.id === id);
+  if(!card) return;
+  const modal = ensureStudioIntroModal();
+  const title = modal.querySelector('#studioIntroTitle');
+  const sub = modal.querySelector('#studioIntroSub');
+  const body = modal.querySelector('#studioIntroBody');
+  if(title) title.textContent = card.name || 'Studio';
+  if(sub) sub.textContent = card.desc || '模型能力介绍';
+  if(body) body.innerHTML = renderStudioIntro(card);
+  modal.classList.add('open');
+}
+
+function closeStudioIntroModal(){
+  const modal = document.getElementById('studioIntroModal');
+  if(modal) modal.classList.remove('open');
+}
+
 function renderStudio(){
   const top = document.getElementById('studioTop');
   const cards = studioCards.map(c=>`
     <div class="sc ${c.cls}" id="sc-${c.id}" onclick="runStudio('${c.id}')">
       <div class="sc-icon" style="background:${c.iconBg}">${uiIcon(c.icon)}</div>
       <div class="sc-name">${c.name}</div>
+      <button class="sc-toggle" type="button" title="查看介绍" onclick="openStudioIntroModal('${c.id}', event)">›</button>
       <div class="sc-desc">${c.desc}</div>
     </div>`).join('');
   top.innerHTML=`<div class="sc-grid">${cards}</div>
@@ -2734,7 +3895,7 @@ function pickXmlLikeFallbackSource(){
   if(!Array.isArray(sources)) return null;
   for(let i=0;i<sources.length;i++){
     const s = sources[i];
-    if(!s || !s.checked || !s.fileObj) continue;
+    if(!s || !s.checked || !isBlobLike(s.fileObj)) continue;
     const fn = String((s.fileObj && s.fileObj.name) || s.name || '').toLowerCase();
     const ft = String((s.fileObj && s.fileObj.type) || '').toLowerCase();
     if(/\.xml$/i.test(fn) || ft.indexOf('xml') >= 0) return s;
@@ -2776,7 +3937,7 @@ function pickCsvSource(explicit){
 
 async function readCsvTextFromSource(src){
   if(!src) return '';
-  if(src.fileObj && typeof src.fileObj.text === 'function'){
+  if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
   const fileId = src.fileId || src.serverFileId || '';
@@ -2794,7 +3955,7 @@ async function readCsvTextFromSource(src){
 
 async function csvSourceToFile(src){
   if(!src) return null;
-  if(src.fileObj && typeof Blob !== 'undefined' && src.fileObj instanceof Blob) return src.fileObj;
+  if(isBlobLike(src.fileObj) && typeof Blob !== 'undefined' && src.fileObj instanceof Blob) return src.fileObj;
   const text = await readCsvTextFromSource(src);
   if(!text || text.indexOf(',') < 0) return null;
   const name = /\.csv$/i.test(src.name||'') ? src.name : ((src.name||'ecg').replace(/\.[^.]+$/,'') + '.csv');
@@ -2804,9 +3965,193 @@ async function csvSourceToFile(src){
   try{ return new Blob([text], { type:'text/csv' }); }catch(_){ return null; }
 }
 
+async function ensureCsvToolSource(toolName){
+  const checked = checkedSources();
+  const src = pickCsvSource();
+  if(!src){
+    throw new Error(unsupportedCheckedFormatMessage(toolName, 'CSV 文件，或内容可识别为 CSV 的文本来源', checked));
+  }
+  const fileObj = await csvSourceToFile(src);
+  if(!fileObj){
+    throw new Error(unsupportedCheckedFormatMessage(toolName, '可读取并包含逗号分隔导联数据的 CSV', checked.length ? checked : [src]));
+  }
+  return { source: src, file: fileObj };
+}
+
+function requestCsvSampleRate(defaultFs, sourceName){
+  return new Promise(resolve => {
+    let modal = document.getElementById('csvXmlModal');
+    if(!modal){
+      modal = document.createElement('div');
+      modal.id = 'csvXmlModal';
+      modal.className = 'csv-xml-modal';
+      modal.innerHTML = `<div class="csv-xml-dialog" onclick="event.stopPropagation()">
+        <div class="csv-xml-title">CSV 转 XML</div>
+        <div class="csv-xml-sub" id="csvXmlSub"></div>
+        <div class="csv-xml-field">
+          <label>采样率 Fs（Hz）</label>
+          <input id="csvXmlFs" type="number" min="1" max="4000" step="1" value="500">
+        </div>
+        <div class="csv-xml-actions">
+          <button type="button" id="csvXmlCancel">取消</button>
+          <button type="button" class="primary" id="csvXmlOk">继续提取</button>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+    }
+    const sub = modal.querySelector('#csvXmlSub');
+    const input = modal.querySelector('#csvXmlFs');
+    const cancel = modal.querySelector('#csvXmlCancel');
+    const ok = modal.querySelector('#csvXmlOk');
+    let done = false;
+    function finish(value){
+      if(done) return;
+      done = true;
+      modal.classList.remove('open');
+      if(cancel) cancel.onclick = null;
+      if(ok) ok.onclick = null;
+      modal.onclick = null;
+      resolve(value);
+    }
+    if(sub) sub.textContent = '当前选择的是 CSV 文件：' + (sourceName || '未命名') + '。请确认采样率后，系统会临时包装成 ECG XML 再进行特征提取。';
+    if(input) input.value = String(defaultFs || 500);
+    if(cancel) cancel.onclick = function(){ finish(null); };
+    if(ok) ok.onclick = function(){
+      const fs = Number(input && input.value);
+      if(!Number.isFinite(fs) || fs <= 0){
+        showToast('请输入有效采样率');
+        return;
+      }
+      finish(Math.round(fs));
+    };
+    modal.onclick = function(){ finish(null); };
+    modal.classList.add('open');
+    setTimeout(()=>{ try{ input.focus(); input.select(); }catch(_){} }, 30);
+  });
+}
+
+function inferCsvLeadColumns(headers){
+  const canonical = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6'];
+  return headers.map((h, idx) => ({ raw:String(h || '').trim(), idx }))
+    .filter(item => {
+      const name = item.raw.replace(/^lead[_\s-]*/i, '');
+      return canonical.some(c => c.toLowerCase() === name.toLowerCase());
+    })
+    .map(item => {
+      const name = item.raw.replace(/^lead[_\s-]*/i, '');
+      const fixed = canonical.find(c => c.toLowerCase() === name.toLowerCase()) || item.raw;
+      return { name: fixed, idx: item.idx };
+    });
+}
+
+function looksLikeCsvIndexColumn(values, headerName){
+  const h = String(headerName || '').trim().toLowerCase();
+  if(['', 'index', 'idx', 'time', 'time_ms', 'sample', 'samples', 'row'].includes(h)) return true;
+  const firstCells = [headerName].concat(values.slice(0, 8)).map(v => String(v == null ? '' : v).trim()).filter(Boolean);
+  const stringLikeCount = firstCells.filter(v => !Number.isFinite(Number(v))).length;
+  if(stringLikeCount >= 2) return true;
+  const firstDataCells = values.slice(0, 8).map(v => String(v == null ? '' : v).trim()).filter(Boolean);
+  if(firstDataCells.length && firstDataCells.some(v => !Number.isFinite(Number(v)))) return true;
+  const nums = values.map(v => Number(String(v == null ? '' : v).trim())).filter(Number.isFinite);
+  if(nums.length < Math.max(3, Math.floor(values.length * 0.8))) return false;
+  let seq = true;
+  for(let i=0;i<nums.length;i++){
+    if(Math.abs(nums[i] - i) > 1e-9){ seq = false; break; }
+  }
+  if(seq) return true;
+  if(nums.length >= 3){
+    const step = nums[1] - nums[0];
+    if(step > 0){
+      for(let i=1;i<nums.length;i++){
+        if(Math.abs((nums[i] - nums[i-1]) - step) > 1e-9) return false;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+function stripCsvIndexColumnText(csvText){
+  const rows = parseDelimitedRows(csvText, ',', 0).filter(r => r.some(c => String(c).trim() !== ''));
+  if(rows.length < 2 || rows[0].length < 2) return { text: csvText, removed: false };
+  const firstHeader = rows[0][0];
+  const firstValues = rows.slice(1).map(r => r[0]);
+  if(!looksLikeCsvIndexColumn(firstValues, firstHeader)) return { text: csvText, removed: false };
+  const cleaned = rows.map(r => r.slice(1));
+  const out = cleaned.map(r => r.map(cell => {
+    const s = String(cell == null ? '' : cell);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\n') + '\n';
+  return { text: out, removed: true };
+}
+
+async function normalizeCsvForReconstruct(src){
+  const text = await readCsvTextFromSource(src);
+  const cleaned = stripCsvIndexColumnText(text);
+  const name = /\.csv$/i.test(src && src.name || '')
+    ? String(src.name)
+    : ((src && src.name || 'ecg').replace(/\.[^.]+$/,'') + '.csv');
+  const uploadName = cleaned.removed ? name.replace(/\.csv$/i, '_no_index.csv') : name;
+  let fileObj = null;
+  try{
+    fileObj = new File([cleaned.text], uploadName, { type:'text/csv' });
+  }catch(_){
+    try{ fileObj = new Blob([cleaned.text], { type:'text/csv' }); }catch(_){ fileObj = null; }
+  }
+  return { file: fileObj, name: uploadName, removedIndex: cleaned.removed };
+}
+
+function csvTextToEcgXml(csvText, fs, sourceName){
+  const rows = parseDelimitedRows(csvText, ',', 200000).filter(r => r.some(c => String(c).trim() !== ''));
+  if(rows.length < 2) throw new Error('CSV 数据行不足，无法转换 XML');
+  const headers = rows[0].map(h => String(h || '').trim());
+  let leads = inferCsvLeadColumns(headers);
+  if(!leads.length && headers.length > 1){
+    leads = headers.slice(1).map((h, i) => ({ name: String(h || ('Lead' + (i+1))).trim(), idx: i + 1 }));
+  }
+  if(!leads.length) throw new Error('CSV 中未识别到导联列');
+  function x(s){ return esc(String(s == null ? '' : s)); }
+  const leadXml = leads.map(lead => {
+    const values = rows.slice(1).map(r => String(r[lead.idx] == null ? '' : r[lead.idx]).trim()).filter(Boolean);
+    return '<LeadData><LeadID>' + x(lead.name) + '</LeadID><SampleBase>' + x(fs) + '</SampleBase><WaveFormData>' + x(values.join(',')) + '</WaveFormData></LeadData>';
+  }).join('');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<RestingECG><SourceType>HeartOS CSV Adapter</SourceType><SourceName>' +
+    x(sourceName || 'csv') + '</SourceName><Waveform><SampleBase>' + x(fs) + '</SampleBase>' + leadXml + '</Waveform></RestingECG>';
+}
+
+async function buildXmlSourcesForEcgomics(){
+  const xmlList = await ensureXmlToolSources('ECGOmics').catch(() => []);
+  if(xmlList.length) return xmlList;
+  const csvSrc = pickCsvSource();
+  if(!csvSrc) return await ensureXmlToolSources('ECGOmics');
+  const fs = await requestCsvSampleRate(500, csvSrc.name || 'CSV');
+  if(!fs) throw new Error('已取消 CSV 转 XML');
+  const csvText = await readCsvTextFromSource(csvSrc);
+  const xmlText = csvTextToEcgXml(csvText, fs, csvSrc.name || 'csv');
+  const xmlName = String(csvSrc.name || 'ecg.csv').replace(/\.[^.]+$/,'') + '_fs' + fs + '.xml';
+  addAnalysisResultFile({
+    name: xmlName,
+    type: 'xml',
+    mime: 'application/xml;charset=utf-8',
+    content: xmlText,
+    source: 'CSV 转 XML'
+  });
+  return [{
+    id: 'csv_xml_' + Date.now(),
+    name: xmlName,
+    type: 'xml',
+    checked: true,
+    content: xmlText,
+    imageDataUrl: null,
+    fileObj: null,
+    __fromCsvAdapter: true,
+    __sourceCsvName: csvSrc.name || ''
+  }];
+}
+
 async function readXmlTextFromSource(src){
   if(!src) return '';
-  if(src.fileObj && typeof src.fileObj.text === 'function'){
+  if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
   const fileId = src.fileId || src.serverFileId || '';
@@ -2822,6 +4167,21 @@ async function readXmlTextFromSource(src){
   const c = String(src.content||'').trim();
   if(c && c.indexOf('<') >= 0 && c.indexOf('>') >= 0) return c;
   return '';
+}
+
+async function ensureXmlToolSources(toolName){
+  const checked = checkedSources();
+  const checkedXml = checked.filter(s => !!s && isXmlSource(s));
+  const allXml = (sources || []).filter(s => !!s && isXmlSource(s));
+  const xmlList = checkedXml.length ? checkedXml : allXml;
+  if(!xmlList.length){
+    let single = pickXmlLikeFallbackSource();
+    if(single) xmlList.push(single);
+  }
+  if(!xmlList.length){
+    throw new Error(unsupportedCheckedFormatMessage(toolName, 'XML 文件，或内容可识别为 XML 的文本来源', checked));
+  }
+  return xmlList;
 }
 
 function flattenObject(obj, prefix, out){
@@ -3108,9 +4468,16 @@ async function runStudio(type, opts){
   if(!sources.length){openUploadModal();return;}
   updateStudioActive(type);
 
-  // HandECG card should respond immediately without router roundtrip.
+  // 手动数字化 card should respond immediately without router roundtrip.
   if(type==='ecg'){
-    openEcgOverlay();
+    try{
+      const src = await ensureImageToolSource('手动数字化');
+      window.__heartosLastImageSource = src;
+      openEcgOverlay(src);
+    }catch(e){
+      appendAI('手动数字化无法打开：' + (e && e.message ? e.message : String(e)));
+      showToast('当前来源格式不支持手动数字化');
+    }
     return;
   }
 
@@ -3128,12 +4495,9 @@ async function runStudio(type, opts){
     rc.style.display='block';
     rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>自动数字化处理中，请稍候…</p></div>`;
     try{
-      let src = pickImageSourceForTool();
-      if(!src) throw new Error('没有可用图像来源，请先上传并勾选 ECG 图片/PDF。');
-      src = await ensureEcgImageSource(src);
-      if(!src || !src.imageDataUrl) throw new Error('当前来源无法转为图像数据。');
+      let src = await ensureImageToolSource('自动数字化');
 
-      let fileObj = src.fileObj || null;
+      let fileObj = isBlobLike(src.fileObj) ? src.fileObj : null;
       if(!fileObj || !/^image\//i.test(String(fileObj.type||''))){
         fileObj = dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
       }
@@ -3181,6 +4545,15 @@ async function runStudio(type, opts){
       currentResultText = csv;
       addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'自动数字化' });
       const returnedImage = _extractReturnedImageDataUrl(data);
+      let compareImage = '';
+      try{
+        compareImage = await buildAutoDigitizeSideBySideDataUrl(src.imageDataUrl, leadMap, {
+          crop: '',
+          leftTitle: 'Original ECG image'
+        });
+      }catch(cmpErr){
+        console.warn('auto digitize side-by-side preview failed', cmpErr);
+      }
 
       const leadNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
       const distRows = leadNames.map(name => {
@@ -3193,12 +4566,21 @@ async function runStudio(type, opts){
       ensureResultContent('');
       try{
         appendAI('自动数字化完成，CSV 已保存到右下角分析结果。\n状态：SUCCESS\n来源：' + (src.name || '未命名') + '\n布局参数：standard_6x2\nCSV：' + csvName + '\n导联数：' + scored.leadCount + '\n总采样点：' + totalPoints);
-        if(returnedImage){
+        if(compareImage || returnedImage){
           const w = document.getElementById('msgsList');
           if(w){
             const d = document.createElement('div');
             d.className = 'msg-ai';
+            const chatImg = compareImage || returnedImage;
             d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>自动数字化回传图像</strong></p><img src="${returnedImage}" alt="auto-digitize-chat-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>`;
+            d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>自动数字化对比预览</strong></p><img src="${chatImg}" alt="auto-digitize-chat-preview" onclick="openChatImageZoom('${chatImg}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>`;
+            const debugPart = returnedImage
+              ? `<p><strong>接口回传四图</strong></p><img src="${returnedImage}" alt="auto-digitize-debug-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin:6px 0 10px;" />`
+              : '';
+            const comparePart = compareImage
+              ? `<p><strong>原图与拟合波形对比</strong></p><img src="${compareImage}" alt="auto-digitize-compare-preview" onclick="openChatImageZoom('${compareImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />`
+              : '';
+            d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body">${debugPart}${comparePart}</div>`;
             w.appendChild(d);
             scrollChat();
           }
@@ -3233,13 +4615,16 @@ async function runStudio(type, opts){
     rc.style.display='block';
     rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>正在调用心电图补全接口，请稍候…</p></div>`;
     try{
-      const src = pickCsvSource();
-      if(!src) throw new Error('未找到 CSV 来源。请先上传 .csv 文件并勾选该来源。');
-      const fileObj = await csvSourceToFile(src);
-      if(!fileObj) throw new Error('CSV 文件读取失败。');
+      const csvReady = await ensureCsvToolSource('心电图补全');
+      const src = csvReady.source;
+      const normalizedCsv = await normalizeCsvForReconstruct(src);
+      const fileObj = normalizedCsv.file || csvReady.file;
 
       const fd = new FormData();
-      const uploadName = src.name || fileObj.name || 'ecg.csv';
+      const uploadName = normalizedCsv.name || src.name || fileObj.name || 'ecg.csv';
+      if(normalizedCsv.removedIndex){
+        fd.append('index_removed', 'true');
+      }
       if(typeof Blob !== 'undefined' && fileObj instanceof Blob){
         fd.append('file', fileObj, uploadName);
       }else{
@@ -3317,18 +4702,11 @@ async function runStudio(type, opts){
   rc.style.display='flex';
   rc.style.flexDirection='column';
 
-  // XML -> ECGOmics direct mode (no HandECG dependency)
+  // XML -> ECGOmics direct mode (no 手动数字化 dependency)
   if(type==='ecgd'){
     rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>正在调用 ECGOmics 提取 XML 特征，请稍候…</p></div>`;
     try{
-      const checkedXml = (sources || []).filter(s => !!s && !!s.checked && isXmlSource(s));
-      const allXml = (sources || []).filter(s => !!s && isXmlSource(s));
-      const xmlList = checkedXml.length ? checkedXml : allXml;
-      if(!xmlList.length){
-        let single = pickXmlLikeFallbackSource();
-        if(single) xmlList.push(single);
-      }
-      if(!xmlList.length) throw new Error('未找到 XML 来源。请先上传 .xml 文件并勾选该来源。');
+      const xmlList = await buildXmlSourcesForEcgomics();
 
       let okCount = 0;
       const reports = [];
@@ -3369,9 +4747,9 @@ async function runStudio(type, opts){
 
   const srcContent = sources.filter(s=>s.checked).map(s=>s.content||s.name).join('\n\n---\n\n');
   const prompts = {
-    ecg:`你是心电图分析专家。请基于以下研究内容，生成一份 HandECG 分析报告，包括：
+    ecg:`你是心电图分析专家。请基于以下研究内容，生成一份 手动数字化 分析报告，包括：
 1. 相关 ECG 指标解读（如 QTc 等）
-2. HandECG 与传统 ECG 的对比
+2. 手动数字化与传统 ECG 的对比
 3. 信号质量评估建议
 4. 临床应用价值
 5. 与研究内容的关联分析
@@ -3521,10 +4899,10 @@ function readFile(f){
     r.readAsText(f);
   } else if(isImg){
     const r = new FileReader();
-    r.onload = ev => addSrcWithProgress(f.name, f.name.split('.').pop(), '[图像文件，可在 HandECG 工具中打开]', ev.target.result, f);
+    r.onload = ev => addSrcWithProgress(f.name, f.name.split('.').pop(), '[图像文件，可在 手动数字化 工具中打开]', ev.target.result, f);
     r.readAsDataURL(f);
   } else if(isPdf){
-    addSrcWithProgress(f.name, 'pdf', '[PDF 文件，可自动转换第1页后发送到 HandECG]', null, f);
+    addSrcWithProgress(f.name, 'pdf', '[PDF 文件，可自动转换第1页后发送到手动数字化]', null, f);
   } else {
     addSrcWithProgress(f.name, f.name.split('.').pop(), '['+f.name+' 已上传]', null, f);
   }
@@ -3574,9 +4952,9 @@ function addSrc(name,type,content,imageDataUrl,rawFile){
   sources.push(srcObj);
   window.sources = sources;
   persistSourceFileIfNeeded(srcObj, rawFile);
+  window.__heartosJustAddedSourceId = id;
   if(srcObj.imageDataUrl || (srcObj.fileObj && /^image\//i.test(String(srcObj.fileObj.type||'')))){
     window.__heartosLastImageSource = srcObj;
-    try{ appendImagePreviewInChat(srcObj); }catch(_){}
   }
   if(curNb) curNb.srcs=sources.length;
   syncCurrentNotebookState();
@@ -3790,7 +5168,7 @@ function setAuthMsg(msg, isErr){
   var el = document.getElementById('authMsg');
   if(!el) return;
   el.textContent = msg || '';
-  el.style.color = isErr ? '#b91c1c' : '#0f766e';
+  el.style.color = isErr ? '#f87171' : '#34d399';
 }
 
 function setAuthModeAndShow(mode){
@@ -3799,12 +5177,13 @@ function setAuthModeAndShow(mode){
   var btn = document.getElementById('authRegisterBtn');
   var pri = document.getElementById('authLoginBtn');
   var help = document.getElementById('authPasswordHelp');
+  var gate = document.getElementById('authGate');
   if(w) w.classList.toggle('auth-hidden', authMode !== 'register');
   if(help) help.classList.toggle('auth-hidden', authMode !== 'register');
-  if(btn) btn.textContent = authMode === 'login' ? '切换到注册' : '切换到登录';
-  if(pri) pri.textContent = authMode === 'login' ? '登录' : '注册并登录';
+  if(btn) btn.textContent = authMode === 'login' ? '注册' : '登录';
+  if(pri) pri.textContent = authMode === 'login' ? '登录' : '注册';
+  if(gate) gate.classList.remove('auth-hidden');
   setAuthMsg('');
-  setAppAuthed(false);
 }
 
 function toggleAuthMode(){
@@ -3812,7 +5191,11 @@ function toggleAuthMode(){
 }
 
 async function sha256Hex(text){
-  return 'HeartOS' + text
+  const bytes = new TextEncoder().encode(String(text || ''));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(function(b){
+    return b.toString(16).padStart(2, '0');
+  }).join('');
 }
 
 async function deriveAuthPassword(username, password){
@@ -3991,7 +5374,7 @@ async function apiFetch(path, opts){
 
 
 // Unified AI call — returns reply string, throws on error
-async function callAI(system, messages, maxTokens=1000, overrideKey='', signal=null){
+async function callAI(system, messages, maxTokens=1000, overrideKey='', signal=null, extraBody=null){
   const p = AI_PROVIDERS[aiConfig.provider];
   if(!p) throw new Error('未选择服务商');
 
@@ -4003,6 +5386,9 @@ async function callAI(system, messages, maxTokens=1000, overrideKey='', signal=n
     max_tokens: maxTokens,
     temperature: 0.2
   };
+  if(extraBody && typeof extraBody === 'object'){
+    Object.assign(body, extraBody);
+  }
   if(overrideKey) body.api_key = String(overrideKey || '').trim();
 
   const controller = signal ? null : new AbortController();
@@ -4033,6 +5419,19 @@ async function callAI(system, messages, maxTokens=1000, overrideKey='', signal=n
     throw e;
   }finally{
     clearTimeout(timer);
+  }
+}
+
+async function callZhipuAI(system, messages, maxTokens=1000, signal=null, modelOverride='', extraBody=null){
+  const prev = { provider: aiConfig.provider, model: aiConfig.model };
+  const zhipu = AI_PROVIDERS.zhipu;
+  try{
+    aiConfig.provider = 'zhipu';
+    aiConfig.model = modelOverride || (prev.provider === 'zhipu' && prev.model) || (zhipu && zhipu.defaultModel) || 'glm-4-flash';
+    return await callAI(system, messages, maxTokens, '', signal, extraBody);
+  }finally{
+    aiConfig.provider = prev.provider;
+    aiConfig.model = prev.model;
   }
 }
 
@@ -4214,7 +5613,7 @@ updateApiStatus();
 <div class="ecg-overlay" id="ecgOverlay">
   <div class="ecg-overlay-bar">
     <div class="ecg-overlay-title">
-      ♥ HandECG 数字化工具
+      ♥ 手动数字化工具
       <span>ECG Digitizer</span>
     </div>
     <div class="ecg-overlay-spacer"></div>
@@ -4227,7 +5626,7 @@ updateApiStatus();
   <div class="ecg-iframe-wrap">
     <div class="ecg-loading" id="ecgLoading">
       <div class="ecg-spin"></div>
-      <p>正在加载 HandECG 工具…</p>
+      <p>正在加载手动数字化工具…</p>
     </div>
     <iframe id="ecgIframe" style="opacity:0;transition:opacity .4s;"
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"></iframe>
@@ -4288,7 +5687,7 @@ async function uploadImageToHandEcg(src){
   var uploadUrl = (window.HAND_ECG_UPLOAD_URL || HAND_ECG_UPLOAD_URL || '').trim();
   if(!uploadUrl) return null;
 
-  var file = src.fileObj || dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
+  var file = isBlobLike(src.fileObj) ? src.fileObj : dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
   if(!file) return null;
 
   ecgUploadBusy = true;
@@ -4390,7 +5789,7 @@ function openEcgOverlay(explicitSrc){
           if(tries >= 24){ clearInterval(t); }
         }
       }, 300);
-      toast('HandECG 已在新标签页打开', 'warn');
+      toast('手动数字化已在新标签页打开', 'warn');
       return;
     }
 
@@ -4398,7 +5797,7 @@ function openEcgOverlay(explicitSrc){
     var overlay = document.getElementById('ecgOverlay');
     overlay.classList.add('open');
     document.getElementById('ecgBreadcrumb').textContent =
-      (curNb ? curNb.title : 'HeartOS') + ' > HandECG';
+      (curNb ? curNb.title : 'HeartOS') + ' > 手动数字化';
 
     var iframe = document.getElementById('ecgIframe');
     var loading = document.getElementById('ecgLoading');
@@ -4463,7 +5862,7 @@ document.addEventListener('keydown',function(e){
   var TOOL_REGISTRY = {
     handecg: {
       id: 'handecg',
-      title: 'HandECG',
+      title: '手动数字化',
       url: './ecg_digitizer_enhanced.html',
       readyTypes: ['TOOL_READY','HEARTOS_TOOL_READY'],
       openFileType: 'HEARTOS_OPEN_FILE',
@@ -4639,7 +6038,7 @@ document.addEventListener('keydown',function(e){
       if(launch.handshakeDone) return;
       logMetric('handshake_timeout_continue_iframe', { launchId: launch.launchId });
       if(typeof window.toast === 'function'){
-          window.toast('HandECG ready signal timeout, keep retrying image import', 'warn');
+          window.toast('手动数字化 ready signal timeout, keep retrying image import', 'warn');
       }
       startPump(launch);
     }, TOOL_REGISTRY.handecg.handshakeTimeoutMs);
@@ -4813,7 +6212,7 @@ document.addEventListener('keydown',function(e){
   async function uploadSourceImage(src){
     if(!src || !src.imageDataUrl) return '';
     if(!UPLOAD || !/^https?:/i.test(UPLOAD)) return '';
-    var file = src.fileObj || dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
+    var file = (typeof isBlobLike === 'function' && isBlobLike(src.fileObj)) ? src.fileObj : dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
     if(!file) return '';
 
     var fd = new FormData();
@@ -4845,7 +6244,7 @@ document.addEventListener('keydown',function(e){
     if(!overlay || !iframe) return null;
     try{ iframe.removeAttribute('sandbox'); }catch(_){}
     overlay.classList.add('open');
-    if(breadcrumb) breadcrumb.textContent = (window.curNb ? window.curNb.title : 'HeartOS') + ' > ' + (title || 'HandECG');
+    if(breadcrumb) breadcrumb.textContent = (window.curNb ? window.curNb.title : 'HeartOS') + ' > ' + (title || '手动数字化');
     if(loading) loading.style.display = 'flex';
     iframe.style.opacity = '0';
     return { overlay: overlay, iframe: iframe, loading: loading };
@@ -4900,7 +6299,7 @@ document.addEventListener('keydown',function(e){
 
   async function openHandEcgEmbedded(explicit){
     var src = pickSource(explicit || null);
-    var state = showOverlay('HandECG');
+    var state = showOverlay('手动数字化');
     if(!state) return;
 
     var remoteUrl = '';
@@ -4908,7 +6307,7 @@ document.addEventListener('keydown',function(e){
       try{
         remoteUrl = await uploadSourceImage(src);
       }catch(e){
-        console.warn('HandECG upload failed', e);
+        console.warn('手动数字化 upload failed', e);
         if(typeof window.toast === 'function'){
           window.toast('图片上传失败，改用消息注入导图', 'warn');
         }
@@ -5033,7 +6432,7 @@ document.addEventListener('keydown',function(e){
     }
     if(src) await ensureSourceDataUrl(src);
     if(src && !src.imageDataUrl && typeof window.toast === 'function'){
-      window.toast('该来源暂时无法发送到 HandECG，请检查图片格式。', 'warn');
+      window.toast('该来源暂时无法发送到手动数字化，请检查图片格式。', 'warn');
     }
     if(typeof window.openEcgOverlay === 'function') return window.openEcgOverlay(src || null);
   };
@@ -5182,7 +6581,7 @@ document.addEventListener('keydown',function(e){
   async function ensure(src){
     if(!src) return '';
     if(src.imageDataUrl) return src.imageDataUrl;
-    if(src.fileObj){
+    if(src.fileObj && (!window.isBlobLike || window.isBlobLike(src.fileObj))){
       var d = await fileToDataUrl(src.fileObj);
       if(d){ src.imageDataUrl = d; return d; }
     }
@@ -5242,7 +6641,7 @@ document.addEventListener('keydown',function(e){
   async function open(explicit){
     if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
       if(typeof window.toast === 'function'){
-        window.toast('刚关闭 HandECG，请稍等 2 秒后再打开。', 'warn');
+        window.toast('刚关闭 手动数字化，请稍等 2 秒后再打开。', 'warn');
       }
       return null;
     }
@@ -5283,7 +6682,7 @@ document.addEventListener('keydown',function(e){
       active = null;
       imported = false;
       if(typeof window.toast === 'function'){
-        window.toast('没有找到可发送到 HandECG 的图片来源。', 'warn');
+        window.toast('没有找到可发送到手动数字化 的图片来源。', 'warn');
       }
     }
     o.iframe.src = u;
@@ -5418,13 +6817,16 @@ document.addEventListener('keydown',function(e){
         if(converted) src = converted;
       }
     }catch(_){}
-    if(src.imageDataUrl) return src;
-    if(src.fileObj){
+    if(src.imageDataUrl && String(src.imageDataUrl).indexOf('data:image') === 0) return src;
+    if(src.fileObj && (!window.isBlobLike || window.isBlobLike(src.fileObj)) && /^image\//i.test(String(src.fileObj.type || ''))){
       var d = await fileToDataUrl(src.fileObj);
-      if(d){ src.imageDataUrl = d; return src; }
+      if(d && String(d).indexOf('data:image') === 0){ src.imageDataUrl = d; return src; }
     }
     var remote = await fetchStoredFileDataUrl(src);
-    if(remote){ src.imageDataUrl = remote; return src; }
+    if(remote && String(remote).indexOf('data:image') === 0){
+      src.imageDataUrl = remote;
+      return src;
+    }
     return src;
   }
   async function resolveUrl(){
@@ -5486,12 +6888,19 @@ document.addEventListener('keydown',function(e){
   }
   function sendAll(target, launch){
     if(!target || !launch || !launch.src) return;
-    ['HEARTOS_OPEN_FILE','HEARTOS_ECG_IMAGE','HAND_ECG_IMAGE','ECG_IMAGE','IMPORT_IMAGE','HEARTOS_FILE_PAYLOAD']
+    var isLarge = String((launch.src && launch.src.imageDataUrl) || '').length > 1500000;
+    var types = isLarge
+      ? ['HEARTOS_OPEN_FILE','HEARTOS_FILE_PAYLOAD']
+      : ['HEARTOS_OPEN_FILE','HEARTOS_ECG_IMAGE','HAND_ECG_IMAGE','ECG_IMAGE','IMPORT_IMAGE','HEARTOS_FILE_PAYLOAD'];
+    types
       .forEach(function(t){ post(target, makePayload(launch.src, launch.launchId, launch.fileToken, t)); });
   }
   function startPump(iframe, launch){
     if(pump){ clearInterval(pump); pump = null; }
     var tries = 0;
+    var isLarge = String((launch.src && launch.src.imageDataUrl) || '').length > 1500000;
+    var maxTries = isLarge ? 8 : 40;
+    var intervalMs = isLarge ? 600 : 250;
     pump = setInterval(function(){
       tries += 1;
       if(!activeLaunch || activeLaunch.launchId !== launch.launchId){
@@ -5499,7 +6908,7 @@ document.addEventListener('keydown',function(e){
         clearInterval(pump); pump = null; return;
       }
       try{ sendAll(iframe.contentWindow, launch); }catch(_){}
-      if(launch.imported || tries >= 40){
+      if(launch.imported || tries >= maxTries){
         if(launch.objectUrl){
           var objectUrl = launch.objectUrl;
           launch.objectUrl = '';
@@ -5507,7 +6916,7 @@ document.addEventListener('keydown',function(e){
         }
         clearInterval(pump); pump = null;
       }
-    }, 250);
+    }, intervalMs);
   }
   function openOverlay(){
     var overlay = document.getElementById('ecgOverlay');
@@ -5519,12 +6928,12 @@ document.addEventListener('keydown',function(e){
     overlay.classList.add('open');
     if(loading) loading.style.display = 'flex';
     iframe.style.opacity = '0';
-    if(breadcrumb) breadcrumb.textContent = ((window.curNb && window.curNb.title) || 'HeartOS') + ' > HandECG';
+    if(breadcrumb) breadcrumb.textContent = ((window.curNb && window.curNb.title) || 'HeartOS') + ' > 手动数字化';
     return { overlay: overlay, iframe: iframe, loading: loading };
   }
   async function openHandEcg(explicitSrc){
     if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
-      if(typeof showToast === 'function') showToast('刚关闭 HandECG，请稍等 2 秒后再打开');
+      if(typeof showToast === 'function') showToast('刚关闭 手动数字化，请稍等 2 秒后再打开');
       return null;
     }
     var src = pickSource(explicitSrc || null);
@@ -5532,8 +6941,9 @@ document.addEventListener('keydown',function(e){
     if(!state) return null;
 
     if(src) src = await ensureImportableSource(src);
-    if(src && !src.imageDataUrl && typeof showToast === 'function'){
-      showToast('HandECG 已打开，但当前来源图片数据未就绪');
+    if(src && (!src.imageDataUrl || String(src.imageDataUrl).indexOf('data:image') !== 0)){
+      if(typeof showToast === 'function') showToast('当前来源无法转为手动数字化支持的图像格式');
+      return null;
     }
 
     var launchId = uid('handecg');
@@ -5551,7 +6961,8 @@ document.addEventListener('keydown',function(e){
       u.searchParams.set('filename', (src && src.name) || 'ecg_image.png');
       if(src && src.imageDataUrl){
         try{
-          var fileForUrl = src.fileObj || (typeof dataUrlToFile === 'function' ? dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png') : null);
+          var fileForUrl = ((typeof isBlobLike === 'function' && isBlobLike(src.fileObj)) ? src.fileObj : null) ||
+            (typeof dataUrlToFile === 'function' ? dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png') : null);
           if(fileForUrl){
             launch.objectUrl = URL.createObjectURL(fileForUrl);
             u.searchParams.set('image', launch.objectUrl);
@@ -5579,7 +6990,7 @@ document.addEventListener('keydown',function(e){
     activeLaunch = null;
   };
   window.openEcgOverlay = function(explicitSrc){ return openHandEcg(explicitSrc || null); };
-  window.openHandEcgFromSource = function(id, evt){
+  window.openHandEcgFromSource = async function(id, evt){
     if(evt) evt.stopPropagation();
     var src = null;
     var list = getSources();
@@ -5587,6 +6998,12 @@ document.addEventListener('keydown',function(e){
       if(list[i] && list[i].id === id){ src = list[i]; break; }
     }
     if(src){
+      try{
+        if(typeof ensureEcgImageSource === 'function'){
+          var converted = await ensureEcgImageSource(src);
+          if(converted) src = converted;
+        }
+      }catch(_){}
       window.__heartosLastImageSource = src;
       list.forEach(function(s){ if(s) s.checked = (s.id === id); });
       if(typeof renderSrcs === 'function') renderSrcs();
@@ -5678,7 +7095,7 @@ document.addEventListener('keydown',function(e){
         return Math.max(max, Array.isArray(arr) ? arr.length : 0);
       }, 0)
     };
-    appendHandEcgPreviewMessage(data, parsed, 'HandECG 提取完成');
+    appendHandEcgPreviewMessage(data, parsed, '手动数字化提取完成');
   }
 
   function renderExtractionToStudio(data){
@@ -5698,7 +7115,7 @@ document.addEventListener('keydown',function(e){
     row.innerHTML =
       '<div class="ai-av">AI</div>' +
       '<div class="ai-body">' +
-        '<p><strong>HandECG 提取完成</strong>：' + leads.length + ' 导联，采样率 ' + (data.fs||500) + 'Hz。</p>' +
+        '<p><strong>手动数字化提取完成</strong>：' + leads.length + ' 导联，采样率 ' + (data.fs||500) + 'Hz。</p>' +
         '<div id="'+uid+'" style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px;"></div>' +
       '</div>';
     list.appendChild(row);
@@ -5732,7 +7149,7 @@ document.addEventListener('keydown',function(e){
         type: 'csv',
         mime: 'text/csv;charset=utf-8',
         content: csvText,
-        source: 'HandECG'
+        source: '手动数字化'
       });
     }
     renderHandEcgCsvToStudio(data);
@@ -6024,7 +7441,7 @@ document.addEventListener('keydown',function(e){
       return '<div class="hecg-chat-card">' +
         '<div class="hecg-result-title">质量预览</div>' +
         '<div class="hecg-result-sub">红色曲线为本次提取波形；双击预览可放大查看。</div>' +
-        '<div class="hecg-native-preview"><img src="' + escAttr(data.previewImageDataUrl) + '" alt="HandECG 提取预览结果" ondblclick="openChatImageZoom(this.src)"></div>' +
+        '<div class="hecg-native-preview"><img src="' + escAttr(data.previewImageDataUrl) + '" alt="手动数字化提取预览结果" ondblclick="openChatImageZoom(this.src)"></div>' +
       '</div>';
     }
     var imageDataUrl = getHandEcgOriginalImage(data);
@@ -6041,11 +7458,11 @@ document.addEventListener('keydown',function(e){
         '</div>' +
         '<div class="hecg-overlay-stage"><div class="hecg-overlay-canvas" id="' + uid + '_canvas">' + leadGrid + '</div></div>';
     }else{
-      stage = '<div class="hecg-empty-original">未收到 HandECG 原生提取预览图，请重新在 HandECG 中保存 CSV 后再查看。</div>';
+      stage = '<div class="hecg-empty-original">未收到 手动数字化原生提取预览图，请重新在 手动数字化中保存 CSV 后再查看。</div>';
     }
     return '<div class="hecg-chat-card">' +
       '<div class="hecg-result-title">提取波形与原图对比</div>' +
-      '<div class="hecg-result-sub">每张卡片为对应导联的原图裁剪区域，红线为 HandECG 提取结果。</div>' +
+      '<div class="hecg-result-sub">每张卡片为对应导联的原图裁剪区域，红线为 手动数字化提取结果。</div>' +
       '<div class="hecg-chat-summary">' +
         '<div class="hecg-summary-item"><div class="hecg-summary-label">导联数</div><div class="hecg-summary-value">' + summary.leadCount + '</div></div>' +
         '<div class="hecg-summary-item"><div class="hecg-summary-label">采样率</div><div class="hecg-summary-value">' + fmtMetric(summary.sampleRate, 0) + ' Hz</div></div>' +
@@ -6087,7 +7504,7 @@ document.addEventListener('keydown',function(e){
       : '<div class="hecg-empty-original">未找到原始心电图图像来源，仅展示提取后的波形预览。</div>';
     return '<div class="hecg-result-card">' +
       '<div class="hecg-result-head">' +
-        '<div><div class="hecg-result-title">HandECG 手动数字化结果</div>' +
+        '<div><div class="hecg-result-title">手动数字化结果</div>' +
         '<div class="hecg-result-sub">提取信号：' + esc(fileName) + '</div></div>' +
       '</div>' +
       '<div class="hecg-summary-grid">' +
@@ -6252,9 +7669,9 @@ document.addEventListener('keydown',function(e){
         var err = await resp.json().catch(function(){ return {}; });
         throw new Error(err.detail || ('HTTP ' + resp.status));
       }
-      console.log('[heartos-final] HandECG CSV saved upstream:', payload.file_name);
+      console.log('[heartos-final] 手动数字化 CSV saved upstream:', payload.file_name);
     }catch(e){
-      console.warn('[heartos-final] HandECG CSV upstream save failed:', e);
+      console.warn('[heartos-final] 手动数字化 CSV upstream save failed:', e);
     }
   }
 
@@ -6406,6 +7823,172 @@ document.addEventListener('keydown',function(e){
       return;
     }
   });
+})();
+</script>
+
+<script>
+/* ===== Seamless ECG Canvas Animation ===== */
+(function() {
+  // One complete ECG beat shape, normalized to x:[0,1] y:[0,1] (center=0.5)
+  // Drawn as a series of [dx, dy] segments where dx is fraction of pattern width
+  function buildEcgSegments() {
+    // Pattern unit width in pixels
+    var PW = 240;
+    var MID = 0.5;
+    // Each segment: [x_frac_of_PW, y_0to1]  (y=0 top, y=1 bottom, 0.5=center)
+    return [
+      [0,    MID],
+      [0.28, MID],       // flat before beat
+      [0.33, MID-0.07],  // small P wave up
+      [0.36, MID],
+      [0.40, MID],       // flat
+      [0.42, MID+0.03],  // Q dip
+      [0.44, MID-0.42],  // R spike up  ← tall narrow spike
+      [0.46, MID+0.18],  // S dip below
+      [0.49, MID],       // return to base
+      [0.58, MID],       // flat ST
+      [0.63, MID-0.12],  // T wave
+      [0.68, MID-0.14],
+      [0.72, MID-0.08],
+      [0.76, MID],       // end T
+      [1.00, MID],       // flat to end of pattern
+    ];
+  }
+
+  var segs = buildEcgSegments();
+
+  // Build a reusable off-screen tile of one ECG pattern repeat
+  function makeTile(PW, h, strokeColor, lineWidth) {
+    var oc = document.createElement('canvas');
+    oc.width = Math.round(PW);
+    oc.height = Math.round(h);
+    var ctx = oc.getContext('2d');
+    ctx.clearRect(0, 0, oc.width, oc.height);
+    ctx.beginPath();
+    for (var i = 0; i < segs.length; i++) {
+      var x = segs[i][0] * PW;
+      var y = segs[i][1] * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    return oc;
+  }
+
+  // ── Background canvas (full screen) ──────────────────────────────────────
+  var bgCanvas = document.getElementById('authEcgCanvas');
+  if (bgCanvas) {
+    var bgCtx = bgCanvas.getContext('2d');
+    var bgTiles = [];
+    var bgOffset = 0;
+    var bgLastW = 0, bgLastH = 0;
+
+    var BG_LANES = [
+      { yFrac: 0.28, speed: 38, opacity: 0.16, color: '220,38,38',  PW: 280, lw: 1.4 },
+      { yFrac: 0.52, speed: 52, opacity: 0.10, color: '14,165,233', PW: 320, lw: 1.2 },
+      { yFrac: 0.72, speed: 28, opacity: 0.08, color: '148,163,184',PW: 260, lw: 1.1 },
+    ];
+
+    function bgResize() {
+      var dpr = window.devicePixelRatio || 1;
+      var rect = bgCanvas.getBoundingClientRect();
+      var w = Math.round(rect.width);
+      var h = Math.round(rect.height);
+      if (w === bgLastW && h === bgLastH) return;
+      bgLastW = w; bgLastH = h;
+      bgCanvas.width  = w * dpr;
+      bgCanvas.height = h * dpr;
+      bgCtx.scale(dpr, dpr);
+      // Rebuild tiles sized to lane height
+      bgTiles = BG_LANES.map(function(lane) {
+        var laneH = h * 0.18; // height of ECG stroke area per lane
+        return makeTile(lane.PW, laneH, 'rgba(' + lane.color + ',' + lane.opacity + ')', lane.lw);
+      });
+    }
+
+    var bgPrev = null;
+    function bgDraw(ts) {
+      if (!bgPrev) bgPrev = ts;
+      var dt = Math.min((ts - bgPrev) / 1000, 0.05);
+      bgPrev = ts;
+
+      var w = bgLastW, h = bgLastH;
+      bgCtx.clearRect(0, 0, w, h);
+
+      BG_LANES.forEach(function(lane, i) {
+        var tile = bgTiles[i];
+        if (!tile) return;
+        var PW = lane.PW;
+        var laneH = tile.height / (window.devicePixelRatio || 1);
+        var cy = h * lane.yFrac - laneH / 2;
+
+        // Phase offset per lane so they're independent
+        lane._off = ((lane._off || 0) + dt * lane.speed) % PW;
+        var startX = -lane._off;
+
+        // Draw enough tiles to fill the screen with no gaps
+        for (var x = startX; x < w; x += PW) {
+          bgCtx.drawImage(tile, x, cy, PW, laneH);
+        }
+      });
+
+      requestAnimationFrame(bgDraw);
+    }
+
+    bgResize();
+    window.addEventListener('resize', bgResize);
+    requestAnimationFrame(bgDraw);
+  }
+
+  // ── Scan line canvas (bottom of left panel) ───────────────────────────────
+  var scanCanvas = document.getElementById('authScanCanvas');
+  if (scanCanvas) {
+    var scanCtx = scanCanvas.getContext('2d');
+    var scanLastW = 0, scanLastH = 0;
+    var scanTile = null;
+    var scanOff = 0;
+    var SCAN_PW = 180;
+    var SCAN_SPEED = 60; // px/sec
+
+    function scanResize() {
+      var dpr = window.devicePixelRatio || 1;
+      var rect = scanCanvas.getBoundingClientRect();
+      var w = Math.round(rect.width || scanCanvas.parentElement.offsetWidth || 300);
+      var h = Math.round(rect.height || scanCanvas.parentElement.offsetHeight || 60);
+      if (w === scanLastW && h === scanLastH && scanTile) return;
+      scanLastW = w; scanLastH = h;
+      scanCanvas.width  = w * dpr;
+      scanCanvas.height = h * dpr;
+      scanCtx.scale(dpr, dpr);
+      scanTile = makeTile(SCAN_PW, h, 'rgba(220,38,38,0.5)', 1.6);
+    }
+
+    var scanPrev = null;
+    function scanDraw(ts) {
+      if (!scanPrev) scanPrev = ts;
+      var dt = Math.min((ts - scanPrev) / 1000, 0.05);
+      scanPrev = ts;
+
+      scanResize(); // handle any layout shifts
+
+      var w = scanLastW, h = scanLastH;
+      scanCtx.clearRect(0, 0, w, h);
+
+      scanOff = (scanOff + dt * SCAN_SPEED) % SCAN_PW;
+      var startX = -scanOff;
+      for (var x = startX; x < w; x += SCAN_PW) {
+        scanCtx.drawImage(scanTile, x, 0, SCAN_PW, h);
+      }
+
+      requestAnimationFrame(scanDraw);
+    }
+
+    scanResize();
+    requestAnimationFrame(scanDraw);
+  }
 })();
 </script>
 </body>

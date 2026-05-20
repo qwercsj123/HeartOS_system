@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .auth import (
     UpstreamAuthError,
@@ -335,13 +335,56 @@ def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
     elif header_removed:
         lead_order = [str(cell).strip() for cell in header if str(cell).strip()]
 
+    # Keep only columns that look like waveform numeric columns. This is more
+    # tolerant than requiring every CSV cell to be numeric, because digitized
+    # lead CSVs may contain sparse tail cells when leads have different lengths.
+    data_row_count = len(rows)
+    numeric_columns: list[int] = []
+    column_stats: list[dict[str, Any]] = []
+    for col in range(len(rows[0])):
+        numeric_count = 0
+        non_empty_count = 0
+        for row in rows:
+            cell = row[col] if col < len(row) else ""
+            if str(cell).strip():
+                non_empty_count += 1
+            if _try_float(cell) is not None:
+                numeric_count += 1
+        coverage = numeric_count / max(1, data_row_count)
+        column_stats.append(
+            {
+                "index": col,
+                "name": (lead_order[col] if col < len(lead_order) else ""),
+                "numeric": numeric_count,
+                "non_empty": non_empty_count,
+                "coverage": round(coverage, 4),
+            }
+        )
+        if numeric_count >= 3 and coverage >= 0.6:
+            numeric_columns.append(col)
+
+    if not numeric_columns:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "CSV 中没有足够的数值波形列。请确认选中的是导联波形 CSV，"
+                "而不是 ECGOmics 特征结果 CSV；波形列应主要由数字组成。"
+            ),
+        )
+
+    if len(numeric_columns) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="CSV 中可用于补全的数值导联列少于 2 列，请选择多导联波形 CSV。",
+        )
+
     numeric_rows: list[list[str]] = []
     skipped_rows = 0
     for row in rows:
         nums: list[str] = []
         ok = True
-        for cell in row:
-            v = _try_float(cell)
+        for col in numeric_columns:
+            v = _try_float(row[col] if col < len(row) else "")
             if v is None:
                 ok = False
                 break
@@ -352,7 +395,13 @@ def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
             skipped_rows += 1
 
     if not numeric_rows:
-        raise HTTPException(status_code=422, detail="csv normalization produced no numeric rows")
+        raise HTTPException(
+            status_code=422,
+            detail="CSV 数值列存在大量空值，无法形成连续波形矩阵。请检查 CSV 是否为导联波形数据。",
+        )
+
+    if lead_order:
+        lead_order = [lead_order[i] for i in numeric_columns if i < len(lead_order)]
 
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
@@ -364,6 +413,8 @@ def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
         "rows": len(numeric_rows),
         "columns": len(numeric_rows[0]) if numeric_rows else 0,
         "lead_order": lead_order,
+        "numeric_columns": numeric_columns,
+        "column_stats": column_stats,
     }
     return out.getvalue().encode("utf-8"), meta
 
@@ -590,6 +641,7 @@ async def chat(req: ChatRequest, user: dict[str, Any] = Depends(get_current_user
         temperature=req.temperature,
         user=user,
         override_api_key=req.api_key or "",
+        thinking=req.thinking,
         timeout_seconds=settings.http_timeout,
         retries=settings.http_retries,
     )
@@ -1106,7 +1158,18 @@ async def ai_ecg_digitize(
             out["_meta"]["username"] = user.get("username")
         return {"ok": True, "upstream": out}
 
-    # Fallback mode: JSON body variants
+    # The current digitize upstream requires multipart/form-data field "file".
+    # Avoid falling back to JSON after a multipart failure, because that only
+    # produces a misleading upstream "body.file missing" error.
+    if raw_bytes:
+        detail = f"AI 心电图数字化失败 upstream={upstream_url}"
+        if last_text:
+            detail += f" resp={last_text}"
+        if last_err:
+            detail += f" err={last_err}"
+        raise HTTPException(status_code=last_status, detail=detail[:1500])
+
+    # Fallback mode: JSON body variants, used only when there is no upload file.
     for body in candidates:
         try:
             headers = {"Content-Type": "application/json"}
@@ -1170,6 +1233,62 @@ async def upload_file(
         "user_id": user.get("id"),
         "username": user.get("username"),
     }
+
+
+@app.post("/api/pdf/first-page-image")
+async def pdf_first_page_image(
+    file: UploadFile | None = File(default=None),
+    file_id: str = Form(default=""),
+    scale: float = Form(default=1.5),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    raw = b""
+    filename = "source.pdf"
+
+    if file is not None:
+        raw = await file.read()
+        filename = file.filename or filename
+    elif file_id:
+        p = (UPLOAD_DIR / file_id).resolve()
+        if not str(p).startswith(str(UPLOAD_DIR)):
+            raise HTTPException(status_code=400, detail="invalid file path")
+        if not p.exists() or not p.is_file():
+            raise HTTPException(status_code=404, detail="file not found")
+        meta = _load_file_meta().get(file_id)
+        if meta and meta.get("user_id") != user.get("id"):
+            raise HTTPException(status_code=403, detail="forbidden")
+        raw = p.read_bytes()
+        filename = p.name
+    else:
+        raise HTTPException(status_code=422, detail="missing PDF file or file_id")
+
+    if not raw:
+        raise HTTPException(status_code=422, detail="PDF file is empty")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large, max {settings.max_upload_mb}MB")
+    if not raw.lstrip().startswith(b"%PDF"):
+        raise HTTPException(status_code=422, detail=f"{filename} is not a PDF file")
+
+    try:
+        import fitz  # PyMuPDF
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail="PyMuPDF is not installed on server") from exc
+
+    try:
+        zoom = max(1.0, min(float(scale or 2.0), 4.0))
+        doc = fitz.open(stream=raw, filetype="pdf")
+        if doc.page_count < 1:
+            raise HTTPException(status_code=422, detail="PDF has no pages")
+        page = doc.load_page(0)
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        png = pix.tobytes("png")
+        doc.close()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"PDF render failed: {exc}") from exc
+
+    return Response(content=png, media_type="image/png")
 
 
 @app.get("/api/files/{file_id}")

@@ -10,7 +10,7 @@ ProviderName = Literal["openrouter", "deepseek", "zhipu", "qwen", "groq"]
 
 class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: str | list[dict[str, Any]]
 
 
 class ChatRequest(BaseModel):
@@ -21,6 +21,7 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     max_tokens: int = 1000
     temperature: float = 0.2
+    thinking: dict[str, Any] | None = None
 
 
 class ChatResponse(BaseModel):

@@ -83,11 +83,12 @@ class LLMGateway:
         provider_key: str,
         model: str,
         system: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         max_tokens: int,
         temperature: float,
         user: dict[str, Any] | None = None,
         override_api_key: str = "",
+        thinking: dict[str, Any] | None = None,
         timeout_seconds: int = 45,
         retries: int = 1,
     ) -> dict[str, Any]:
@@ -102,7 +103,7 @@ class LLMGateway:
                 detail=f"Provider `{provider_key}` API key not configured on server ({provider.env_key_name})",
             )
 
-        payload_messages: list[dict[str, str]] = []
+        payload_messages: list[dict[str, Any]] = []
         if system:
             payload_messages.append({"role": "system", "content": system})
         payload_messages.extend(messages)
@@ -113,6 +114,8 @@ class LLMGateway:
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        if thinking is not None:
+            payload["thinking"] = thinking
         if user:
             payload["user"] = {"id": user.get("id"), "username": user.get("username")}
 
