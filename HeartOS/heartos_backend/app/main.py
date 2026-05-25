@@ -26,6 +26,7 @@ from .auth import (
     verify_user,
 )
 from .config import settings
+
 from .llm import build_default_gateway
 from .providers import AGENT_SYSTEM_PROMPTS
 from .schemas import (
@@ -300,14 +301,161 @@ def _looks_like_index_column(values: list[float | None]) -> bool:
     return False
 
 
-def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
+RECONSTRUCT_LEAD_ORDER = ("I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6")
+
+
+def _canonical_lead_name(name: Any) -> str | None:
+    compact = str(name or "").strip().replace("_", "").replace("-", "").replace(" ", "")
+    compact = compact.upper().replace("MDCECGLEAD", "").replace("LEAD", "")
+    aliases = {lead.upper(): lead for lead in RECONSTRUCT_LEAD_ORDER}
+    return aliases.get(compact)
+
+
+def _format_signal_value(value: float | None) -> str:
+    # The reconstruction service accepts a dense float matrix and uses zero
+    # as the placeholder for missing lead samples.
+    return "0" if value is None else format(value, ".12g")
+
+
+def _write_reconstruct_matrix(
+    lead_map: dict[str, list[float | None]],
+    *,
+    source_format: str,
+) -> tuple[bytes, dict[str, Any]]:
+    min_waveform_samples = 100
+    canonical_map: dict[str, list[float | None]] = {}
+    for name, values in lead_map.items():
+        canonical = _canonical_lead_name(name)
+        if canonical:
+            canonical_map[canonical] = values
+    if not canonical_map and len(lead_map) == len(RECONSTRUCT_LEAD_ORDER):
+        canonical_map = {
+            lead: values for lead, values in zip(RECONSTRUCT_LEAD_ORDER, lead_map.values())
+        }
+
+    populated = [
+        lead
+        for lead, values in canonical_map.items()
+        if sum(1 for value in values if value is not None) >= min_waveform_samples
+    ]
+    if len(populated) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="心电信号中可用于补全的连续导联少于 2 条，请提供多导联波形数据。",
+        )
+
+    row_count = max(len(values) for values in canonical_map.values())
+    if row_count < min_waveform_samples:
+        raise HTTPException(status_code=422, detail="心电信号连续采样点不足 100 个，无法进行补全。")
+
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    for row_index in range(row_count):
+        writer.writerow(
+            [
+                _format_signal_value(canonical_map.get(lead, [])[row_index])
+                if row_index < len(canonical_map.get(lead, []))
+                else ""
+                for lead in RECONSTRUCT_LEAD_ORDER
+            ]
+        )
+    meta = {
+        "input_format": source_format,
+        "header_removed": False,
+        "index_removed": False,
+        "skipped_rows": 0,
+        "rows": row_count,
+        "columns": len(RECONSTRUCT_LEAD_ORDER),
+        "lead_order": list(RECONSTRUCT_LEAD_ORDER),
+        "provided_leads": populated,
+        "missing_value_fill": 0,
+        "numeric_columns": [RECONSTRUCT_LEAD_ORDER.index(lead) for lead in populated],
+        "waveform_columns": [RECONSTRUCT_LEAD_ORDER.index(lead) for lead in populated],
+        "column_stats": [
+            {
+                "index": index,
+                "name": lead,
+                "numeric": sum(1 for value in canonical_map.get(lead, []) if value is not None),
+                "non_empty": sum(1 for value in canonical_map.get(lead, []) if value is not None),
+                "coverage": round(
+                    sum(1 for value in canonical_map.get(lead, []) if value is not None) / max(1, row_count),
+                    4,
+                ),
+            }
+            for index, lead in enumerate(RECONSTRUCT_LEAD_ORDER)
+        ],
+    }
+    return out.getvalue().encode("utf-8"), meta
+
+
+def _xml_reconstruct_lead_map(text: str) -> dict[str, list[float]]:
+    try:
+        root = ET.fromstring(text)
+    except Exception:
+        raise HTTPException(status_code=422, detail="XML 无法解析，请提供包含心电波形的有效 XML 文件。")
+
+    lead_map: dict[str, list[float | None]] = {}
+    for sequence in root.iter():
+        if str(sequence.tag).rsplit("}", 1)[-1].lower() != "sequence":
+            continue
+        lead_name = ""
+        digits_text = ""
+        for child in sequence.iter():
+            local_tag = str(child.tag).rsplit("}", 1)[-1].lower()
+            code = str(child.attrib.get("code", ""))
+            if not lead_name and "MDC_ECG_LEAD_" in code.upper():
+                lead_name = code.upper().split("MDC_ECG_LEAD_", 1)[1]
+            if local_tag == "digits" and (child.text or "").strip():
+                digits_text = (child.text or "").strip()
+                break
+        if lead_name and digits_text:
+            values = _extract_numbers_from_text(digits_text)
+            if values:
+                lead_map[lead_name] = values
+    if not lead_map:
+        raise HTTPException(status_code=422, detail="XML 中未识别到可补全的导联波形序列。")
+    return lead_map
+
+
+def _json_reconstruct_lead_map(content: bytes) -> dict[str, list[float]]:
+    try:
+        obj: Any = json.loads(content.decode("utf-8-sig", errors="ignore"))
+    except Exception:
+        raise HTTPException(status_code=422, detail="JSON 无法解析，请提供包含心电导联数组的有效文件。")
+
+    queue: list[Any] = [obj]
+    preferred_keys = ("ecgData", "ecgDataRaw", "leads", "waveforms", "signals")
+    while queue:
+        cur = queue.pop(0)
+        if not isinstance(cur, dict):
+            continue
+        candidates = [cur.get(key) for key in preferred_keys if isinstance(cur.get(key), dict)]
+        candidates.append(cur)
+        for candidate in candidates:
+            lead_map: dict[str, list[float]] = {}
+            for name, values in candidate.items():
+                if not isinstance(values, list):
+                    continue
+                numeric = [_try_float(value) for value in values]
+                if any(value is not None for value in numeric):
+                    lead_map[str(name)] = numeric
+            if len(
+                [values for values in lead_map.values() if sum(1 for value in values if value is not None) >= 100]
+            ) >= 2:
+                return lead_map
+        queue.extend(value for value in cur.values() if isinstance(value, dict))
+    raise HTTPException(status_code=422, detail="JSON 中未识别到至少两条连续心电导联波形。")
+
+
+def _normalize_reconstruct_csv(content: bytes, delimiter: str = ",") -> tuple[bytes, dict[str, Any]]:
+    min_waveform_samples = 100
     text = content.decode("utf-8-sig", errors="ignore").strip()
     if not text:
-        raise HTTPException(status_code=422, detail="uploaded csv is empty")
+        raise HTTPException(status_code=422, detail="上传的心电信号文件为空")
 
-    rows = [row for row in csv.reader(io.StringIO(text)) if any(str(cell).strip() for cell in row)]
+    rows = [row for row in csv.reader(io.StringIO(text), delimiter=delimiter) if any(str(cell).strip() for cell in row)]
     if not rows:
-        raise HTTPException(status_code=422, detail="uploaded csv has no rows")
+        raise HTTPException(status_code=422, detail="心电信号表格中没有可解析的数据行")
 
     max_cols = max(len(row) for row in rows)
     rows = [row + [""] * (max_cols - len(row)) for row in rows]
@@ -335,11 +483,10 @@ def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
     elif header_removed:
         lead_order = [str(cell).strip() for cell in header if str(cell).strip()]
 
-    # Keep only columns that look like waveform numeric columns. This is more
-    # tolerant than requiring every CSV cell to be numeric, because digitized
-    # lead CSVs may contain sparse tail cells when leads have different lengths.
+    # Blank cells are missing waveforms to reconstruct, not removable noise.
+    # Keep the fixed 12-lead shape expected by the upstream model.
     data_row_count = len(rows)
-    numeric_columns: list[int] = []
+    waveform_columns: list[int] = []
     column_stats: list[dict[str, Any]] = []
     for col in range(len(rows[0])):
         numeric_count = 0
@@ -360,63 +507,91 @@ def _normalize_reconstruct_csv(content: bytes) -> tuple[bytes, dict[str, Any]]:
                 "coverage": round(coverage, 4),
             }
         )
-        if numeric_count >= 3 and coverage >= 0.6:
-            numeric_columns.append(col)
+        if numeric_count >= min_waveform_samples:
+            waveform_columns.append(col)
 
-    if not numeric_columns:
+    if len(waveform_columns) < 2:
         raise HTTPException(
             status_code=422,
             detail=(
-                "CSV 中没有足够的数值波形列。请确认选中的是导联波形 CSV，"
-                "而不是 ECGOmics 特征结果 CSV；波形列应主要由数字组成。"
+                "文件中没有足够的数值波形列。请确认所选文件包含可用于补全的"
+                "连续心电导联波形，且波形列应主要由数字组成。"
             ),
         )
 
-    if len(numeric_columns) < 2:
+    selected_columns: dict[str, int] = {}
+    for col, name in enumerate(lead_order):
+        canonical = _canonical_lead_name(name)
+        if canonical:
+            selected_columns[canonical] = col
+    if not selected_columns and len(rows[0]) == len(RECONSTRUCT_LEAD_ORDER):
+        selected_columns = {lead: index for index, lead in enumerate(RECONSTRUCT_LEAD_ORDER)}
+    populated = [
+        lead for lead, col in selected_columns.items()
+        if col in waveform_columns
+    ]
+    if len(populated) < 2:
         raise HTTPException(
             status_code=422,
-            detail="CSV 中可用于补全的数值导联列少于 2 列，请选择多导联波形 CSV。",
+            detail="补全输入需要可定位的标准十二导联波形列（I、II、III、aVR、aVL、aVF、V1-V6）。",
         )
 
     numeric_rows: list[list[str]] = []
     skipped_rows = 0
     for row in rows:
-        nums: list[str] = []
-        ok = True
-        for col in numeric_columns:
-            v = _try_float(row[col] if col < len(row) else "")
-            if v is None:
-                ok = False
-                break
-            nums.append(format(v, ".12g"))
-        if ok and nums:
-            numeric_rows.append(nums)
+        signal_row = [
+            _format_signal_value(_try_float(row[selected_columns[lead]]) if lead in selected_columns else None)
+            for lead in RECONSTRUCT_LEAD_ORDER
+        ]
+        if any(signal_row):
+            numeric_rows.append(signal_row)
         else:
             skipped_rows += 1
 
-    if not numeric_rows:
-        raise HTTPException(
-            status_code=422,
-            detail="CSV 数值列存在大量空值，无法形成连续波形矩阵。请检查 CSV 是否为导联波形数据。",
-        )
-
-    if lead_order:
-        lead_order = [lead_order[i] for i in numeric_columns if i < len(lead_order)]
+    if len(numeric_rows) < min_waveform_samples:
+        raise HTTPException(status_code=422, detail="心电信号连续采样点不足 100 个，无法进行补全。")
 
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     writer.writerows(numeric_rows)
     meta = {
+        "input_format": "tsv" if delimiter == "\t" else "csv",
         "header_removed": header_removed,
         "index_removed": index_removed,
         "skipped_rows": skipped_rows,
         "rows": len(numeric_rows),
-        "columns": len(numeric_rows[0]) if numeric_rows else 0,
-        "lead_order": lead_order,
-        "numeric_columns": numeric_columns,
+        "columns": len(RECONSTRUCT_LEAD_ORDER),
+        "lead_order": list(RECONSTRUCT_LEAD_ORDER),
+        "provided_leads": populated,
+        "missing_value_fill": 0,
+        "numeric_columns": [RECONSTRUCT_LEAD_ORDER.index(lead) for lead in populated],
+        "waveform_columns": [RECONSTRUCT_LEAD_ORDER.index(lead) for lead in populated],
         "column_stats": column_stats,
     }
     return out.getvalue().encode("utf-8"), meta
+
+
+def _normalize_reconstruct_input(content: bytes, filename: str, content_type: str = "") -> tuple[bytes, dict[str, Any]]:
+    lower_name = str(filename or "").lower()
+    lower_type = str(content_type or "").lower()
+    decoded = content.decode("utf-8-sig", errors="ignore")
+    text_head = decoded.lstrip()[:80].lower()
+    if lower_name.endswith(".xml") or "xml" in lower_type or text_head.startswith("<"):
+        return _write_reconstruct_matrix(
+            _xml_reconstruct_lead_map(decoded),
+            source_format="xml",
+        )
+    if lower_name.endswith(".json") or "json" in lower_type or text_head.startswith("{"):
+        return _write_reconstruct_matrix(_json_reconstruct_lead_map(content), source_format="json")
+    first_line = next((line for line in decoded.splitlines() if line.strip()), "")
+    if lower_name.endswith(".tsv") or "\t" in first_line:
+        return _normalize_reconstruct_csv(content, delimiter="\t")
+    if lower_name.endswith(".txt") and "," not in first_line and len(re.split(r"\s+", first_line.strip())) >= 2:
+        comma_text = "\n".join(",".join(re.split(r"\s+", line.strip())) for line in decoded.splitlines() if line.strip())
+        out, meta = _normalize_reconstruct_csv(comma_text.encode("utf-8"))
+        meta["input_format"] = "whitespace_text"
+        return out, meta
+    return _normalize_reconstruct_csv(content)
 
 
 async def _save_impute_ecg_result(
@@ -682,6 +857,7 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
     has_image = bool((req.context or {}).get("has_image"))
     has_xml = bool((req.context or {}).get("has_xml"))
     has_csv = bool((req.context or {}).get("has_csv"))
+    has_ecg_signal = bool((req.context or {}).get("has_ecg_signal")) or has_csv
 
     wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "处理", "生成", "提取", "分析", "补全", "重建", "跑一下", "run", "do"))
     asks_concept = any(k in msg_text for k in ("什么是", "是什么", "解释", "介绍", "原理", "概念", "why", "what is", "how"))
@@ -691,7 +867,7 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
     )
     wants_ecg_reconstruct = (
         ("补全" in msg_text or "重建" in msg_text or "reconstruct" in msg_text)
-        and ("心电" in msg_text or "ecg" in msg_text or "导联" in msg_text or "波形" in msg_text or has_csv)
+        and ("心电" in msg_text or "ecg" in msg_text or "导联" in msg_text or "波形" in msg_text or has_ecg_signal)
     )
 
     if "手动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
@@ -751,8 +927,8 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
             intent="ecg_reconstruct",
             route="api",
             target="/api/ecg-reconstruct",
-            reply="已识别为心电图重建任务，请调用 /api/ecg-reconstruct 并提交 CSV 文件。",
-            action={"endpoint": "/api/ecg-reconstruct", "method": "POST", "required": ["CSV file"]},
+            reply="已识别为心电图补全任务，请提交心电信号文件；系统会去除索引与描述信息，生成十二导联纯数值矩阵并以 0 标记缺失波形。",
+            action={"endpoint": "/api/ecg-reconstruct", "method": "POST", "required": ["ECG signal file (CSV/XML/JSON/TSV/TXT)"]},
         )
 
     if intent == "ecgomics_analyze" or target == "/api/ecgomics/analyze":
@@ -807,6 +983,16 @@ async def ecgomics_analyze(req: ECGOmicsAnalyzeRequest, user: dict[str, Any] = D
     if req.inputType == "raw":
         if not req.ecgData or req.ecgSampleRate is None:
             raise HTTPException(status_code=400, detail="raw 模式需要 ecgData 和 ecgSampleRate")
+        min_samples = req.ecgSampleRate * 10
+        if len(req.ecgData) < min_samples:
+            duration = len(req.ecgData) / req.ecgSampleRate
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"ECGOmics raw 模式需要至少 10 秒连续波形（当前采样率需 {min_samples} 点）；"
+                    f"当前仅 {duration:.3f} 秒（{len(req.ecgData)} 点）。"
+                ),
+            )
     else:
         if not req.xmlData:
             raise HTTPException(status_code=400, detail="xml 模式需要 xmlData")
@@ -870,7 +1056,7 @@ async def handecg_save(
 ) -> dict[str, Any]:
     upstream_url = (settings.handecg_save_url or "").strip()
     if not upstream_url:
-        raise HTTPException(status_code=500, detail="未配置 HandECG 上传地址")
+        raise HTTPException(status_code=500, detail="未配置手动数字化保存地址 APP_HANDECG_SAVE_URL")
 
     user_id = (req.user_id or "").strip() or str(user.get("id") or "")
 
@@ -918,9 +1104,10 @@ async def ecg_reconstruct(
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail=f"File too large, max {settings.max_upload_mb}MB")
 
-    upstream_content, csv_meta = _normalize_reconstruct_csv(content)
-    upstream_filename = filename if filename.lower().endswith(".csv") else f"{filename}.csv"
-    content_type = str(file.content_type or "text/csv")
+    upstream_content, csv_meta = _normalize_reconstruct_input(content, filename, str(file.content_type or ""))
+    base_filename = filename.rsplit(".", 1)[0] if "." in filename else filename
+    upstream_filename = f"{base_filename or 'ecg'}_signal_only.csv"
+    content_type = "text/csv"
     timeout = httpx.Timeout(settings.http_timeout)
     limits = httpx.Limits(max_keepalive_connections=20, max_connections=100)
     last_err: Exception | None = None

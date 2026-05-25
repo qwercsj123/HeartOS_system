@@ -12,7 +12,6 @@ class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
     content: str | list[dict[str, Any]]
 
-
 class ChatRequest(BaseModel):
     provider: ProviderName = "zhipu"
     model: str = ""
@@ -32,7 +31,6 @@ class ChatResponse(BaseModel):
     raw: dict[str, Any] | None = None
     user_id: str | None = None
     username: str | None = None
-
 
 class AgentRunRequest(BaseModel):
     agent_id: str

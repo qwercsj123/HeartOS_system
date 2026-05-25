@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
@@ -109,8 +109,12 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .panel.collapsed .ph{justify-content:center;padding:12px 6px;}
 .panel.collapsed .ph-title,.panel.collapsed .add-src-btn,.panel.collapsed .srcs-list{display:none;}
 .panel.collapsed .source-mini-rail{display:flex;}
-.sel-all-row{display:flex;align-items:center;gap:7px;padding:5px 6px 9px;font-size:12px;color:var(--text3);cursor:pointer;font-weight:500;}
+.sel-all-row{display:flex;align-items:center;gap:7px;padding:5px 10px 9px;font-size:12px;color:var(--text3);cursor:pointer;font-weight:500;}
 .sel-all-row:hover{color:var(--text2);}
+.sel-all-row .src-cb{margin-left:auto;}
+.delete-selected-srcs{margin-left:auto;padding:3px 7px;border:1px solid #fecaca;border-radius:8px;background:#fff;color:#dc2626;font-size:11px;font-family:inherit;cursor:pointer;transition:all .15s;}
+.sel-all-row .delete-selected-srcs + .src-cb{margin-left:0;}
+.delete-selected-srcs:hover{background:#fef2f2;border-color:#fca5a5;}
 .src-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:16px;cursor:pointer;transition:all .15s;margin-bottom:4px;border:1px solid transparent;}
 .src-item:hover{background:#fff;border-color:var(--border);box-shadow:var(--sh0);}
 .src-del,.src-menu-btn{width:22px;height:22px;border:none;border-radius:6px;background:transparent;color:#98a2b3;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;opacity:.7;}
@@ -122,6 +126,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .src-menu button:hover{background:var(--bg2);color:var(--text);}
 .src-menu button.danger{color:#dc2626;}
 .src-cb{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.src-select-btn{padding:0;background:#fff;cursor:pointer;}
+.src-select-btn:hover{border-color:var(--accent);background:var(--accent-light);}
 .src-cb.chk{background:var(--accent);border-color:var(--accent);}
 .src-cb.chk::after{content:'';width:7px;height:4px;border-left:1.5px solid #fff;border-bottom:1.5px solid #fff;transform:rotate(-45deg) translate(1px,-1px);display:block;}
 .src-ico{width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-weight:700;letter-spacing:0;}
@@ -255,6 +261,54 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .sc.stats-card{background:#f7f4e8;}
 .sc.agent-card{background:#eef0fa;}
 .sc.ecgd-card{background:#eaf7fb;}
+.future-lab{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+.future-lab-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
+.future-lab-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#425466;}
+.future-lab-title svg{color:#667eea;}
+.future-lab-meta{font-size:10px;color:#6d5bd0;background:#f0eeff;border-radius:999px;padding:3px 7px;font-weight:650;white-space:nowrap;}
+.future-lab-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;}
+.lab-card{min-height:66px;border:1px dashed #d8d5ef;border-radius:14px;background:linear-gradient(145deg,#faf9ff,#f5f7ff);padding:9px 9px 8px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;color:#526176;}
+.lab-card-top{display:flex;align-items:center;justify-content:space-between;gap:5px;}
+.lab-card-icon{display:flex;color:#667eea;}
+.lab-card-icon svg{width:15px;height:15px;}
+.lab-status{font-size:10px;line-height:18px;padding:0 6px;border-radius:999px;background:#ede9fe;color:#6854c4;font-weight:650;}
+.lab-status.planned{background:#eef2ff;color:#5264bb;}
+.lab-name{font-size:11px;font-weight:650;line-height:1.35;color:#475467;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* ── 未来实验室入口卡（侧栏只占一格，承载力随内部模态扩展） ── */
+.future-lab-entry{margin-top:10px;width:100%;border-radius:15px;border:1px dashed #d8d5ef;background:linear-gradient(145deg,#faf9ff,#f5f7ff);padding:10px 12px;display:grid;grid-template-columns:24px minmax(0,1fr) auto 16px;align-items:center;gap:9px;cursor:pointer;font-family:inherit;transition:all .18s;text-align:left;}
+.future-lab-entry:hover{transform:translateY(-1px);box-shadow:var(--sh1);border-color:#c4bfe6;background:linear-gradient(145deg,#f7f5ff,#eef1ff);}
+.future-lab-entry:focus-visible{outline:2px solid #6854c4;outline-offset:2px;}
+.future-lab-entry .fle-icon{display:flex;align-items:center;justify-content:center;color:#667eea;}
+.future-lab-entry .fle-icon svg{width:18px;height:18px;}
+.future-lab-entry .fle-text{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.future-lab-entry .fle-title{font-size:12px;font-weight:700;color:#425466;line-height:1.2;letter-spacing:0;}
+.future-lab-entry .fle-sub{font-size:10.5px;color:#7a8298;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.future-lab-entry .fle-badge{font-size:10px;font-weight:700;color:#6d5bd0;background:#fff;border:1px solid #ddd6fe;border-radius:999px;padding:2px 8px;line-height:1.3;white-space:nowrap;}
+.future-lab-entry .fle-badge.empty{color:#94a3b8;border-color:var(--border);background:transparent;}
+.future-lab-entry .fle-chev{color:#9aa3b2;font-size:18px;line-height:1;justify-self:end;}
+/* ── 未来实验室二级页（模态） ── */
+.lab-modal{position:fixed;inset:0;z-index:26000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.42);backdrop-filter:blur(3px);}
+.lab-modal.open{display:flex;}
+.lab-modal-dialog{width:min(760px,calc(100vw - 32px));max-height:min(82vh,720px);display:flex;flex-direction:column;border-radius:18px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);overflow:hidden;}
+.lab-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 22px 14px;border-bottom:1px solid #eef2f7;flex-shrink:0;}
+.lab-modal-head-l{display:flex;align-items:center;gap:11px;min-width:0;}
+.lab-modal-head-icon{width:36px;height:36px;border-radius:11px;background:linear-gradient(145deg,#eef0fa,#ede9fe);display:flex;align-items:center;justify-content:center;color:#6854c4;flex-shrink:0;}
+.lab-modal-head-icon svg{width:18px;height:18px;}
+.lab-modal-title{font-size:17px;font-weight:750;color:var(--text);letter-spacing:-.02em;line-height:1.3;}
+.lab-modal-sub{font-size:12px;color:var(--text3);line-height:1.5;margin-top:3px;}
+.lab-modal-close{width:32px;height:32px;border:1px solid var(--border);border-radius:10px;background:#fff;color:#667085;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.lab-modal-close:hover{background:var(--bg3);color:var(--text);}
+.lab-modal-body{padding:16px 22px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;}
+.lab-group{display:flex;flex-direction:column;gap:10px;}
+.lab-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.lab-group-title{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#425466;text-transform:uppercase;letter-spacing:.04em;}
+.lab-group-title .dot{width:8px;height:8px;border-radius:50%;background:#a78bfa;}
+.lab-group-title .dot.planned{background:#94a3b8;}
+.lab-group-count{font-size:11px;color:var(--text3);font-weight:600;}
+.lab-modal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
+.lab-modal-grid .lab-card{min-height:78px;padding:11px 12px 10px;border-radius:14px;}
+.lab-modal-grid .lab-card .lab-name{font-size:12.5px;white-space:normal;}
+.lab-modal-empty{padding:36px 16px;text-align:center;color:var(--text3);font-size:12px;border:1px dashed var(--border2);border-radius:14px;background:var(--bg);}
 .add-note-b{width:100%;margin-top:10px;padding:10px 12px;border-radius:16px;border:1px dashed var(--border2);background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;gap:7px;transition:all .15s;font-weight:500;}
 .add-note-b:hover{background:var(--bg3);color:var(--text2);border-color:var(--border);}
 .studio-divider{height:1px;background:var(--border);flex-shrink:0;}
@@ -358,18 +412,26 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .src-preview-kv div:nth-child(odd){background:#f8fafc;color:var(--text3);font-weight:600;}
 .src-preview-kv div:nth-child(even){color:var(--text2);word-break:break-word;}
 .src-preview-kv div:nth-last-child(-n+2){border-bottom:none;}
-.share-form{padding:0 22px 22px;display:flex;flex-direction:column;gap:12px;}
-.share-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;}
-.share-field input,.share-field textarea{width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:9px 11px;font:inherit;color:var(--text);outline:none;background:#fff;}
-.share-field textarea{min-height:96px;resize:vertical;line-height:1.55;}
-.share-field input:focus,.share-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
-.share-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px;}
 .result-tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:11px;margin:2px;font-weight:500;}
 .result-tag.blue{background:var(--accent-light);color:var(--accent);}
 .result-tag.green{background:var(--green-light);color:var(--green);}
 .result-tag.orange{background:var(--orange-light);color:var(--orange);}
-.result-spinning{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;flex:1;}
-.result-spinning p{font-size:13px;color:var(--text3);}
+.result-job-card{display:flex;align-items:center;gap:12px;min-height:78px;padding:14px 13px;border-radius:15px;border:1px solid #e4ebf4;background:#f5f8fc;margin:2px 0 14px;}
+.result-job-card.green{background:#f4f8f5;border-color:#e1ebe4;}
+.result-job-card.purple{background:#f6f6fb;border-color:#e4e5f1;}
+.result-job-card.stopped{background:#fff8f3;border-color:#fed7aa;}
+.result-job-mark{width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:#0874a5;flex-shrink:0;}
+.result-job-card.green .result-job-mark{color:#177540;}
+.result-job-card.purple .result-job-mark{color:#5366bf;}
+.result-job-card.stopped .result-job-mark{color:#c2410c;}
+.result-job-mark svg{width:28px;height:28px;stroke:currentColor;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round;animation:resultTurn 1.7s linear infinite;}
+.result-job-card.stopped .result-job-mark svg{animation:none;}
+.result-job-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.35;}
+.result-job-sub{font-size:12px;color:var(--text3);line-height:1.55;margin-top:2px;}
+.result-job-main{min-width:0;flex:1;}
+.result-stop-btn{height:30px;padding:0 11px;border-radius:10px;border:1px solid #fecaca;background:#fff;color:#dc2626;font:inherit;font-size:12px;font-weight:650;cursor:pointer;flex-shrink:0;}
+.result-stop-btn:hover{background:#fef2f2;border-color:#fca5a5;}
+@keyframes resultTurn{to{transform:rotate(360deg);}}
 .spin{width:22px;height:22px;border:2px solid var(--bg4);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
@@ -383,16 +445,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .umo-top{background:linear-gradient(160deg,#eef2ff 0%,#f0fdf4 60%,#fdf4ff 100%);padding:30px 28px 22px;text-align:center;}
 .umo-top h2{font-size:19px;font-weight:600;color:var(--text);margin-bottom:4px;letter-spacing:-.2px;}
 .umo-top .subtitle{font-size:15px;font-weight:500;background:linear-gradient(90deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.umo-search{background:#fff;border-radius:var(--r2);box-shadow:var(--sh1);padding:11px 14px;margin:0 28px 18px;border:1.5px solid var(--accent);}
-.umo-search-row1{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-.umo-search-row1 input{flex:1;border:none;outline:none;font-size:14px;font-family:inherit;color:var(--text);}
-.umo-search-row1 input::placeholder{color:var(--text3);}
-.umo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;}
-.umo-row2{display:flex;align-items:center;gap:8px;}
-.umo-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:var(--r3);border:1px solid var(--border2);font-size:12px;cursor:pointer;background:#fff;color:var(--text2);font-weight:500;}
-.umo-pill:hover{background:var(--bg2);}
-.umo-go{margin-left:auto;width:28px;height:28px;border-radius:50%;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:var(--text2);background:#fff;}
-.umo-drop{margin:0 28px 18px;border:1.5px dashed var(--border2);border-radius:var(--r);background:var(--bg2);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;}
+.umo-drop{margin:24px 28px 18px;border:1.5px dashed var(--border2);border-radius:var(--r);background:var(--bg2);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;}
 .umo-drop:hover,.umo-drop.drag{border-color:var(--accent);background:var(--accent-light);}
 .umo-drop-sub{font-size:14px;color:var(--text3);}
 .umo-methods{display:flex;justify-content:center;gap:8px;margin:0 28px 24px;flex-wrap:wrap;}
@@ -415,6 +468,19 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .prog-bar{width:100%;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:10px;}
 .prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px;width:0;transition:width .25s;}
 .prog-status{font-size:13px;color:var(--text3);}
+.import-issues{display:none;margin:0 28px 22px;padding:12px 13px;border:1px solid #fecaca;border-radius:12px;background:#fff7f7;}
+.import-issues.show{display:block;}
+.import-issues-title{font-size:13px;font-weight:700;color:#b42318;margin-bottom:5px;}
+.import-issues-sub{font-size:12px;color:#667085;line-height:1.55;margin-bottom:7px;}
+.import-issues-list{margin:0;padding-left:18px;color:#b42318;font-size:12px;line-height:1.65;max-height:132px;overflow:auto;}
+.tool-error-modal{position:fixed;inset:0;z-index:26100;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.38);backdrop-filter:blur(3px);}
+.tool-error-modal.open{display:flex;}
+.tool-error-dialog{width:min(470px,calc(100vw - 32px));border-radius:16px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);padding:18px;}
+.tool-error-title{font-size:17px;font-weight:750;color:#101828;line-height:1.35;}
+.tool-error-sub{font-size:13px;color:#475467;line-height:1.65;margin:7px 0 10px;}
+.tool-error-list{margin:0 0 16px;padding:10px 12px 10px 28px;border-radius:10px;background:#fff7f7;color:#b42318;font-size:12px;line-height:1.7;max-height:180px;overflow:auto;}
+.tool-error-actions{display:flex;justify-content:flex-end;}
+.tool-error-actions button{height:34px;padding:0 15px;border:1px solid var(--accent);border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:650;cursor:pointer;}
 .nbn-modal .mo-box{width:440px;}
 .nbn-head{padding:22px 22px 0;}
 .nbn-head h2{font-size:18px;font-weight:600;margin-bottom:5px;letter-spacing:-.2px;}
@@ -707,7 +773,6 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="tb-spacer"></div>
     <div class="tb-actions">
       <button class="tb-btn primary" onclick="startNewNotebook()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 创建对话</button>
-      <button class="tb-btn" onclick="openShareDialog()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M15 8l-6 8"/><path d="M9 8h8v8"/><path d="M9 16H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3"/></svg> 分享</button>
       <div class="avatar" id="nbUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
     </div>
   </div>
@@ -731,8 +796,15 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="chat-head">
         <span class="chat-head-label">对话</span>
         <div style="flex:1"></div>
-        <button class="pib" title="对话视图"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M5 12h14"/><path d="M5 17h10"/></svg></button>
-        <button class="pib" title="更多"><svg class="ui-icon sm" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+        <div class="chat-more-wrap" style="position:relative;">
+          <button class="pib" id="chatMoreBtn" title="更多" onclick="toggleChatMoreMenu(event)"><svg class="ui-icon sm" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+          <div class="nb-menu-pop" id="chatMoreMenu" style="top:38px;right:0;width:160px;" onclick="event.stopPropagation()">
+            <button onclick="chatMenuRename()">✎ 修改标题</button>
+            <button onclick="chatMenuClearMsgs()">🧹 清空消息</button>
+            <button onclick="chatMenuExport()">⬇ 导出对话</button>
+            <button class="danger" onclick="chatMenuDelete()">🗑 删除对话</button>
+          </div>
+        </div>
       </div>
       <div class="chat-area" id="chatArea">
         <div id="chatEmpty"></div>
@@ -786,48 +858,34 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     
     <!-- Top gradient header -->
     <div class="umo-top">
-      <h2>导入 XML、图片或 PDF</h2>
+      <h2>导入心电资料</h2>
       <div class="subtitle" id="umoSubtitle">心电图资料</div>
     </div>
 
-    <!-- Default view: search + drop -->
+    <!-- Default view: local file import -->
     <div id="umoDefault">
-      <!-- Search box -->
-      <div class="umo-search" style="margin-top:24px;">
-        <div class="umo-search-row1">
-          <span style="font-size:16px;color:var(--text3)">🔍</span>
-          <input type="text" placeholder="在网络中搜索新来源" id="umoSearchInput">
-          <div class="umo-dot"></div>
-        </div>
-        <div class="umo-row2">
-          <div class="umo-pill">🌐 Web ▾</div>
-          <div class="umo-pill">⚡ Fast Research ▾</div>
-          <div class="umo-go">›</div>
-        </div>
-      </div>
-
       <!-- Drop zone -->
       <div class="umo-drop" id="umoDrop"
         onclick="document.getElementById('fileIn').click()"
         ondragover="dov(event)" ondrop="ddr(event)" ondragleave="ddl(event)">
-        <div style="font-size:16px;color:var(--text3);margin-bottom:6px;">或拖放文件</div>
-        <div class="umo-drop-sub">支持 XML、PDF、图片</div>
+        <div style="font-size:16px;color:var(--text3);margin-bottom:6px;">拖放文件或文件夹</div>
+        <div class="umo-drop-sub">支持 XML、PDF、图片、CSV、TSV、JSON 与 TXT/MD</div>
       </div>
-      <input type="file" id="fileIn" style="display:none" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.bmp,.tiff" onchange="onFileSelect(event)">
+      <input type="file" id="fileIn" style="display:none" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.gif,.webp,.csv,.tsv,.json,.txt,.md" onchange="onFileSelect(event)">
       <input type="file" id="folderIn" style="display:none" multiple webkitdirectory directory onchange="onFolderSelect(event)">
 
       <!-- Method buttons -->
       <div class="umo-methods">
-        <button class="umo-method" onclick="document.getElementById('fileIn').click()">⬆️ 上传文件</button>
-        <button class="umo-method" onclick="document.getElementById('folderIn').click()">📁 上传文件夹</button>
-        <button class="umo-method" onclick="showUmoSub('text')">📋 复制的文字</button>
+        <button class="umo-method" onclick="document.getElementById('fileIn').click()">⬆️ 选择文件</button>
+        <button class="umo-method" onclick="document.getElementById('folderIn').click()">📁 选择文件夹</button>
+        <button class="umo-method" onclick="showUmoSub('text')">📋 添加文本备注</button>
       </div>
     </div>
 
     <!-- Sub panels -->
     <div class="umo-sub" id="umoSub-text">
-      <label style="font-size:14px;font-weight:500;display:block;margin-bottom:8px;">复制的文字</label>
-      <textarea id="textIn" placeholder="粘贴或输入文本内容…&#10;&#10;AI 将自动分析并总结您的文本。"></textarea>
+      <label style="font-size:14px;font-weight:500;display:block;margin-bottom:8px;">添加文本备注</label>
+      <textarea id="textIn" placeholder="粘贴或输入与心电资料相关的备注内容…"></textarea>
       <div class="umo-sub-btns">
         <button class="umo-btn" onclick="hideUmoSub()">取消</button>
         <button class="umo-btn ok" onclick="submitText()">添加并分析</button>
@@ -839,6 +897,11 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="prog-file" id="progFile"></div>
       <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
       <div class="prog-status" id="progStatus">正在处理…</div>
+    </div>
+    <div class="import-issues" id="importIssues" role="alert">
+      <div class="import-issues-title" id="importIssuesTitle">部分文件未导入</div>
+      <div class="import-issues-sub" id="importIssuesSub"></div>
+      <ul class="import-issues-list" id="importIssuesList"></ul>
     </div>
 
   </div>
@@ -926,6 +989,8 @@ let busy = false;
 let chatAbortController = null;
 let activeToolAbortController = null;
 let ecgsmartInFlight = false;
+let activeStudioTask = null;
+let studioTaskSeq = 0;
 const USE_CHAT_DISPATCH = true;
 window.__heartosLastImageSource = null;
 let __nbLoaded = false;
@@ -936,7 +1001,7 @@ window.__heartosJustAddedSourceId = null;
 function updateChatSendButton(){
   const btn = document.getElementById('chatSendBtn');
   if(!btn) return;
-  if(busy){
+  if(busy || activeStudioTask){
     btn.classList.add('stop');
     btn.title = '暂停/中断';
     btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg>';
@@ -952,9 +1017,64 @@ function setChatBusy(next){
   updateChatSendButton();
 }
 
+function beginStudioTask(type, label){
+  if(activeStudioTask) return null;
+  const task = {
+    id: ++studioTaskSeq,
+    type: type || 'analysis',
+    label: label || '分析任务',
+    controller: new AbortController(),
+    stopped: false,
+    stopNotified: false
+  };
+  activeStudioTask = task;
+  activeToolAbortController = task.controller;
+  updateChatSendButton();
+  return task;
+}
+
+function finishStudioTask(task){
+  if(!task || activeStudioTask !== task) return;
+  if(activeToolAbortController === task.controller) activeToolAbortController = null;
+  activeStudioTask = null;
+  updateChatSendButton();
+}
+
+function studioTaskWasStopped(task){
+  return !!(task && task.stopped);
+}
+
+function announceStoppedStudioTask(task){
+  if(!task || task.stopNotified) return;
+  task.stopNotified = true;
+  removeTyping();
+  showResultTaskStopped(task.label);
+  appendAI(task.label + '已停止。');
+}
+
 function cancelActiveChatWork(){
-  try{ if(chatAbortController) chatAbortController.abort(); }catch(_){}
-  try{ if(activeToolAbortController) activeToolAbortController.abort(); }catch(_){}
+  const studioTask = activeStudioTask;
+  let cancelled = false;
+  if(busy){
+    cancelled = true;
+    try{ if(chatAbortController) chatAbortController.abort(); }catch(_){}
+    removeTyping();
+    if(!studioTask) appendAI('对话生成已停止。');
+    setChatBusy(false);
+    chatAbortController = null;
+  }
+  if(studioTask){
+    cancelled = true;
+    studioTask.stopped = true;
+    try{ studioTask.controller.abort(); }catch(_){}
+    announceStoppedStudioTask(studioTask);
+    studioRunning = false;
+    ecgsmartInFlight = false;
+    finishStudioTask(studioTask);
+  }else{
+    try{ if(activeToolAbortController) activeToolAbortController.abort(); }catch(_){}
+  }
+  if(cancelled) showToast('任务已停止');
 }
 
 function isAbortLikeError(e){
@@ -990,6 +1110,7 @@ function renderHome(){
 }
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
 function goHome(){
+  if(busy || activeStudioTask) cancelActiveChatWork();
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
   renderHome();
@@ -1067,6 +1188,7 @@ async function deleteNotebook(id, evt){
   const nb = notebooks.find(n => n.id === id);
   if(!nb) return;
   if(!confirm('确认删除历史对话：' + (defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title) + '？')) return;
+  if(curNb && curNb.id === id && (busy || activeStudioTask)) cancelActiveChatWork();
   notebooks = notebooks.filter(n => n.id !== id);
   if(curNb && curNb.id === id){
     curNb = null;
@@ -1081,67 +1203,137 @@ async function deleteNotebook(id, evt){
   showToast('历史对话已删除');
 }
 
+/* ── Chat header 更多菜单 ─────────────────────────────── */
+function toggleChatMoreMenu(evt){
+  if(evt) evt.stopPropagation();
+  const m = document.getElementById('chatMoreMenu');
+  if(!m) return;
+  const willOpen = !m.classList.contains('open');
+  // 关掉所有其他菜单
+  document.querySelectorAll('.nb-menu-pop.open').forEach(el => el.classList.remove('open'));
+  if(willOpen){
+    m.classList.add('open');
+    // 点外面关掉
+    setTimeout(() => {
+      document.addEventListener('click', closeChatMoreMenuOnce, { once: true });
+    }, 0);
+  }
+}
+function closeChatMoreMenuOnce(){
+  const m = document.getElementById('chatMoreMenu');
+  if(m) m.classList.remove('open');
+}
+function chatMenuRename(){
+  closeChatMoreMenuOnce();
+  if(!curNb){ showToast('未打开对话'); return; }
+  renameNotebook(curNb.id);
+}
+function chatMenuClearMsgs(){
+  closeChatMoreMenuOnce();
+  if(!curNb){ showToast('未打开对话'); return; }
+  if(!Array.isArray(msgs) || !msgs.length){ showToast('当前没有消息'); return; }
+  if(!confirm('确认清空当前对话的所有消息？此操作不会删除已上传的来源。')) return;
+  msgs = [];
+  if(curNb) curNb.msgs = [];
+  const ml = document.getElementById('msgsList');
+  if(ml) ml.innerHTML = '';
+  // 重新渲染聊天区，让空状态/摘要卡片回到初始
+  if(typeof renderChat === 'function') renderChat();
+  if(typeof scheduleSaveNotebook === 'function' && curNb) scheduleSaveNotebook(curNb);
+  showToast('消息已清空');
+}
+function exportChatPlainText(node){
+  if(!node) return '';
+  return String(node.innerText || node.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+}
+function appendChatExportImages(lines, node){
+  if(!node || !node.querySelectorAll) return;
+  Array.from(node.querySelectorAll('img')).forEach(function(img, i){
+    const src = String(img.getAttribute('src') || '').trim();
+    if(!src) return;
+    const alt = String(img.getAttribute('alt') || ('对话图片 ' + (i + 1))).replace(/[\[\]\r\n]/g, ' ');
+    lines.push('![' + alt + '](' + src + ')');
+    lines.push('');
+  });
+}
+function chatMenuExport(){
+  closeChatMoreMenuOnce();
+  if(!curNb){ showToast('未打开对话'); return; }
+  const title = defaultNotebookTitle(curNb.title) ? inferNotebookTitle(curNb) : (curNb.title || 'HeartOS 对话');
+  const lines = [];
+  lines.push('# ' + title);
+  lines.push('');
+  lines.push('导出时间：' + new Date().toLocaleString());
+  lines.push('');
+  if(Array.isArray(sources) && sources.length){
+    lines.push('## 来源');
+    sources.forEach((s, i) => {
+      lines.push((i + 1) + '. ' + (s.name || '未命名来源') + ' [' + String(s.type || 'file').toUpperCase() + ']');
+    });
+    lines.push('');
+  }
+  const visibleRows = Array.from(document.querySelectorAll('#msgsList > .msg-u, #msgsList > .msg-ai'));
+  const importedCard = document.querySelector('#chatEmpty > .source-chat-card');
+  const summaryCard = document.getElementById('sumCard');
+  if(importedCard || summaryCard || visibleRows.length || (Array.isArray(msgs) && msgs.length)){
+    lines.push('## 对话');
+    if(importedCard){
+      lines.push('### 已导入来源');
+      lines.push(exportChatPlainText(importedCard));
+      appendChatExportImages(lines, importedCard);
+      lines.push('');
+    }
+    if(summaryCard){
+      lines.push('### AI 摘要');
+      lines.push(exportChatPlainText(summaryCard.querySelector('.sum-body') || summaryCard));
+      appendChatExportImages(lines, summaryCard);
+      lines.push('');
+    }
+    if(visibleRows.length){
+      visibleRows.forEach(function(row){
+        const isUser = row.classList.contains('msg-u');
+        const textNode = row.querySelector(isUser ? '.msg-u-b' : '.ai-body') || row;
+        const text = exportChatPlainText(textNode);
+        lines.push('### ' + (isUser ? '用户' : 'AI'));
+        if(text) lines.push(text);
+        appendChatExportImages(lines, textNode);
+        lines.push('');
+      });
+    }else{
+      msgs.forEach(m => {
+        const role = m.role === 'user' ? '用户' : 'AI';
+        const text = (m.content || m.text || '').toString().replace(/<[^>]+>/g, '').trim();
+        lines.push('### ' + role);
+        lines.push(text);
+        lines.push('');
+      });
+    }
+  }
+  const content = lines.join('\n');
+  try{
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (title || 'conversation').replace(/[\\/:*?"<>|]+/g, '_') + '.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('对话已导出');
+  }catch(_){
+    showToast('导出失败');
+  }
+}
+function chatMenuDelete(){
+  closeChatMoreMenuOnce();
+  if(!curNb){ showToast('未打开对话'); return; }
+  deleteNotebook(curNb.id);
+}
+
 function scheduleSaveNotebook(nb){
   if(!nb || !__nbLoaded) return;
   saveNotebook(nb).catch(()=>{});
-}
-
-function buildNotebookShareText(){
-  const nb = curNb || {};
-  const title = defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : (nb.title || 'HeartOS 对话');
-  const srcLines = (Array.isArray(sources) ? sources : []).map((s, i) =>
-    (i + 1) + '. ' + (s.name || '未命名来源') + ' [' + String(s.type || 'file').toUpperCase() + ']'
-  );
-  let msgLines = (Array.isArray(msgs) ? msgs : []).map(m => {
-    const role = m.role === 'user' ? '我' : 'AI';
-    return role + '：' + String(m.content || '').trim();
-  });
-  if(!msgLines.length){
-    const chatText = String((document.getElementById('chatArea') && document.getElementById('chatArea').innerText) || '').trim();
-    if(chatText) msgLines = [chatText];
-  }
-  return [
-    'HeartOS 对话分享',
-    '标题：' + title,
-    '日期：' + (nb.date || todayText()),
-    '',
-    '来源：',
-    srcLines.length ? srcLines.join('\n') : '无',
-    '',
-    '对话记录：',
-    msgLines.length ? msgLines.join('\n\n') : '暂无对话记录'
-  ].join('\n');
-}
-
-function openShareDialog(){
-  if(!curNb){ showToast('请先打开一个对话'); return; }
-  const title = defaultNotebookTitle(curNb.title) ? inferNotebookTitle(curNb) : curNb.title;
-  const toEl = document.getElementById('shareEmailTo');
-  const subjectEl = document.getElementById('shareEmailSubject');
-  const noteEl = document.getElementById('shareEmailNote');
-  if(toEl) toEl.value = '';
-  if(subjectEl) subjectEl.value = 'HeartOS 对话分享：' + title;
-  if(noteEl) noteEl.value = '';
-  openMo('shareMo');
-}
-
-function shareNotebookByEmail(){
-  if(!curNb){ showToast('请先打开一个对话'); return; }
-  const to = (document.getElementById('shareEmailTo')?.value || '').trim();
-  const subject = (document.getElementById('shareEmailSubject')?.value || '').trim() ||
-    ('HeartOS 对话分享：' + (defaultNotebookTitle(curNb.title) ? inferNotebookTitle(curNb) : curNb.title));
-  const note = (document.getElementById('shareEmailNote')?.value || '').trim();
-  const body = buildNotebookShareText();
-  const finalBody = note ? ('补充说明：\n' + note + '\n\n---\n\n' + body) : body;
-  const mailto = 'mailto:' + encodeURIComponent(String(to || '').trim()) +
-    '?subject=' + encodeURIComponent(subject) +
-    '&body=' + encodeURIComponent(finalBody.slice(0, 12000));
-  window.location.href = mailto;
-  closeMo('shareMo');
-  showToast('已打开邮件分享');
-  if(finalBody.length > 12000 && navigator.clipboard){
-    navigator.clipboard.writeText(finalBody).then(()=>showToast('内容较长，完整对话已复制到剪贴板'));
-  }
 }
 
 async function loadAiConfigFromServer(){
@@ -1217,6 +1409,7 @@ async function confirmNewNb(){
 
 // ======================== NOTEBOOK ========================
 function openNb(id, autoUpload=false){
+  if(curNb && curNb.id !== id && (busy || activeStudioTask)) cancelActiveChatWork();
   curNb = notebooks.find(n=>n.id===id) || notebooks[0];
   if(!curNb){ goHome(); return; }
   sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
@@ -1295,8 +1488,18 @@ function applyNotebookColumnWidths(){
   const layout = document.getElementById('nbLayout');
   if(!layout) return;
   const widths = getNotebookColumnWidths();
-  if(!sourcePanelCollapsed) layout.style.setProperty('--source-col', widths.source + 'px');
-  if(!studioPanelCollapsed) layout.style.setProperty('--studio-col', widths.studio + 'px');
+  // 折叠时移除 inline 变量，让 CSS class (.sources-collapsed / .studio-collapsed) 中的
+  // 58px / 76px 生效；否则 inline style 优先级高于 class 规则会导致列宽不变。
+  if(sourcePanelCollapsed){
+    layout.style.removeProperty('--source-col');
+  }else{
+    layout.style.setProperty('--source-col', widths.source + 'px');
+  }
+  if(studioPanelCollapsed){
+    layout.style.removeProperty('--studio-col');
+  }else{
+    layout.style.setProperty('--studio-col', widths.studio + 'px');
+  }
 }
 
 function initNotebookResizers(){
@@ -1357,11 +1560,20 @@ function toggleStudioPanel(){
   renderStudioMiniRail();
 }
 
+function sourceFullName(src){
+  return String((src && src.name) || src || '未命名来源');
+}
+
+function sourceDisplayName(src){
+  const full = sourceFullName(src).replace(/\\/g, '/');
+  return full.split('/').pop() || full;
+}
+
 function renderSourceMiniRail(){
   const rail = document.getElementById('sourceMiniRail');
   if(!rail) return;
   const items = (Array.isArray(sources) ? sources : []).slice(0, 24).map(s => `
-    <button class="source-mini-item ${s.checked?'active':''}" title="${escAttr(s.name || '来源')}" onclick="previewSource(${s.id}, event)">
+    <button class="source-mini-item ${s.checked?'active':''}" title="${escAttr(sourceFullName(s))}" onclick="previewSource(${s.id}, event)">
       ${fileIco(String(s.type || 'file').toLowerCase())}
     </button>`).join('');
   const more = Array.isArray(sources) && sources.length > 24
@@ -1377,23 +1589,23 @@ function renderSrcs(){
   if(!sources.length){
     el.innerHTML=`<div class="empty-srcs">
       <div class="empty-srcs-icon">📄</div>
-      <p>已保存的来源将显示在此处。<br>点击"添加来源"即可添加 XML、图片或 PDF。</p>
+      <p>已保存的来源将显示在此处。<br>点击"添加来源"即可添加图片、XML、PDF 或波形 CSV。</p>
     </div>`;
     renderSourceMiniRail();
     return;
   }
   const allChk = sources.every(s=>s.checked);
+  const checkedCount = sources.filter(s=>s.checked).length;
   el.innerHTML = `<div class="sel-all-row" onclick="toggleAll()">
-    <div class="src-cb ${allChk?'chk':''}"></div>
     <span>选择所有来源</span>
-    <span style="margin-left:auto;color:var(--accent);font-size:13px;">✓</span>
+    ${checkedCount ? `<button class="delete-selected-srcs" onclick="deleteSelectedSources(event)">删除所选 (${checkedCount})</button>` : ''}
+    <button class="src-cb src-select-btn ${allChk?'chk':''}" type="button" title="选择所有来源" aria-label="选择所有来源" aria-pressed="${allChk?'true':'false'}"></button>
   </div>` + sources.map(s=>{
     const isImg = ['png','jpg','jpeg','bmp','tiff'].includes((s.type||'').toLowerCase());
-    return `<div class="src-item" onclick="previewSource(${s.id}, event)" title="点击预览来源">
-      <div class="src-cb ${s.checked?'chk':''}" onclick="togSrc(${s.id}, event)"></div>
+    return `<div class="src-item" onclick="previewSource(${s.id}, event)" title="${escAttr(sourceFullName(s))}">
       ${fileIco(s.type)}
       <div class="src-info">
-        <div class="src-name">${s.name}</div>
+        <div class="src-name">${esc(sourceDisplayName(s))}</div>
         <div class="src-type">${s.type.toUpperCase()}${isImg?' · ECG图像':''}</div>
       </div>
       <div class="src-menu-wrap">
@@ -1403,6 +1615,7 @@ function renderSrcs(){
           <button class="danger" onclick="deleteSource(${s.id}, event)">移除来源</button>
         </div>
       </div>
+      <button class="src-cb src-select-btn ${s.checked?'chk':''}" type="button" title="选择来源" aria-label="选择 ${escAttr(sourceDisplayName(s))}" aria-pressed="${s.checked?'true':'false'}" onclick="togSrc(${s.id}, event)"></button>
     </div>`;
   }).join('');
   renderSourceMiniRail();
@@ -1568,7 +1781,7 @@ async function getImageSourceSize(src){
 
 async function buildSourceInitialSummary(src){
   if(!src) return { html:'', actions:'' };
-  const name = src.name || '未命名来源';
+  const name = sourceDisplayName(src);
   const size = src && src.fileObj && Number.isFinite(src.fileObj.size) ? formatFileSize(src.fileObj.size) : '';
   const ext = (sourceExt(src) || '').toUpperCase();
   const kind = sourceKindLabel(src);
@@ -1602,14 +1815,15 @@ async function buildSourceInitialSummary(src){
       const cols = rows.length ? rows.reduce((m, r) => Math.max(m, r.length), 0) : 0;
       if(rows.length) chips.push(Math.max(rows.length - 1, 0) + '+ 行数据');
       if(cols) chips.push(cols + ' 列');
-      body = '已完成表格结构初步解析。若这是心电图时序信号 CSV，可继续进行心电图补全，或确认采样率后进行心电图特征提取。';
-      actions = `<button class="sq" onclick="runStudio('ecgrecon')">心电图补全</button>
-        <button class="sq" onclick="runStudio('ecgd')">心电图特征提取</button>`;
+      body = '已完成表格结构初步解析。若这是 ECG 时序信号，可继续进行 ECG 信号补全；系统会移除表头、时间列和样本序号，并按补全接口约定用 0 标记缺失波形。';
+      actions = `<button class="sq" onclick="runStudio('ecgrecon')">ECG 信号补全</button>
+        <button class="sq" onclick="runStudio('ecgd')">ECG 特征提取</button>`;
     }else if(sourceExt(src) === 'xml'){
       const root = String(text || '').match(/<([A-Za-z_][\w:.-]*)[\s>]/);
       if(root) chips.push('根节点 ' + root[1]);
-      body = '已完成 XML 文本初步解析，识别到结构化标签内容。若这是 ECG XML，可继续运行心电图特征提取。';
-      actions = `<button class="sq" onclick="runStudio('ecgd')">心电图特征提取</button>`;
+      body = '已完成 XML 文本初步解析。若其中包含导联波形，可直接运行 ECG 信号补全或 ECG 特征提取。';
+      actions = `<button class="sq" onclick="runStudio('ecgrecon')">ECG 信号补全</button>
+        <button class="sq" onclick="runStudio('ecgd')">ECG 特征提取</button>`;
     }else{
       body = '已完成文本初步解析。当前来源不直接匹配已有心电图工具工作流，因此不自动推荐数字化、补全或特征提取。';
     }
@@ -1650,13 +1864,13 @@ function buildSummaryWorkflowActions(latestSrc, imgCount){
   }
   if(isXml){
     return [
-      { label:'心电图特征提取', action:"runStudio('ecgd')" }
+      { label:'ECG 特征提取', action:"runStudio('ecgd')" }
     ];
   }
   if(isCsv){
     return [
-      { label:'心电图补全', action:"runStudio('ecgrecon')" },
-      { label:'心电图特征提取', action:"runStudio('ecgd')" }
+      { label:'ECG 信号补全', action:"runStudio('ecgrecon')" },
+      { label:'ECG 特征提取', action:"runStudio('ecgd')" }
     ];
   }
   if(imgCount > 0){
@@ -1671,7 +1885,7 @@ function buildSummaryWorkflowActions(latestSrc, imgCount){
 function renderWorkflowActions(actions){
   const items = Array.isArray(actions) ? actions : [];
   if(!items.length) return '';
-  return '<div class="sugg-label">建议工作流</div>' + items.map(function(item){
+  return '<div class="sugg-label">可用操作</div>' + items.map(function(item){
     return '<button class="sq" onclick="' + escAttr(item.action || '') + '">' + esc(item.label || '') + '</button>';
   }).join('');
 }
@@ -1801,16 +2015,36 @@ function buildEcgVisionSummaryPrompt(contextText){
 1. 患者及检查信息：姓名、性别、年龄、检查日期时间、设备设置、纸速、增益。
 2. 数字化/机读测量参数：HR、RR/PP、PR、P 波时限、QRS、QT/QTc、P/QRS/T 电轴、RV5/SV1 等图上可见参数。
 3. 机读诊断结论：如窦性心律/心动过速、电轴偏移、低电压、ST-T 改变、异常心电图等。
-4. 后续 HeartOS 工作流建议：手动数字化、自动数字化、ECGOmics、心电图补全或智能体分析。
 
 要求：
 - 能读到的参数请尽量给出原值和单位。
-- 读不清的字段标注“未清晰识别”，不要猜测。
+- 读不清、未提取或无法可靠确认的字段直接省略，不要猜测，也不要输出“未识别”“未知”“无法确认”等占位提示。
+- 不要输出后续操作、工具推荐或工作流建议；摘要仅陈述已从图像提取到的信息。
 - 不要出现旧工具内部名称，统一称为“手动数字化”。
-- 只返回 JSON：{"summary":"...","patient_info":["..."],"measurements":["..."],"diagnosis":["..."],"findings":["..."],"next_steps":["..."]}。
+- 只返回 JSON：{"summary":"...","patient_info":["..."],"measurements":["..."],"diagnosis":["..."],"findings":["..."]}。
 
 文件上下文：
 ${contextText || '无额外文本上下文'}`;
+}
+
+function summaryItemHasReliableValue(item){
+  const text = String(item || '').replace(/\*\*/g, '').replace(/^[\s*•-]+/, '').trim();
+  if(!text) return false;
+  const missingValue = '(?:未清晰识别|未能清晰识别|未识别|无法识别|不能识别|未提取|未读取|未显示|未提供|无法确认|不能确认|不确定|未知|不详|无数据|N\\/?A|--+)';
+  const onlyMissing = new RegExp('^' + missingValue + '(?:[。；;，, ]|$)', 'i');
+  const fieldMissing = new RegExp('[：:]\\s*' + missingValue + '(?:[。；;，, ]|$)', 'i');
+  return !onlyMissing.test(text) && !fieldMissing.test(text);
+}
+
+function cleanSummaryText(summary){
+  return String(summary || '')
+    .split(/[。；;\n]/)
+    .map(function(text){ return text.trim(); })
+    .filter(summaryItemHasReliableValue)
+    .filter(function(text){
+      return !/^(?:建议下一步|后续建议|下一步建议|推荐工作流|工作流建议)\s*[：:]?/.test(text);
+    })
+    .join('。');
 }
 
 function normalizeZhipuImageUrl(dataUrl){
@@ -1936,7 +2170,8 @@ async function previewSource(id, evt){
   const title = document.getElementById('srcPreviewTitle');
   const body = document.getElementById('srcPreviewBody');
   if(!title || !body) return;
-  title.textContent = src.name || '来源预览';
+  title.textContent = sourceDisplayName(src);
+  title.title = sourceFullName(src);
   body.innerHTML = '<p style="color:var(--text3);font-size:13px;">正在加载预览...</p>';
   openMo('srcPreviewMo');
   const type = sourceExt(src);
@@ -2015,6 +2250,37 @@ async function deleteSource(id, evt){
   showToast('来源已移除');
 }
 
+async function deleteSelectedSources(evt){
+  if(evt) evt.stopPropagation();
+  const selected = sources.filter(s => s && s.checked);
+  if(!selected.length) return;
+  if(!confirm(`确认删除已选择的 ${selected.length} 个来源？`)) return;
+
+  const selectedIds = new Set(selected.map(s => s.id));
+  const fileIds = Array.from(new Set(selected
+    .map(s => s.fileId || s.serverFileId || '')
+    .filter(Boolean)
+    .map(String)));
+  await Promise.all(fileIds.map(async fileId => {
+    try{
+      await apiFetch('/api/files/' + encodeURIComponent(fileId), { method:'DELETE' });
+    }catch(_){
+      // Backend cleanup failure should not block removing selected local entries.
+    }
+  }));
+
+  sources = sources.filter(s => !selectedIds.has(s.id));
+  window.sources = sources;
+  if(curNb) curNb.srcs = sources.length;
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
+  renderSrcs();
+  updateCiSrc();
+  renderChat();
+  renderStudio();
+  showToast(`已移除 ${selected.length} 个来源`);
+}
+
 async function openHandEcgFromSource(id, evt){
   if(evt){ evt.stopPropagation(); }
   let src = sources.find(x=>x.id===id);
@@ -2063,13 +2329,33 @@ function buildSourceChatCardHTML(src, compact=false){
     <div class="source-chat-thumb">${thumb}</div>
     <div class="source-chat-info">
       <div class="source-chat-kicker">${compact ? '新来源已添加' : '已导入来源'}</div>
-      <div class="source-chat-name" title="${escAttr(src.name || '未命名来源')}">${esc(src.name || '未命名来源')}</div>
+      <div class="source-chat-name" title="${escAttr(sourceFullName(src))}">${esc(sourceDisplayName(src))}</div>
       <div class="source-chat-meta">
         <span class="source-chat-pill">${esc(kind)}</span>
         ${size ? `<span class="source-chat-pill">${esc(size)}</span>` : ''}
       </div>
     </div>
     <div class="source-chat-open">预览</div>
+  </div>`;
+}
+
+function buildBatchSourceChatCardHTML(batch){
+  const items = Array.isArray(batch) ? batch.filter(Boolean) : [];
+  const counts = {};
+  items.forEach(function(src){
+    const label = sourceKindLabel(src);
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  const detail = Object.keys(counts).map(function(label){
+    return counts[label] + ' 个' + label;
+  }).join(' · ');
+  return `<div class="source-chat-card">
+    <div class="source-chat-thumb">FILE</div>
+    <div class="source-chat-info">
+      <div class="source-chat-kicker">本次批量导入</div>
+      <div class="source-chat-name">${items.length} 个文件</div>
+      <div class="source-chat-meta"><span class="source-chat-pill">${esc(detail || '来源文件')}</span></div>
+    </div>
   </div>`;
 }
 
@@ -2085,6 +2371,61 @@ function appendSourceChatCard(src){
   scrollChat();
 }
 
+function appendBatchSourceChatCard(batch){
+  const w = document.getElementById('msgsList');
+  if(!w || !Array.isArray(batch) || !batch.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-ai';
+  wrap.innerHTML = `<div class="ai-av">AI</div><div class="ai-body">${buildBatchSourceChatCardHTML(batch)}</div>`;
+  w.appendChild(wrap);
+  scrollChat();
+}
+
+function getPendingImportedBatch(latestSrc){
+  const ids = Array.isArray(window.__heartosJustImportedSourceIds) ? window.__heartosJustImportedSourceIds : [];
+  if(!ids.length) return latestSrc ? [latestSrc] : [];
+  const byId = new Set(ids.map(function(id){ return Number(id); }));
+  const batch = sources.filter(function(src){ return src && byId.has(Number(src.id)); });
+  return batch.length ? batch : (latestSrc ? [latestSrc] : []);
+}
+
+async function buildBatchSourceOverview(batch){
+  const items = Array.isArray(batch) ? batch.filter(Boolean) : [];
+  const lines = [];
+  const images = items.filter(function(src){ return isImageLikeSource(src) && !isPdfSource(src); });
+  const pdfs = items.filter(function(src){ return isPdfSource(src); });
+  const notes = items.filter(function(src){ return ['txt','md'].includes(sourceExt(src)); });
+  if(images.length) lines.push('<li><strong>心电图像</strong>：' + images.length + ' 张，可用于手动数字化或自动数字化。</li>');
+  if(pdfs.length) lines.push('<li><strong>PDF</strong>：' + pdfs.length + ' 份，可预览并按需进入数字化流程。</li>');
+
+  for(const src of items){
+    const ext = sourceExt(src);
+    if(ext === 'csv' || ext === 'tsv'){
+      const delimiter = ext === 'tsv' ? '\t' : ',';
+      const text = await readTextFromSource(src);
+      const rows = parseDelimitedRows(text, delimiter, 8).filter(function(row){ return row.some(function(cell){ return String(cell).trim(); }); });
+      if(rows.length){
+        const cols = rows.reduce(function(max, row){ return Math.max(max, row.length); }, 0);
+        const totalRows = String(text || '').split(/\r?\n/).filter(function(line){ return line.trim(); }).length;
+        lines.push('<li><strong>' + esc(sourceDisplayName(src)) + '</strong>：' + ext.toUpperCase() + ' 表格，约 ' + Math.max(0, totalRows - 1) + ' 条记录，' + cols + ' 列。</li>');
+      }
+    }else if(ext === 'xml'){
+      const text = await readTextFromSource(src);
+      const root = String(text || '').match(/<([A-Za-z_][\w:.-]*)[\s>]/);
+      if(root) lines.push('<li><strong>' + esc(sourceDisplayName(src)) + '</strong>：XML 结构，根节点 ' + esc(root[1]) + '。</li>');
+    }else if(ext === 'json'){
+      try{
+        const value = JSON.parse(await readTextFromSource(src));
+        const kind = Array.isArray(value) ? '数组结构' : (value && typeof value === 'object' ? '对象结构' : '');
+        if(kind) lines.push('<li><strong>' + esc(sourceDisplayName(src)) + '</strong>：JSON ' + kind + '。</li>');
+      }catch(_){ }
+    }
+  }
+  if(notes.length) lines.push('<li><strong>文本备注</strong>：' + notes.length + ' 份。</li>');
+  if(!lines.length) return '';
+  return '<p>本次导入 <strong>' + items.length + '</strong> 个文件，已完成初步分类：</p><ul style="margin:8px 0 0;padding-left:18px;color:var(--text2);font-size:13px;line-height:1.75;">' + lines.join('') + '</ul>';
+}
+
 function renderChat(){
   const ce = document.getElementById('chatEmpty');
   const ml = document.getElementById('msgsList');
@@ -2096,7 +2437,7 @@ function renderChat(){
       ce.innerHTML=`<div class="chat-empty">
         <div class="chat-empty-icon">💬</div>
         <h3>已保存的来源将显示在此处</h3>
-        <p>点击上方的"添加来源"即可添加 XML、图片或 PDF。</p>
+        <p>点击上方的"添加来源"即可添加图片、XML、PDF 或波形 CSV。</p>
       </div>`;
       ml.innerHTML='';
     }
@@ -2105,17 +2446,19 @@ function renderChat(){
 
   // Build the latest source just added
   const latestSrc = sources[sources.length - 1];
+  const importedBatch = getPendingImportedBatch(latestSrc);
+  const isBatchImport = importedBatch.length > 1;
   const isImg = ['png','jpg','jpeg','bmp','tiff'].includes((latestSrc.type||'').toLowerCase());
 
   // First source ever: render the summary card skeleton + clear messages
-  if(sources.length === 1){
+  if(sources.length === 1 || !document.getElementById('sumCard')){
     ml.innerHTML = '';
-    ce.innerHTML=`${buildSourceChatCardHTML(latestSrc)}
+    ce.innerHTML=`${isBatchImport ? buildBatchSourceChatCardHTML(importedBatch) : buildSourceChatCardHTML(latestSrc)}
     <div class="sum-card" id="sumCard">
       <div class="sum-badge">✦ AI 摘要</div>
-      <div class="sum-title" id="sumTitle">${curNb.title !== 'New Conversation' ? curNb.title : latestSrc.name}</div>
+      <div class="sum-title" id="sumTitle">${curNb.title !== 'New Conversation' ? curNb.title : (isBatchImport ? '批量导入资料' : sourceDisplayName(latestSrc))}</div>
       <div class="sum-meta">
-        <span id="sumSrcCount">1 个来源</span>
+        <span id="sumSrcCount">${sources.length} 个来源</span>
         <span class="sum-meta-dot"></span>
         <span>${curNb.date||'今天'}</span>
       </div>
@@ -2131,7 +2474,7 @@ function renderChat(){
       </div>
     </div>
     <div class="sugg-qs" id="suggQs">
-      <div class="sugg-label">建议工作流</div>
+      <div class="sugg-label">可用操作</div>
     </div>`;
   } else {
     // Additional source added: update count, add a new-source notification bubble, then re-summarize
@@ -2139,7 +2482,8 @@ function renderChat(){
     if(countEl) countEl.textContent = sources.length + ' 个来源';
 
     if(window.__heartosJustAddedSourceId === latestSrc.id){
-      appendSourceChatCard(latestSrc);
+      if(isBatchImport) appendBatchSourceChatCard(importedBatch);
+      else appendSourceChatCard(latestSrc);
       window.__heartosJustAddedSourceId = null;
     }
 
@@ -2154,13 +2498,21 @@ function renderChat(){
   setTimeout(()=>{ const a=document.getElementById('chatArea'); if(a) a.scrollTop=a.scrollHeight; },100);
 
   // Call Claude to summarize
-  callClaudeForSummary(latestSrc, isImg);
+  window.__heartosJustImportedSourceIds = null;
+  callClaudeForSummary(latestSrc, isImg, importedBatch);
 }
 
-async function callClaudeForSummary(latestSrc, isImg){
+async function callClaudeForSummary(latestSrc, isImg, importedBatch){
   const sb = document.getElementById('sumBody');
   const sq = document.getElementById('suggQs');
   if(!sb) return;
+  if(Array.isArray(importedBatch) && importedBatch.length > 1){
+    const overview = await buildBatchSourceOverview(importedBatch);
+    sb.innerHTML = overview || '<p>本次文件已加入来源列表。</p>';
+    const imgCount = importedBatch.filter(function(src){ return isImageLikeSource(src) && !isPdfSource(src); }).length;
+    if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
+    return;
+  }
   const initialSummary = await buildSourceInitialSummary(latestSrc);
 
   // Build combined content from all text sources
@@ -2191,7 +2543,7 @@ async function callClaudeForSummary(latestSrc, isImg){
   }
 
   if(initialSummary.html){
-    sb.innerHTML = initialSummary.html + `<p style="margin-top:10px;color:var(--text3);font-size:13px;">正在生成 AI 摘要和建议工作流...</p>`;
+    sb.innerHTML = initialSummary.html + `<p style="margin-top:10px;color:var(--text3);font-size:13px;">正在生成 AI 摘要...</p>`;
   }
 
   try {
@@ -2205,11 +2557,11 @@ async function callClaudeForSummary(latestSrc, isImg){
 要求：
 1. 不要只复述文件名，要提取文件类型、结构、关键字段/内容、医学或心电图相关线索。
 2. 如果是心电图图像，不要输出“无法读取像素/无法分析”作为主要结论；应转为参数化分析指导，说明可通过手动数字化或自动数字化提取哪些 ECG 参数。
-3. 心电图图像摘要应覆盖：导联布局、纸速/增益、心率、节律、PR、QRS、QT/QTc、ST-T、R 波进展、异常 Q 波、噪声/基线漂移、数字化质控。没有提取到波形前，不要编造具体数值或诊断。
-4. 输出应包含：总体解读、关键发现、建议下一步。建议下一步必须贴合 HeartOS 能力：手动数字化、自动数字化、ECGOmics 特征提取、心电图补全、智能体分析。
+3. 心电图图像摘要可覆盖：导联布局、纸速/增益、心率、节律、PR、QRS、QT/QTc、ST-T、R 波进展、异常 Q 波、噪声/基线漂移、数字化质控；每一项仅在文件中能可靠提取时输出。没有提取到波形前，不要编造具体数值或诊断。
+4. 输出仅包含总体解读和可靠提取到的关键发现；不要输出后续操作、工具推荐或工作流建议。
 5. 用中文，简洁但信息密度高，关键概念用 **加粗**。
 6. 不要出现旧工具内部名称，统一称为“手动数字化”。
-7. 只返回 JSON：{"summary":"...","findings":["..."],"next_steps":["..."]}`;
+7. 只返回 JSON：{"summary":"...","findings":["..."]}`;
     const summaryUserContent = `请解读以下 ${sources.length} 个上传来源的文件信息和可读取内容：\n\n${interpretContext || textContent}`;
     const raw = summaryImageDataUrl
       ? await callZhipuVisionAI(buildEcgVisionSummaryPrompt(interpretContext || textContent), summaryImageDataUrl, 1800)
@@ -2228,16 +2580,20 @@ async function callClaudeForSummary(latestSrc, isImg){
         : '';
       const renderList = function(title, items){
         if(!Array.isArray(items) || !items.length) return '';
+        const visibleItems = items.filter(function(x){
+          return summaryItemHasReliableValue(x);
+        });
+        if(!visibleItems.length) return '';
         return '<div style="margin-top:10px;"><div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">' + title + '</div><ul style="margin:0;padding-left:18px;color:var(--text2);font-size:13px;line-height:1.7;">' +
-          items.slice(0, 5).map(function(x){ return '<li>' + esc(String(x || '')).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>') + '</li>'; }).join('') +
+          visibleItems.slice(0, 5).map(function(x){ return '<li>' + esc(String(x || '')).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>') + '</li>'; }).join('') +
           '</ul></div>';
       };
-      sb.innerHTML = `<p>${String(parsed.summary || '').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</p>` +
+      const conciseSummary = cleanSummaryText(parsed.summary);
+      sb.innerHTML = (conciseSummary ? `<p>${conciseSummary.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}。</p>` : '') +
         renderList('患者及检查信息', parsed.patient_info) +
         renderList('数字化测量参数', parsed.measurements) +
         renderList('机读诊断结论', parsed.diagnosis) +
         renderList('关键发现', parsed.findings) +
-        renderList('建议下一步', parsed.next_steps) +
         imgNote;
     }
     if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
@@ -2303,6 +2659,110 @@ function unsupportedCheckedFormatMessage(toolName, expected, checked){
     return (s.name || '未命名来源') + '（' + describeSourceFormat(s) + '）';
   }).join('、');
   return toolName + ' 需要 ' + expected + '。当前勾选来源' + (names ? '为：' + names : '不符合要求') + '，且无法自动转换。';
+}
+
+function canUseAsImageToolSource(src){
+  if(!src) return false;
+  return !!(src.imageDataUrl ||
+    (isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type || ''))) ||
+    isPdfSource(src) ||
+    ['png','jpg','jpeg','bmp','tif','tiff','gif','webp'].includes(sourceExt(src)));
+}
+
+function imageToolInputErrorMessage(toolName){
+  const action = toolName === '手动数字化' ? '打开手动数字化' : '执行自动数字化';
+  return action + '仅支持心电图图片或 PDF（PDF 将转换第 1 页）。CSV/XML/文本不能直接用于数字化；若已是波形 CSV，可改用“ECG 特征提取”或“ECG 信号补全”。';
+}
+
+function showToolSelectionError(toolName, message, sourcesToList){
+  let modal = document.getElementById('toolSelectionErrorModal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'toolSelectionErrorModal';
+    modal.className = 'tool-error-modal';
+    modal.innerHTML = `<div class="tool-error-dialog" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+      <div class="tool-error-title" id="toolSelectionErrorTitle"></div>
+      <div class="tool-error-sub" id="toolSelectionErrorSub"></div>
+      <ul class="tool-error-list" id="toolSelectionErrorList"></ul>
+      <div class="tool-error-actions"><button type="button" onclick="closeToolSelectionError()">知道了</button></div>
+    </div>`;
+    modal.onclick = closeToolSelectionError;
+    document.body.appendChild(modal);
+  }
+  modal.querySelector('#toolSelectionErrorTitle').textContent = toolName + '无法开始';
+  modal.querySelector('#toolSelectionErrorSub').textContent = message;
+  const list = (sourcesToList || []).map(function(src){
+    return '<li>' + esc((src && src.name) || '未命名来源') + '（' + esc(describeSourceFormat(src)) + '）</li>';
+  }).join('');
+  modal.querySelector('#toolSelectionErrorList').innerHTML = list || '<li>未找到可处理的来源</li>';
+  modal.classList.add('open');
+}
+
+function closeToolSelectionError(){
+  const modal = document.getElementById('toolSelectionErrorModal');
+  if(modal) modal.classList.remove('open');
+}
+
+async function ensureBatchImageToolSources(toolName){
+  const checked = checkedSources();
+  const scoped = checked.length ? checked : (sources || []).filter(canUseAsImageToolSource);
+  const incompatible = scoped.filter(function(src){ return !canUseAsImageToolSource(src); });
+  if(incompatible.length){
+    showToolSelectionError(
+      toolName,
+      imageToolInputErrorMessage(toolName),
+      incompatible
+    );
+    return null;
+  }
+  if(!scoped.length){
+    showToolSelectionError(toolName, '请选择 JPG/PNG/BMP/TIFF/WebP 图像或可转换的 PDF。', checked);
+    return null;
+  }
+  const ready = [];
+  const failed = [];
+  for(let i=0;i<scoped.length;i++){
+    try{
+      const converted = await ensureEcgImageSource(scoped[i]);
+      if(converted && converted.imageDataUrl && String(converted.imageDataUrl).indexOf('data:image') === 0) ready.push(converted);
+      else failed.push(scoped[i]);
+    }catch(_){
+      failed.push(scoped[i]);
+    }
+  }
+  if(failed.length){
+    showToolSelectionError(toolName, '以下来源无法转换为可处理的图像，请检查文件后重试。', failed);
+    return null;
+  }
+  return ready;
+}
+
+async function ensureSingleSelectedImageToolSource(toolName){
+  const checked = checkedSources();
+  const scoped = checked.length ? checked : (sources || []).filter(canUseAsImageToolSource);
+  const incompatible = scoped.filter(function(src){ return !canUseAsImageToolSource(src); });
+  if(incompatible.length){
+    showToolSelectionError(toolName, imageToolInputErrorMessage(toolName), incompatible);
+    return null;
+  }
+  if(!scoped.length){
+    showToolSelectionError(toolName, '请选择 1 个心电图图片或 PDF 来源后重试。', checked);
+    return null;
+  }
+  if(scoped.length > 1){
+    showToolSelectionError(
+      toolName,
+      '手动数字化一次只能打开 1 个来源。请只勾选一张心电图图片或一个 PDF 后重试；多个图片可使用“自动数字化”批量处理。',
+      scoped
+    );
+    return null;
+  }
+  try{
+    const converted = await ensureEcgImageSource(scoped[0]);
+    if(converted && converted.imageDataUrl && String(converted.imageDataUrl).indexOf('data:image') === 0) return converted;
+  }catch(_){ }
+  showToolSelectionError(toolName, '该来源无法转换为可读取的心电图图片，请检查图片或 PDF 文件后重试。', scoped);
+  return null;
 }
 
 let __pdfjsReady = null;
@@ -3101,26 +3561,14 @@ async function buildAutoDigitizeSideBySideDataUrl(sourceImageDataUrl, leadMap, o
 }
 
 
-function upsertCsvSourceSafe(data){
-  if(!data || !data.csv) return;
-  const csvText = String(data.csv || '');
-  const fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
-  addAnalysisResultFile({
-    name: fileName,
-    type: 'csv',
-    mime: 'text/csv;charset=utf-8',
-    content: csvText,
-    source: '分析结果'
-  });
-}
-
 async function runToolByAction(actionName, args){
   if(actionName === 'analysis_ecg' || actionName === 'open_handecg'){
     if(typeof isEcgAutoOpenBlocked === 'function' && isEcgAutoOpenBlocked()){
       return { ok:false, tool:actionName, message:'你刚关闭了 手动数字化，已暂时阻止自动重开（约2秒）。如需打开请稍后再点一次。' };
     }
     try{
-      var src = await ensureImageToolSource('手动数字化');
+      var src = await ensureSingleSelectedImageToolSource('手动数字化');
+      if(!src) return { ok:false, tool:actionName, message:'手动数字化未启动：所选来源不符合输入要求。' };
       window.__heartosLastImageSource = src;
       await openEcgOverlay(src);
       return {
@@ -3140,7 +3588,7 @@ async function runToolByAction(actionName, args){
   }
   if(actionName === 'analysis_ecgomics'){
     try{
-      await runStudio('ecgd', { skipDispatch: true });
+      await runStudio('ecgd', { skipDispatch: true, allowDuringTask: true });
       return { ok: true, tool: actionName, message: '已触发 ECGOmics 分析流程。' };
     }catch(e){
       return { ok: false, tool: actionName, message: '触发 ECGOmics 失败：' + (e && e.message ? e.message : String(e)) };
@@ -3156,7 +3604,7 @@ async function runToolByAction(actionName, args){
     return { ok:false, tool:actionName, message:'已下线：统计学分析模块。' };
   }
   if(actionName === 'analysis_agent'){
-    try{ await runStudio('agent', { skipDispatch: true }); return { ok:true, tool:actionName, message:'已触发智能体方案分析。' }; }
+    try{ await runStudio('agent', { skipDispatch: true, allowDuringTask: true }); return { ok:true, tool:actionName, message:'已触发智能体方案分析。' }; }
     catch(e){ return { ok:false, tool:actionName, message:'触发智能体方案分析失败：' + (e && e.message ? e.message : String(e)) }; }
   }
   return { ok: false, tool: actionName, message: '未实现的工具：' + actionName };
@@ -3202,6 +3650,8 @@ async function dispatchAgentUnified(userInput, signal){
   var hasImage = checked.some(s => isImageLikeSourceLocal(s));
   var hasXml = checked.some(s => isXmlSource(s));
   var hasCsv = checked.some(s => isCsvLikeSourceLocal(s));
+  var hasEcgSignal = checked.some(s => !s.__fromEcgomics &&
+    (isCsvLikeSourceLocal(s) || isXmlSource(s) || ['tsv','txt','json'].indexOf(sourceExt(s)) >= 0));
   const payload = {
     message: userInput,
     api_key: '',
@@ -3213,7 +3663,8 @@ async function dispatchAgentUnified(userInput, signal){
       sources: buildDispatchSources(),
       has_image: hasImage,
       has_xml: hasXml,
-      has_csv: hasCsv
+      has_csv: hasCsv,
+      has_ecg_signal: hasEcgSignal
     }
   };
   const resp = await apiFetch('/api/agent/auto-run', {
@@ -3260,8 +3711,7 @@ function finishDispatchToolChat(userText, replyText){
 }
 
 function runDispatchedToolAsync(toolName, opts){
-  Promise.resolve()
-    .then(() => runStudio(toolName, opts || { skipDispatch: true }))
+  Promise.resolve(runStudio(toolName, opts || { skipDispatch: true }))
     .catch(e => {
       const msg = (e && e.message) ? e.message : String(e || 'unknown error');
       try{ appendAI('工具执行异常：' + msg); }catch(_){}
@@ -3301,7 +3751,7 @@ async function routeByLLM(userText){
 }
 
 async function sendMsg(){
-  if(busy){
+  if(busy || activeStudioTask){
     cancelActiveChatWork();
     return;
   }
@@ -3315,8 +3765,8 @@ async function sendMsg(){
   setChatBusy(true);
   chatAbortController = new AbortController();
 
-  if((/补全|重建|reconstruct/i.test(q)) && (/心电|ecg|导联|波形/i.test(q) || pickCsvSource())){
-    var msgReconLocal = '已识别为心电图重建任务，正在右侧分析区执行，完成后会保存补全 CSV 并展示回传图像。';
+  if((/补全|重建|reconstruct/i.test(q)) && (/心电|ecg|导联|波形/i.test(q) || reconstructSignalCandidates().length)){
+    var msgReconLocal = '已识别为 ECG 信号补全任务，正在标准化十二导联信号并执行补全，完成后会保存补全 CSV 并展示回传图像。';
     finishDispatchToolChat(q, msgReconLocal);
     runDispatchedToolAsync('ecgrecon', { skipDispatch: true });
     return;
@@ -3343,17 +3793,22 @@ async function sendMsg(){
       }
 
       if(endpoint === '/api/ecg-reconstruct'){
-        var msgRecon = '已识别为心电图重建任务，正在右侧分析区执行，完成后会保存补全 CSV 并展示回传图像。';
+        var msgRecon = '已识别为 ECG 信号补全任务，正在标准化十二导联信号并执行补全，完成后会保存补全 CSV 并展示回传图像。';
         finishDispatchToolChat(q, msgRecon);
         runDispatchedToolAsync('ecgrecon', { skipDispatch: true });
         return;
       }
 
       if(endpoint === '/tool/handecg/manual'){
+        const manualSrc = await ensureSingleSelectedImageToolSource('手动数字化');
+        if(!manualSrc){
+          finishDispatchToolChat(q, '手动数字化未启动：请选择单个心电图图片或 PDF 来源。');
+          return;
+        }
         var msg3 = '已识别为手动数字化任务，正在打开手动数字化工具。';
         finishDispatchToolChat(q, msg3);
         Promise.resolve()
-          .then(() => openEcgOverlay())
+          .then(() => openEcgOverlay(manualSrc))
           .catch(e => {
             const msg = (e && e.message) ? e.message : String(e || 'unknown error');
             try{ appendAI('打开手动数字化失败：' + msg); }catch(_){}
@@ -3364,6 +3819,7 @@ async function sendMsg(){
       // Backward compatibility for old dispatch response format
       if(out && out.tool && out.tool !== 'chat_qa'){
         await runToolByAction(String(out.tool), (out.tool_result && out.tool_result.data) ? out.tool_result.data : {});
+        if(!busy) return;
         removeTyping();
         appendAI(out.reply || ('已触发工具：' + out.tool));
         msgs.push({role:'user',content:q},{role:'assistant',content:(out.reply || ('已触发工具：' + out.tool))});
@@ -3519,6 +3975,7 @@ function uiIcon(name, cls){
     wave:'<svg' + c + ' viewBox="0 0 24 24"><path d="M2 12h4l2-5 4 10 2-5h8"/></svg>',
     spark:'<svg' + c + ' viewBox="0 0 24 24"><path d="M13 3 6 14h5l-1 7 8-12h-5l0-6Z"/></svg>',
     heart:'<svg' + c + ' viewBox="0 0 24 24"><path d="M20.4 4.6a5.4 5.4 0 0 0-7.6 0L12 5.4l-.8-.8a5.4 5.4 0 0 0-7.6 7.6l.8.8L12 20.6l7.6-7.6.8-.8a5.4 5.4 0 0 0 0-7.6Z"/></svg>',
+    lab:'<svg' + c + ' viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5.5 9.2A1.8 1.8 0 0 0 6 21h12a1.8 1.8 0 0 0 1.5-2.8L14 9V3"/><path d="M7.5 15h9"/></svg>',
     results:'<svg' + c + ' viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>'
   };
   return icons[name] || icons.note;
@@ -3526,10 +3983,14 @@ function uiIcon(name, cls){
 
 let studioCards = [
   {id:'agent',cls:'agent-card',icon:'target', iconBg:'rgba(94,110,177,.12)',  name:'准心智能体',     desc:'基于来源内容的智能决策与规划'},
-  {id:'ecgd', cls:'ecgd-card', icon:'chart',  iconBg:'rgba(65,144,170,.12)',   name:'心电图特征提取', desc:'ECGOmics/XML 特征提取与批量处理'},
+  {id:'ecgd', cls:'ecgd-card', icon:'chart',  iconBg:'rgba(65,144,170,.12)',   name:'ECG 特征提取', desc:'ECGOmics XML/波形 CSV 特征提取'},
   {id:'ecgsmart',cls:'ml-card',icon:'spark',  iconBg:'rgba(67,111,204,.12)',  name:'自动数字化',desc:'自动识别导联并生成 CSV（快速）'},
-  {id:'ecgrecon',cls:'dl-card',icon:'wave',   iconBg:'rgba(87,151,113,.12)',  name:'心电图补全',desc:'上传 CSV 调用补全接口并回显波形'},
+  {id:'ecgrecon',cls:'dl-card',icon:'wave',   iconBg:'rgba(87,151,113,.12)',  name:'ECG 信号补全',desc:'标准化十二导联并补全缺失波形'},
   {id:'ecg',  cls:'ecg-card',  icon:'heart',  iconBg:'rgba(185,101,129,.12)',   name:'手动数字化',  desc:'手动校正波形并导出高质量 CSV（精确）'},
+];
+let futureLabCards = [
+  {icon:'spark', name:'预测分析模型', status:'研发中', phase:'developing'},
+  {icon:'lab', name:'多模态模型', status:'规划中', phase:'planned'}
 ];
 let currentResultText = '';
 let currentResultFileName = 'analysis_result.txt';
@@ -3542,7 +4003,7 @@ const studioIntroMap = {
   },
   ecgd: {
     input: 'ECG XML 文件，支持单个或多个来源批量处理。',
-    flow: '读取 XML 结构，调用 ECGOmics 特征提取流程，整理导联、节律和时域/形态学特征。',
+    flow: '原始 ECG XML 直接分析；数字化或补全生成的波形 CSV 以 raw 波形分析，整理节律和时域/形态学特征。',
     output: '特征 CSV、处理状态报告，以及可下载的分析结果文件。'
   },
   ecgsmart: {
@@ -3551,8 +4012,8 @@ const studioIntroMap = {
     output: '接口回传诊断图、原图/拟合波形对比图、导联 CSV 和采样点统计。'
   },
   ecgrecon: {
-    input: '已数字化的 ECG CSV，通常包含导联名、时间序列或波形采样值。',
-    flow: '上传 CSV 到补全模型，模型推断缺失导联或缺失片段，并返回重建后的波形数据。',
+    input: '心电波形 CSV、TSV、TXT、XML 或包含导联数组的 JSON；图片/PDF 需先数字化。',
+    flow: '自动提取标准十二导联，移除表头、时间列、样本序号及结构化描述，缺失波形以接口约定的 0 占位后提交纯数值矩阵。',
     output: '补全后的 CSV、回传波形图像，以及在分析结果区保存的文件。'
   },
   ecg: {
@@ -3614,12 +4075,29 @@ function normalizeResultFileName(name, fallbackExt){
   return base;
 }
 
+function uniqueAnalysisResultFileName(name, ignoreId){
+  const safe = String(name || '').trim() || ('analysis_' + Date.now() + '.txt');
+  const occupied = candidate => Array.isArray(analysisFiles) && analysisFiles.some(file => file && file.id !== ignoreId && file.name === candidate);
+  if(!occupied(safe)) return safe;
+  const dot = safe.lastIndexOf('.');
+  const stem = dot > 0 ? safe.slice(0, dot) : safe;
+  const ext = dot > 0 ? safe.slice(dot) : '';
+  let seq = 2;
+  let next = stem + '_' + seq + ext;
+  while(occupied(next)){
+    seq += 1;
+    next = stem + '_' + seq + ext;
+  }
+  return next;
+}
+
 function addAnalysisResultFile(file){
   if(!file || !file.content) return null;
   const ext = String(file.ext || file.type || 'txt').replace(/^\./,'').toLowerCase() || 'txt';
+  const preferredName = normalizeResultFileName(file.name || file.fileName, ext);
   const item = {
     id: String(file.id || ('rf_' + Date.now() + '_' + Math.random().toString(16).slice(2))),
-    name: normalizeResultFileName(file.name || file.fileName, ext),
+    name: uniqueAnalysisResultFileName(preferredName),
     type: ext,
     mime: file.mime || (ext === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8'),
     content: String(file.content || ''),
@@ -3627,9 +4105,7 @@ function addAnalysisResultFile(file){
     createdAt: file.createdAt || new Date().toLocaleString()
   };
   if(!Array.isArray(analysisFiles)) analysisFiles = [];
-  const oldIdx = analysisFiles.findIndex(x => x && x.name === item.name);
-  if(oldIdx >= 0) analysisFiles.splice(oldIdx, 1, Object.assign({}, analysisFiles[oldIdx], item, {id: analysisFiles[oldIdx].id || item.id}));
-  else analysisFiles.unshift(item);
+  analysisFiles.unshift(item);
   if(curNb) curNb.analysisFiles = analysisFiles;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
@@ -3651,6 +4127,7 @@ function renderAnalysisFiles(){
     <button class="result-file-kebab" onclick="toggleResultFileMenu('${escAttr(f.id)}', event)">⋯</button>
     <div class="result-file-menu" id="resultFileMenu-${escAttr(f.id)}">
       <button onclick="previewAnalysisFile('${escAttr(f.id)}', event)">预览</button>
+      <button onclick="importAnalysisFileAsSource('${escAttr(f.id)}', event)">加入来源</button>
       <button onclick="renameAnalysisFile('${escAttr(f.id)}', event)">重命名</button>
       <button onclick="exportAnalysisFile('${escAttr(f.id)}', event)">导出</button>
       <button class="danger" onclick="deleteAnalysisFile('${escAttr(f.id)}', event)">删除</button>
@@ -3664,9 +4141,52 @@ function ensureResultContent(summaryHtml){
   if(ph) ph.style.display = 'none';
   if(!rc) return null;
   rc.style.display = 'block';
+  rc.style.flexDirection = '';
   const summary = summaryHtml ? String(summaryHtml) : '';
   rc.innerHTML = summary + '<h4>分析结果文件</h4><div class="result-files" id="analysisFilesList"></div>';
   renderAnalysisFiles();
+  return rc;
+}
+
+function showResultTaskProgress(title, subtitle, tone){
+  const ph = document.getElementById('resultPlaceholder');
+  const rc = document.getElementById('resultContent');
+  if(ph) ph.style.display = 'none';
+  if(!rc) return null;
+  const hasFiles = Array.isArray(analysisFiles) && analysisFiles.length > 0;
+  const cardTone = ['green','purple'].includes(String(tone || '')) ? (' ' + tone) : '';
+  rc.style.display = 'block';
+  rc.style.flexDirection = '';
+  rc.innerHTML =
+    '<div class="result-job-card' + cardTone + '">' +
+      '<div class="result-job-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.2-4.9"/><path d="M5.8 2.8v4.1h4.1"/><path d="M4 13a8 8 0 0 0 14.2 4.9"/><path d="M18.2 21.2v-4.1h-4.1"/></svg></div>' +
+      '<div class="result-job-main"><div class="result-job-title">' + esc(title || '正在生成分析结果...') + '</div>' +
+      '<div class="result-job-sub">' + esc(subtitle || '这可能需要一些时间') + '</div></div>' +
+      '<button class="result-stop-btn" type="button" onclick="cancelActiveChatWork()">停止</button>' +
+    '</div>' +
+    (hasFiles ? '<h4>已有结果文件</h4><div class="result-files" id="analysisFilesList"></div>' : '');
+  if(hasFiles) renderAnalysisFiles();
+  const panel = document.getElementById('studioResult');
+  if(panel) panel.scrollTop = 0;
+  return rc;
+}
+
+function showResultTaskStopped(label){
+  const ph = document.getElementById('resultPlaceholder');
+  const rc = document.getElementById('resultContent');
+  if(ph) ph.style.display = 'none';
+  if(!rc) return null;
+  const hasFiles = Array.isArray(analysisFiles) && analysisFiles.length > 0;
+  rc.style.display = 'block';
+  rc.style.flexDirection = '';
+  rc.innerHTML =
+    '<div class="result-job-card stopped">' +
+      '<div class="result-job-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg></div>' +
+      '<div class="result-job-main"><div class="result-job-title">任务已停止</div>' +
+      '<div class="result-job-sub">' + esc((label || '分析任务') + '已由用户中断') + '</div></div>' +
+    '</div>' +
+    (hasFiles ? '<h4>已完成结果文件</h4><div class="result-files" id="analysisFilesList"></div>' : '');
+  if(hasFiles) renderAnalysisFiles();
   return rc;
 }
 
@@ -3712,11 +4232,42 @@ function renameAnalysisFile(id, evt){
   if(!f) return;
   const next = prompt('输入新的文件名：', f.name);
   if(!next) return;
-  f.name = normalizeResultFileName(next, f.type || 'txt');
+  f.name = uniqueAnalysisResultFileName(normalizeResultFileName(next, f.type || 'txt'), f.id);
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
   renderAnalysisFiles();
   showToast('文件已重命名');
+}
+
+function importAnalysisFileAsSource(id, evt){
+  if(evt) evt.stopPropagation();
+  document.querySelectorAll('.result-file-menu.open').forEach(m => m.classList.remove('open'));
+  const f = analysisFiles.find(x => x && x.id === id);
+  if(!f) return;
+  const alreadyAdded = sources.find(s => s && s.__analysisFileId === id);
+  if(alreadyAdded){
+    alreadyAdded.checked = true;
+    renderSrcs();
+    updateCiSrc();
+    showToast('这个结果文件已经在来源中');
+    return;
+  }
+  const ext = String(f.type || String(f.name || '').split('.').pop() || 'txt').replace(/^\./, '').toLowerCase();
+  let rawFile = null;
+  try{
+    rawFile = new File([String(f.content || '')], f.name || ('analysis.' + ext), {type: f.mime || 'text/plain;charset=utf-8'});
+  }catch(_){ }
+  const src = addSrc(f.name || ('analysis.' + ext), ext, String(f.content || ''), null, rawFile);
+  if(src){
+    src.__analysisFileId = id;
+    src.__fromAnalysisResult = true;
+    src.__fromEcgomics = f.source === 'ECGOmics';
+    src.__fromReconstruct = f.source === '心电图补全' || f.source === 'ECG 信号补全';
+    src.__fromDigitize = f.source === '手动数字化' || f.source === '自动数字化';
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(false);
+  }
+  showToast('分析结果已加入来源');
 }
 
 function deleteAnalysisFile(id, evt){
@@ -3758,6 +4309,7 @@ window.addEventListener('popstate', function(evt){
     if(nb) openNb(st.id, false);
     return;
   }
+  if(busy || activeStudioTask) cancelActiveChatWork();
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
   renderHome();
@@ -3811,6 +4363,87 @@ function closeStudioIntroModal(){
   if(modal) modal.classList.remove('open');
 }
 
+// ────────────────────────────────────────────────────────────────────
+//  未来实验室二级模态页
+//  • 侧栏只放一个入口卡，所有"研发中 / 规划中"模型在这个模态里展示
+//  • 卡片保持当前尺寸，按相位分组，纵向滚动承载无限新增
+// ────────────────────────────────────────────────────────────────────
+function ensureFutureLabModal(){
+  let modal = document.getElementById('futureLabModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'futureLabModal';
+  modal.className = 'lab-modal';
+  modal.innerHTML = `<div class="lab-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="futureLabTitle" onclick="event.stopPropagation()">
+    <div class="lab-modal-head">
+      <div class="lab-modal-head-l">
+        <span class="lab-modal-head-icon">${uiIcon('lab')}</span>
+        <div>
+          <div class="lab-modal-title" id="futureLabTitle">未来实验室</div>
+          <div class="lab-modal-sub">研发中与规划中的模型能力，上线后将进入主面板</div>
+        </div>
+      </div>
+      <button class="lab-modal-close" type="button" onclick="closeFutureLabModal()" title="关闭">×</button>
+    </div>
+    <div class="lab-modal-body" id="futureLabBody"></div>
+  </div>`;
+  modal.addEventListener('click', closeFutureLabModal);
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function renderFutureLabModalBody(){
+  const list = Array.isArray(futureLabCards) ? futureLabCards : [];
+  if(!list.length){
+    return `<div class="lab-modal-empty">暂无规划项，敬请期待</div>`;
+  }
+  const groups = [
+    { key:'developing', title:'研发中', dotCls:'' },
+    { key:'planned',    title:'规划中', dotCls:'planned' },
+  ];
+  const buckets = {};
+  list.forEach(c => {
+    const k = c.phase === 'planned' ? 'planned' : (c.phase === 'developing' ? 'developing' : 'developing');
+    (buckets[k] = buckets[k] || []).push(c);
+  });
+  // 也兜底显示未归类的相位
+  Object.keys(buckets).forEach(k => {
+    if(!groups.find(g => g.key === k)){
+      groups.push({ key:k, title:k, dotCls:'' });
+    }
+  });
+  return groups.filter(g => (buckets[g.key] || []).length > 0).map(g => {
+    const items = buckets[g.key].map(c => `
+      <div class="lab-card" title="${escAttr(c.name + ' - ' + c.status)}" aria-label="${escAttr(c.name + '，' + c.status)}">
+        <div class="lab-card-top">
+          <span class="lab-card-icon">${uiIcon(c.icon,'ui-icon sm')}</span>
+          <span class="lab-status ${c.phase === 'planned' ? 'planned' : ''}">${esc(c.status)}</span>
+        </div>
+        <div class="lab-name">${esc(c.name)}</div>
+      </div>`).join('');
+    return `<section class="lab-group">
+      <div class="lab-group-head">
+        <span class="lab-group-title"><span class="dot ${g.dotCls}"></span>${esc(g.title)}</span>
+        <span class="lab-group-count">${buckets[g.key].length} 项</span>
+      </div>
+      <div class="lab-modal-grid">${items}</div>
+    </section>`;
+  }).join('');
+}
+
+function openFutureLabModal(evt){
+  if(evt) evt.stopPropagation();
+  const modal = ensureFutureLabModal();
+  const body = modal.querySelector('#futureLabBody');
+  if(body) body.innerHTML = renderFutureLabModalBody();
+  modal.classList.add('open');
+}
+
+function closeFutureLabModal(){
+  const modal = document.getElementById('futureLabModal');
+  if(modal) modal.classList.remove('open');
+}
+
 function renderStudio(){
   const top = document.getElementById('studioTop');
   const cards = studioCards.map(c=>`
@@ -3820,7 +4453,25 @@ function renderStudio(){
       <button class="sc-toggle" type="button" title="查看介绍" onclick="openStudioIntroModal('${c.id}', event)">›</button>
       <div class="sc-desc">${c.desc}</div>
     </div>`).join('');
+  // 未来实验室：侧栏只放一个入口卡，详情在二级模态页（承载力随内容扩展）
+  const labCount = Array.isArray(futureLabCards) ? futureLabCards.length : 0;
+  const developingCount = Array.isArray(futureLabCards)
+    ? futureLabCards.filter(c => c.phase === 'developing').length : 0;
+  const badgeText = developingCount > 0
+    ? developingCount + ' 项研发中'
+    : (labCount > 0 ? labCount + ' 项规划中' : '即将开放');
+  const badgeCls = (labCount > 0) ? '' : ' empty';
   top.innerHTML=`<div class="sc-grid">${cards}</div>
+    <button class="future-lab-entry" type="button" onclick="openFutureLabModal()"
+      title="查看未来实验室" aria-label="打开未来实验室">
+      <span class="fle-icon">${uiIcon('lab')}</span>
+      <span class="fle-text">
+        <span class="fle-title">未来实验室</span>
+        <span class="fle-sub">研发中与规划中的模型能力</span>
+      </span>
+      <span class="fle-badge${badgeCls}">${badgeText}</span>
+      <span class="fle-chev">›</span>
+    </button>
     <button class="add-note-b" onclick="addNote()">${uiIcon('note','ui-icon sm')} 添加笔记</button>`;
   renderStudioMiniRail();
   syncPanelCollapseState();
@@ -3920,19 +4571,24 @@ function isCsvSource(src){
   return /(^|[\r\n])\s*(time_ms|time|index|sample|i|ii|lead)/i.test(c.slice(0, 500)) && c.indexOf(',') >= 0;
 }
 
-function pickCsvSource(explicit){
-  if(isCsvSource(explicit)) return explicit;
-  if(Array.isArray(sources)){
-    for(let i=0;i<sources.length;i++){
-      const s = sources[i];
-      if(s && s.checked && isCsvSource(s)) return s;
-    }
-    for(let j=0;j<sources.length;j++){
-      const s2 = sources[j];
-      if(isCsvSource(s2)) return s2;
-    }
+function csvSourceCandidates(explicit){
+  const out = [];
+  function add(src){
+    if(isCsvSource(src) && out.indexOf(src) < 0) out.push(src);
   }
-  return null;
+  add(explicit);
+  if(!Array.isArray(sources)) return out;
+  const checked = sources.filter(s => s && s.checked && isCsvSource(s));
+  const all = sources.filter(s => s && isCsvSource(s));
+  checked.filter(s => !s.__fromEcgomics).forEach(add);
+  checked.filter(s => !!s.__fromEcgomics).forEach(add);
+  all.filter(s => !s.__fromEcgomics).forEach(add);
+  all.filter(s => !!s.__fromEcgomics).forEach(add);
+  return out;
+}
+
+function pickCsvSource(explicit){
+  return csvSourceCandidates(explicit)[0] || null;
 }
 
 async function readCsvTextFromSource(src){
@@ -3965,17 +4621,103 @@ async function csvSourceToFile(src){
   try{ return new Blob([text], { type:'text/csv' }); }catch(_){ return null; }
 }
 
+function looksLikeWaveformCsvText(csvText){
+  const rows = parseDelimitedRows(csvText, ',', 20000).filter(r => r.some(c => String(c).trim() !== ''));
+  if(rows.length < 101) return false;
+  const maxCols = rows.reduce((n, r) => Math.max(n, r.length), 0);
+  if(maxCols < 2) return false;
+  const first = rows[0] || [];
+  const numericInFirst = first.filter(cell => Number.isFinite(Number(String(cell).trim()))).length;
+  const hasHeader = numericInFirst < Math.max(1, Math.floor(first.length * 0.8));
+  const body = hasHeader ? rows.slice(1) : rows;
+  if(body.length < 100) return false;
+  let numericColumns = 0;
+  for(let col=0;col<maxCols;col++){
+    let numeric = 0;
+    for(let row=0;row<body.length;row++){
+      const raw = String((body[row] && body[row][col]) == null ? '' : body[row][col]).trim();
+      if(raw !== '' && Number.isFinite(Number(raw))) numeric += 1;
+    }
+    if(numeric >= 100) numericColumns += 1;
+  }
+  return numericColumns >= 2;
+}
+
 async function ensureCsvToolSource(toolName){
   const checked = checkedSources();
-  const src = pickCsvSource();
-  if(!src){
+  const candidates = csvSourceCandidates();
+  if(!candidates.length){
     throw new Error(unsupportedCheckedFormatMessage(toolName, 'CSV 文件，或内容可识别为 CSV 的文本来源', checked));
   }
-  const fileObj = await csvSourceToFile(src);
-  if(!fileObj){
-    throw new Error(unsupportedCheckedFormatMessage(toolName, '可读取并包含逗号分隔导联数据的 CSV', checked.length ? checked : [src]));
+  for(let i=0;i<candidates.length;i++){
+    const src = candidates[i];
+    const text = await readCsvTextFromSource(src);
+    if((toolName === '心电图补全' || toolName === 'ECG 信号补全') && !looksLikeWaveformCsvText(text)) continue;
+    const fileObj = await csvSourceToFile(src);
+    if(fileObj) return { source: src, file: fileObj };
   }
-  return { source: src, file: fileObj };
+  if(toolName === '心电图补全' || toolName === 'ECG 信号补全'){
+    throw new Error('ECG 信号补全需要包含至少两列连续数值波形的 CSV。请检查所选文件是否为可用于补全的导联波形数据。');
+  }
+  throw new Error(unsupportedCheckedFormatMessage(toolName, '可读取并包含逗号分隔导联数据的 CSV', checked.length ? checked : candidates));
+}
+
+function reconstructSignalCandidates(){
+  const list = [];
+  function add(src){
+    if(!src || src.__fromEcgomics || list.indexOf(src) >= 0) return;
+    const ext = sourceExt(src);
+    if(isCsvSource(src) || isXmlSource(src) || ['tsv','txt','json'].includes(ext)) list.push(src);
+  }
+  const checked = checkedSources();
+  (checked.length ? checked : (sources || [])).forEach(add);
+  return list;
+}
+
+function validateSelectedSourcesForReconstruct(){
+  const checked = checkedSources();
+  if(!checked.length) return true;
+  const incompatible = checked.filter(function(src){
+    const ext = sourceExt(src);
+    return src.__fromEcgomics || !(isCsvSource(src) || isXmlSource(src) || ['tsv','txt','json'].includes(ext));
+  });
+  if(!incompatible.length) return true;
+  showToolSelectionError(
+    'ECG 信号补全',
+    '心电图图片不能直接进行 ECG 信号补全，请先进行手动数字化或自动数字化，生成波形数据后再执行补全。',
+    incompatible
+  );
+  return false;
+}
+
+async function reconstructSourceToFile(src){
+  if(isBlobLike(src && src.fileObj)) return src.fileObj;
+  const text = await readTextFromSource(src);
+  if(!text.trim()) return null;
+  const ext = sourceExt(src) || 'csv';
+  const name = String(src.name || ('ecg_signal.' + ext));
+  const mime = ext === 'xml' ? 'application/xml' : ext === 'json' ? 'application/json' : 'text/plain;charset=utf-8';
+  try{ return new File([text], name, { type: mime }); }catch(_){ return new Blob([text], { type: mime }); }
+}
+
+async function ensureReconstructSignalSource(){
+  const checked = checkedSources();
+  const candidates = reconstructSignalCandidates();
+  for(let i=0;i<candidates.length;i++){
+    const src = candidates[i];
+    const ext = sourceExt(src);
+    const text = await readTextFromSource(src);
+    if(isCsvSource(src) && !looksLikeWaveformCsvText(text)) continue;
+    if(isXmlSource(src) && !/(digits|waveform|wave|mdc_ecg_lead_)/i.test(text)) continue;
+    if(ext === 'json' && !/(ecgDataRaw|ecgData|waveforms|signals|leads)/i.test(text)) continue;
+    const fileObj = await reconstructSourceToFile(src);
+    if(fileObj) return { source: src, file: fileObj };
+  }
+  throw new Error(unsupportedCheckedFormatMessage(
+    'ECG 信号补全',
+    '包含多导联波形的 CSV、TSV、TXT、XML 或 JSON；系统会在提交前自动仅保留纯数值信号',
+    checked.length ? checked : candidates
+  ));
 }
 
 function requestCsvSampleRate(defaultFs, sourceName){
@@ -3986,7 +4728,7 @@ function requestCsvSampleRate(defaultFs, sourceName){
       modal.id = 'csvXmlModal';
       modal.className = 'csv-xml-modal';
       modal.innerHTML = `<div class="csv-xml-dialog" onclick="event.stopPropagation()">
-        <div class="csv-xml-title">CSV 转 XML</div>
+        <div class="csv-xml-title">波形 CSV 特征提取</div>
         <div class="csv-xml-sub" id="csvXmlSub"></div>
         <div class="csv-xml-field">
           <label>采样率 Fs（Hz）</label>
@@ -4013,7 +4755,7 @@ function requestCsvSampleRate(defaultFs, sourceName){
       modal.onclick = null;
       resolve(value);
     }
-    if(sub) sub.textContent = '当前选择的是 CSV 文件：' + (sourceName || '未命名') + '。请确认采样率后，系统会临时包装成 ECG XML 再进行特征提取。';
+    if(sub) sub.textContent = '当前选择的是波形 CSV：' + (sourceName || '未命名') + '。请确认采样率后，系统将选取连续导联波形进行 ECGOmics 特征提取。';
     if(input) input.value = String(defaultFs || 500);
     if(cancel) cancel.onclick = function(){ finish(null); };
     if(ok) ok.onclick = function(){
@@ -4085,68 +4827,107 @@ function stripCsvIndexColumnText(csvText){
   return { text: out, removed: true };
 }
 
-async function normalizeCsvForReconstruct(src){
-  const text = await readCsvTextFromSource(src);
-  const cleaned = stripCsvIndexColumnText(text);
-  const name = /\.csv$/i.test(src && src.name || '')
-    ? String(src.name)
-    : ((src && src.name || 'ecg').replace(/\.[^.]+$/,'') + '.csv');
-  const uploadName = cleaned.removed ? name.replace(/\.csv$/i, '_no_index.csv') : name;
-  let fileObj = null;
-  try{
-    fileObj = new File([cleaned.text], uploadName, { type:'text/csv' });
-  }catch(_){
-    try{ fileObj = new Blob([cleaned.text], { type:'text/csv' }); }catch(_){ fileObj = null; }
-  }
-  return { file: fileObj, name: uploadName, removedIndex: cleaned.removed };
-}
-
-function csvTextToEcgXml(csvText, fs, sourceName){
+function csvTextToEcgomicsRaw(csvText, fs, sourceName){
   const rows = parseDelimitedRows(csvText, ',', 200000).filter(r => r.some(c => String(c).trim() !== ''));
-  if(rows.length < 2) throw new Error('CSV 数据行不足，无法转换 XML');
-  const headers = rows[0].map(h => String(h || '').trim());
-  let leads = inferCsvLeadColumns(headers);
-  if(!leads.length && headers.length > 1){
-    leads = headers.slice(1).map((h, i) => ({ name: String(h || ('Lead' + (i+1))).trim(), idx: i + 1 }));
+  if(rows.length < 101) throw new Error('CSV 数据行不足，特征提取至少需要连续波形数据。');
+  const first = rows[0] || [];
+  const numericFirst = first.filter(cell => Number.isFinite(Number(String(cell).trim()))).length;
+  const hasHeader = numericFirst < Math.max(1, Math.floor(first.length * 0.8));
+  const headers = hasHeader ? first.map(h => String(h || '').trim()) : first.map((_, i) => 'Lead' + (i + 1));
+  const body = hasHeader ? rows.slice(1) : rows;
+  let leads = hasHeader ? inferCsvLeadColumns(headers) : [];
+  if(!leads.length){
+    leads = headers.map((name, idx) => ({ name: name || ('Lead' + (idx + 1)), idx: idx }));
   }
-  if(!leads.length) throw new Error('CSV 中未识别到导联列');
-  function x(s){ return esc(String(s == null ? '' : s)); }
-  const leadXml = leads.map(lead => {
-    const values = rows.slice(1).map(r => String(r[lead.idx] == null ? '' : r[lead.idx]).trim()).filter(Boolean);
-    return '<LeadData><LeadID>' + x(lead.name) + '</LeadID><SampleBase>' + x(fs) + '</SampleBase><WaveFormData>' + x(values.join(',')) + '</WaveFormData></LeadData>';
-  }).join('');
-  return '<?xml version="1.0" encoding="UTF-8"?>\n<RestingECG><SourceType>HeartOS CSV Adapter</SourceType><SourceName>' +
-    x(sourceName || 'csv') + '</SourceName><Waveform><SampleBase>' + x(fs) + '</SampleBase>' + leadXml + '</Waveform></RestingECG>';
+  const candidates = leads.map(lead => {
+    const values = body.map(row => {
+      const n = Number(String(row[lead.idx] == null ? '' : row[lead.idx]).trim());
+      return Number.isFinite(n) ? n : null;
+    });
+    if(looksLikeCsvIndexColumn(values.map(v => v == null ? '' : v), lead.name)) return null;
+    return {
+      lead: lead.name,
+      values: values.filter(v => v != null)
+    };
+  }).filter(Boolean);
+  candidates.sort((a, b) => {
+    if(b.values.length !== a.values.length) return b.values.length - a.values.length;
+    const preferred = ['II','I','V2','V5'];
+    const ar = preferred.indexOf(a.lead);
+    const br = preferred.indexOf(b.lead);
+    return (ar < 0 ? preferred.length : ar) - (br < 0 ? preferred.length : br);
+  });
+  const picked = candidates[0];
+  const minSamples = Math.floor(Number(fs) * 10);
+  if(!picked || picked.values.length < minSamples){
+    const available = picked ? (picked.values.length + ' 点，约 ' + (picked.values.length / Number(fs)).toFixed(3) + ' 秒') : '没有可用导联';
+    throw new Error('波形 CSV 不足以进行 ECGOmics 特征提取：最长导联' + available + '；需要至少 10 秒连续波形（当前采样率需 ' + minSamples + ' 点）。');
+  }
+  return {
+    payload: {
+      ecgData: picked.values,
+      ecgSampleRate: Number(fs),
+      inputType: 'raw',
+      zero: 0,
+      gain: 1,
+      filter: 'MeanDecomposition'
+    },
+    mode: 'raw',
+    usedLead: picked.lead,
+    sourceName: sourceName || 'CSV'
+  };
 }
 
-async function buildXmlSourcesForEcgomics(){
-  const xmlList = await ensureXmlToolSources('ECGOmics').catch(() => []);
-  if(xmlList.length) return xmlList;
-  const csvSrc = pickCsvSource();
-  if(!csvSrc) return await ensureXmlToolSources('ECGOmics');
-  const fs = await requestCsvSampleRate(500, csvSrc.name || 'CSV');
-  if(!fs) throw new Error('已取消 CSV 转 XML');
-  const csvText = await readCsvTextFromSource(csvSrc);
-  const xmlText = csvTextToEcgXml(csvText, fs, csvSrc.name || 'csv');
-  const xmlName = String(csvSrc.name || 'ecg.csv').replace(/\.[^.]+$/,'') + '_fs' + fs + '.xml';
-  addAnalysisResultFile({
-    name: xmlName,
-    type: 'xml',
-    mime: 'application/xml;charset=utf-8',
-    content: xmlText,
-    source: 'CSV 转 XML'
+async function buildEcgomicsInputs(){
+  const checked = checkedSources();
+  const scoped = checked.length ? checked : (sources || []);
+  const waveformCsv = [];
+  for(let i=0;i<scoped.length;i++){
+    const src = scoped[i];
+    if(!isCsvSource(src) || src.__fromEcgomics) continue;
+    const text = await readCsvTextFromSource(src);
+    if(looksLikeWaveformCsvText(text)) waveformCsv.push({ source: src, text: text });
+  }
+  if(waveformCsv.length){
+    const jobs = [];
+    for(let i=0;i<waveformCsv.length;i++){
+      const selected = waveformCsv[i];
+      const fs = await requestCsvSampleRate(500, selected.source.name || 'CSV');
+      if(!fs) throw new Error('已取消波形 CSV 特征提取');
+      const raw = csvTextToEcgomicsRaw(selected.text, fs, selected.source.name || 'CSV');
+      jobs.push({ source: selected.source, payload: raw.payload, mode: raw.mode, usedLead: raw.usedLead });
+    }
+    return jobs;
+  }
+  const xmlList = scoped.filter(src => src && isXmlSource(src));
+  if(xmlList.length){
+    return xmlList.map(src => ({
+      source: src,
+      payload: null,
+      mode: 'xml',
+      usedLead: ''
+    }));
+  }
+  throw new Error(unsupportedCheckedFormatMessage(
+    'ECG 特征提取',
+    '原始 ECG XML，或至少包含 10 秒连续导联波形的 CSV',
+    scoped
+  ));
+}
+
+function validateSelectedSourcesForEcgomics(){
+  const checked = checkedSources();
+  if(!checked.length) return true;
+  const incompatible = checked.filter(function(src){
+    return src.__fromEcgomics || !(isXmlSource(src) || isCsvSource(src));
   });
-  return [{
-    id: 'csv_xml_' + Date.now(),
-    name: xmlName,
-    type: 'xml',
-    checked: true,
-    content: xmlText,
-    imageDataUrl: null,
-    fileObj: null,
-    __fromCsvAdapter: true,
-    __sourceCsvName: csvSrc.name || ''
-  }];
+  if(!incompatible.length) return true;
+  showToolSelectionError(
+    'ECG 特征提取',
+    '心电图图片不能直接进行 ECG 特征提取，请先进行手动数字化或自动数字化，生成波形 CSV 后再提取特征。',
+    incompatible
+  );
+  return false;
 }
 
 async function readXmlTextFromSource(src){
@@ -4291,57 +5072,22 @@ function downloadEcgomicsCsv(fileName, csvText){
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 100);
 }
 
-function upsertEcgomicsCsvSource(fileName, csvText){
-  if(!Array.isArray(sources)) return;
-  const safeName = /\.csv$/i.test(fileName||'') ? fileName : ((fileName||('ecgomics_' + Date.now())) + '.csv');
-  let fileObj = null;
-  try{ fileObj = new File([csvText], safeName, {type:'text/csv'}); }catch(_){ }
-
-  const srcObj = {
-    id: sources.length + 1,
-    name: safeName,
-    type: 'csv',
-    checked: true,
-    content: String(csvText||'').slice(0, 12000),
-    imageDataUrl: null,
-    fileObj: fileObj,
-    __fromEcgomics: true
-  };
-
-  let replaced = false;
-  for(let i=0;i<sources.length;i++){
-    if(sources[i] && sources[i].__fromEcgomics && sources[i].name === safeName){
-      srcObj.id = sources[i].id;
-      sources[i] = srcObj;
-      replaced = true;
-      break;
-    }
-  }
-  if(!replaced) sources.unshift(srcObj);
-
-  if(curNb) curNb.srcs = sources.length;
-  syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
-  if(typeof renderSrcs === 'function') renderSrcs();
-  if(typeof updateCiSrc === 'function') updateCiSrc();
-  addAnalysisResultFile({
-    name: safeName,
-    type: 'csv',
-    mime: 'text/csv;charset=utf-8',
-    content: String(csvText || ''),
-    source: 'ECGOmics'
-  });
-}
-
 function renderEcgomicsXmlResult(src, out){
   const rc = document.getElementById('resultContent');
   if(!rc) return;
 
   const sourceName = String((src && src.name) || 'xml');
   const csv = ecgomicsToCsv(out || {});
-  currentResultFileName = _normalizeCsvNameBySource('', sourceName);
   currentResultText = csv;
   window.__heartosEcgomicsCsvText = csv;
+  const resultFile = addAnalysisResultFile({
+    name: _normalizeCsvNameBySource('', sourceName),
+    type: 'csv',
+    mime: 'text/csv;charset=utf-8',
+    content: csv,
+    source: 'ECGOmics'
+  });
+  currentResultFileName = resultFile ? resultFile.name : _normalizeCsvNameBySource('', sourceName);
 
   const lines = csv.split(/\r?\n/).slice(0, 60).join('\n');
 
@@ -4354,8 +5100,6 @@ function renderEcgomicsXmlResult(src, out){
     '<p style="font-size:12px;color:#6b7280;">结果已转换为 CSV，并保存到右下角分析结果。</p>' +
     '<pre style="margin-top:8px;max-height:380px;overflow:auto;background:#0b1020;color:#e2e8f0;border-radius:8px;padding:10px;font-size:12px;line-height:1.5;">' + esc(lines) + '</pre>'
   );
-
-  upsertEcgomicsCsvSource(currentResultFileName, csv);
 
   try{
     appendAI('ECGOmics 特征提取完成，结果已转换为 CSV 并保存到右下角分析结果。');
@@ -4424,17 +5168,18 @@ function renderEcgReconstructResult(src, out){
   const csvColumns = leadNames.length ? ['index'].concat(leadNames) : [];
   const csv = leadNames.length ? leadMapToCsv(leadMap, leadNames) : '';
   const srcBaseName = String((src && src.name) || 'ecg').replace(/\\/g, '/').split('/').pop().replace(/\.[^.]+$/, '') || 'ecg';
-  const csvName = srcBaseName + '_reconstruct.csv';
+  let csvName = srcBaseName + '_reconstruct.csv';
   if(csv){
-    upsertCsvSourceSafe({ fileName: csvName, csv: csv, sourceName: '' });
-    addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'心电图补全' });
+    const resultFile = addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'ECG 信号补全' });
+    if(resultFile) csvName = resultFile.name;
     currentResultText = csv;
     currentResultFileName = csvName;
     window.__heartosEcgReconstructCsvText = csv;
   }else{
     currentResultText = JSON.stringify(upstream || {}, null, 2);
     currentResultFileName = 'ecg_reconstruct_' + Date.now() + '.json';
-    addAnalysisResultFile({ name: currentResultFileName, type:'json', mime:'application/json;charset=utf-8', content: currentResultText, source:'心电图补全' });
+    const resultFile = addAnalysisResultFile({ name: currentResultFileName, type:'json', mime:'application/json;charset=utf-8', content: currentResultText, source:'ECG 信号补全' });
+    if(resultFile) currentResultFileName = resultFile.name;
   }
 
   const imageDataUrl = parsedPayload.image ? _extractReturnedImageDataUrl(parsedPayload.image) : _extractReturnedImageDataUrl(payload);
@@ -4449,13 +5194,13 @@ function renderEcgReconstructResult(src, out){
   ensureResultContent('');
 
   try{
-    appendAI(csv ? ('心电图补全完成，导联数据已保存为 CSV：' + csvName + '\n列名：' + csvColumns.join(', ') + (saveInfo ? ('\n平台保存：' + (saveOk ? '已同步 saveImputeECGR' : '保存失败')) : '')) : '心电图补全完成，已回显接口返回结果。');
+    appendAI(csv ? ('ECG 信号补全完成，导联数据已保存为 CSV：' + csvName + '\n列名：' + csvColumns.join(', ') + (saveInfo ? ('\n平台保存：' + (saveOk ? '已同步 saveImputeECGR' : '保存失败')) : '')) : 'ECG 信号补全完成，已回显接口返回结果。');
     if(imageDataUrl){
       const w = document.getElementById('msgsList');
       if(w){
         const d = document.createElement('div');
         d.className = 'msg-ai';
-        d.innerHTML = '<div class="ai-av">AI</div><div class="ai-body"><p><strong>心电图补全回传图像</strong></p><img src="' + imageDataUrl + '" alt="ecg-reconstruct-chat-preview" onclick="openChatImageZoom(\'' + imageDataUrl + '\')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>';
+        d.innerHTML = '<div class="ai-av">AI</div><div class="ai-body"><p><strong>ECG 信号补全回传图像</strong></p><img src="' + imageDataUrl + '" alt="ecg-reconstruct-chat-preview" onclick="openChatImageZoom(\'' + imageDataUrl + '\')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>';
         w.appendChild(d);
         scrollChat();
       }
@@ -4463,175 +5208,187 @@ function renderEcgReconstructResult(src, out){
   }catch(_){ }
 }
 
+async function autoDigitizeSingleSource(src, task){
+  let fileObj = isBlobLike(src.fileObj) ? src.fileObj : null;
+  if(!fileObj || !/^image\//i.test(String(fileObj.type||''))){
+    fileObj = dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
+  }
+  if(!fileObj) throw new Error('图像文件构造失败。');
+
+  const fd = new FormData();
+  fd.append('file', fileObj, src.name || fileObj.name || 'ecg_image.png');
+  fd.append('layout_substring', 'standard_6x2');
+  fd.append('return_image', 'true');
+  const ctrl = task && task.controller ? task.controller : new AbortController();
+  activeToolAbortController = ctrl;
+  const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
+  let resp = null;
+  let out = {};
+  try{
+    resp = await apiFetch('/api/ai-ecg-digitize', { method:'POST', body: fd, signal: ctrl.signal });
+    out = await resp.json().catch(()=>({}));
+  }finally{
+    clearTimeout(timer);
+    if(activeToolAbortController === ctrl && !task) activeToolAbortController = null;
+  }
+  if(studioTaskWasStopped(task)) throw new DOMException('Stopped', 'AbortError');
+  if(!resp || !resp.ok){
+    throw new Error((out && (out.detail || out.msg || out.error)) || ('HTTP ' + (resp ? resp.status : '0')));
+  }
+  const data = out && out.upstream ? out.upstream : out;
+  const leadMap = extractLeadMapFromAny(data);
+  if(!leadMap) throw new Error('接口返回中未找到可解析导联数据。');
+  const scored = _scoreLeadMap(leadMap);
+  if((scored && scored.leadCount || 0) < 6){
+    throw new Error('自动数字化识别导联数量过少（<6），请改用手动数字化。');
+  }
+  const csv = leadMapToCsv(leadMap);
+  if(!csv) throw new Error('导联数据转换 CSV 失败。');
+  let csvName = _normalizeCsvNameBySource('', src.name || 'ecg');
+  currentResultText = csv;
+  const resultFile = addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'自动数字化' });
+  if(resultFile) csvName = resultFile.name;
+  currentResultFileName = csvName;
+  const returnedImage = _extractReturnedImageDataUrl(data);
+  let compareImage = '';
+  try{
+    compareImage = await buildAutoDigitizeSideBySideDataUrl(src.imageDataUrl, leadMap, { crop:'', leftTitle:'Original ECG image' });
+  }catch(cmpErr){
+    console.warn('auto digitize side-by-side preview failed', cmpErr);
+  }
+  if(studioTaskWasStopped(task)) throw new DOMException('Stopped', 'AbortError');
+  const leadNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
+  const totalPoints = leadNames.reduce((acc, name)=>acc + ((leadMap[name] || []).length), 0);
+  if(compareImage || returnedImage){
+    const w = document.getElementById('msgsList');
+    if(w){
+      const d = document.createElement('div');
+      d.className = 'msg-ai';
+      const debugPart = returnedImage
+        ? `<p><strong>接口回传四图</strong></p><img src="${returnedImage}" alt="auto-digitize-debug-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin:6px 0 10px;" />`
+        : '';
+      const comparePart = compareImage
+        ? `<p><strong>原图与拟合波形对比</strong></p><img src="${compareImage}" alt="auto-digitize-compare-preview" onclick="openChatImageZoom('${compareImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />`
+        : '';
+      d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>${esc(src.name || '未命名来源')} 自动数字化预览</strong></p>${debugPart}${comparePart}</div>`;
+      w.appendChild(d);
+      scrollChat();
+    }
+  }
+  return { source:src, csvName:csvName, leadCount:scored.leadCount, totalPoints:totalPoints };
+}
+
 async function runStudio(type, opts){
   opts = opts || {};
   if(!sources.length){openUploadModal();return;}
+  if((busy || activeStudioTask) && !opts.allowDuringTask){
+    showToast('已有任务正在处理中，可先点击停止');
+    return;
+  }
   updateStudioActive(type);
 
   // 手动数字化 card should respond immediately without router roundtrip.
   if(type==='ecg'){
-    try{
-      const src = await ensureImageToolSource('手动数字化');
-      window.__heartosLastImageSource = src;
-      openEcgOverlay(src);
-    }catch(e){
-      appendAI('手动数字化无法打开：' + (e && e.message ? e.message : String(e)));
-      showToast('当前来源格式不支持手动数字化');
-    }
+    const src = await ensureSingleSelectedImageToolSource('手动数字化');
+    if(!src) return;
+    window.__heartosLastImageSource = src;
+    openEcgOverlay(src);
     return;
   }
 
   if(type==='ecgsmart'){
-    if(ecgsmartInFlight){
-      showToast('自动数字化正在处理中，请稍候');
+    const task = beginStudioTask(type, '自动数字化');
+    if(!task) return;
+    showResultTaskProgress('正在准备自动数字化任务...', '正在读取所选图像来源', '');
+    const batchSources = await ensureBatchImageToolSources('自动数字化');
+    if(studioTaskWasStopped(task)) return;
+    if(!batchSources || !batchSources.length){
+      finishStudioTask(task);
       return;
     }
     ecgsmartInFlight = true;
     studioCards.forEach(c=>{
       document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
     });
-    const rc = document.getElementById('resultContent');
-    document.getElementById('resultPlaceholder').style.display='none';
-    rc.style.display='block';
-    rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>自动数字化处理中，请稍候…</p></div>`;
+    const reports = [];
     try{
-      let src = await ensureImageToolSource('自动数字化');
-
-      let fileObj = isBlobLike(src.fileObj) ? src.fileObj : null;
-      if(!fileObj || !/^image\//i.test(String(fileObj.type||''))){
-        fileObj = dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
-      }
-      if(!fileObj) throw new Error('图像文件构造失败。');
-
-      const fd = new FormData();
-      fd.append('file', fileObj, src.name || fileObj.name || 'ecg_image.png');
-      fd.append('layout_substring', 'standard_6x2');
-      fd.append('return_image', 'true');
-
-      const ctrl = new AbortController();
-      activeToolAbortController = ctrl;
-      const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
-      let resp = null;
-      let out = {};
-      try{
-        resp = await apiFetch('/api/ai-ecg-digitize', {
-          method:'POST',
-          body: fd,
-          signal: ctrl.signal
-        });
-        out = await resp.json().catch(()=>({}));
-      }finally{
-        clearTimeout(timer);
-        if(activeToolAbortController === ctrl) activeToolAbortController = null;
-      }
-
-      if(!resp || !resp.ok){
-        throw new Error((out && (out.detail || out.msg || out.error)) || ('HTTP ' + (resp ? resp.status : '0')));
-      }
-
-      const data = out && out.upstream ? out.upstream : out;
-      const leadMap = extractLeadMapFromAny(data);
-      if(!leadMap) throw new Error('接口返回中未找到可解析导联数据。');
-      const scored = _scoreLeadMap(leadMap);
-      if((scored && scored.leadCount || 0) < 6){
-        throw new Error('自动数字化识别导联数量过少（<6），请改用手动数字化。');
-      }
-      const csv = leadMapToCsv(leadMap);
-      if(!csv) throw new Error('导联数据转换 CSV 失败。');
-
-      const csvName = _normalizeCsvNameBySource('', src.name || 'ecg');
-      upsertCsvSourceSafe({ fileName: csvName, csv: csv, sourceName: src.name || '' });
-      currentResultFileName = csvName;
-      currentResultText = csv;
-      addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'自动数字化' });
-      const returnedImage = _extractReturnedImageDataUrl(data);
-      let compareImage = '';
-      try{
-        compareImage = await buildAutoDigitizeSideBySideDataUrl(src.imageDataUrl, leadMap, {
-          crop: '',
-          leftTitle: 'Original ECG image'
-        });
-      }catch(cmpErr){
-        console.warn('auto digitize side-by-side preview failed', cmpErr);
-      }
-
-      const leadNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
-      const distRows = leadNames.map(name => {
-        const n = (leadMap[name] || []).length;
-        return `<li><strong>${esc(name)}</strong>：${n} points</li>`;
-      }).join('');
-      const totalPoints = leadNames.reduce((acc, name)=>acc + ((leadMap[name] || []).length), 0);
-
-      const preview = csv.split(/\r?\n/).slice(0, 80).join('\n');
-      ensureResultContent('');
-      try{
-        appendAI('自动数字化完成，CSV 已保存到右下角分析结果。\n状态：SUCCESS\n来源：' + (src.name || '未命名') + '\n布局参数：standard_6x2\nCSV：' + csvName + '\n导联数：' + scored.leadCount + '\n总采样点：' + totalPoints);
-        if(compareImage || returnedImage){
-          const w = document.getElementById('msgsList');
-          if(w){
-            const d = document.createElement('div');
-            d.className = 'msg-ai';
-            const chatImg = compareImage || returnedImage;
-            d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>自动数字化回传图像</strong></p><img src="${returnedImage}" alt="auto-digitize-chat-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>`;
-            d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>自动数字化对比预览</strong></p><img src="${chatImg}" alt="auto-digitize-chat-preview" onclick="openChatImageZoom('${chatImg}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>`;
-            const debugPart = returnedImage
-              ? `<p><strong>接口回传四图</strong></p><img src="${returnedImage}" alt="auto-digitize-debug-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin:6px 0 10px;" />`
-              : '';
-            const comparePart = compareImage
-              ? `<p><strong>原图与拟合波形对比</strong></p><img src="${compareImage}" alt="auto-digitize-compare-preview" onclick="openChatImageZoom('${compareImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />`
-              : '';
-            d.innerHTML = `<div class="ai-av">AI</div><div class="ai-body">${debugPart}${comparePart}</div>`;
-            w.appendChild(d);
-            scrollChat();
-          }
+      for(let i=0;i<batchSources.length;i++){
+        if(studioTaskWasStopped(task)) break;
+        const src = batchSources[i];
+        showResultTaskProgress(
+          '正在生成自动数字化结果... (' + (i + 1) + '/' + batchSources.length + ')',
+          src.name || '当前心电图图像',
+          ''
+        );
+        try{
+          const result = await autoDigitizeSingleSource(src, task);
+          reports.push({ name:src.name || '未命名来源', ok:true, csv:result.csvName, leads:result.leadCount, points:result.totalPoints });
+        }catch(e){
+          if(studioTaskWasStopped(task)) break;
+          const msg = (e && e.name === 'AbortError')
+            ? '请求超时（300秒），请稍后重试。'
+            : (e && e.message ? e.message : String(e));
+          reports.push({ name:src.name || '未命名来源', ok:false, msg:msg });
+          if(e && e.name === 'AbortError') break;
         }
-        else{
-          appendAI('自动数字化已完成，但接口未返回可展示图像（仅返回了导联数据/CSV）。');
-        }
-      }catch(_){}
-    }catch(e){
-      const msg = (e && e.name === 'AbortError')
-        ? '请求超时（300秒），请稍后重试。'
-        : (e && e.message ? e.message : String(e));
+      }
+      if(studioTaskWasStopped(task)) return;
       ensureResultContent('');
-      appendAI('自动数字化失败：' + msg);
+      const okCount = reports.filter(function(item){ return item.ok; }).length;
+      appendAI('自动数字化批量处理完成：共 ' + reports.length + ' 个文件，成功 ' + okCount + ' 个，失败 ' + (reports.length - okCount) + ' 个。\n' +
+        reports.map(function(item){
+          return item.name + '：' + (item.ok
+            ? ('SUCCESS · CSV：' + item.csv + ' · 导联数：' + item.leads + ' · 总采样点：' + item.points)
+            : ('FAIL · ' + item.msg));
+        }).join('\n'));
     }finally{
-      ecgsmartInFlight = false;
+      if(activeStudioTask === task) ecgsmartInFlight = false;
+      finishStudioTask(task);
     }
     return;
   }
 
   if(type==='ecgrecon'){
+    if(!validateSelectedSourcesForReconstruct()) return;
     if(studioRunning){
       showToast('已有分析任务正在处理中，请稍候');
       return;
     }
+    const task = beginStudioTask(type, 'ECG 信号补全');
+    if(!task) return;
+    showResultTaskProgress('正在准备 ECG 信号补全...', '正在读取并校验所选导联波形', 'green');
+    let signalReady = null;
+    try{
+      signalReady = await ensureReconstructSignalSource();
+    }catch(e){
+      if(studioTaskWasStopped(task)) return;
+      showToolSelectionError(
+        'ECG 信号补全',
+        e && e.message ? e.message : '当前来源不能用于 ECG 信号补全。',
+        checkedSources()
+      );
+      finishStudioTask(task);
+      return;
+    }
+    if(studioTaskWasStopped(task)) return;
     studioRunning = true;
     studioCards.forEach(c=>{
       document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
     });
-    const rc = document.getElementById('resultContent');
-    document.getElementById('resultPlaceholder').style.display='none';
-    rc.style.display='block';
-    rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>正在调用心电图补全接口，请稍候…</p></div>`;
+    showResultTaskProgress('正在生成 ECG 信号补全结果...', '正在标准化导联并补全缺失波形', 'green');
     try{
-      const csvReady = await ensureCsvToolSource('心电图补全');
-      const src = csvReady.source;
-      const normalizedCsv = await normalizeCsvForReconstruct(src);
-      const fileObj = normalizedCsv.file || csvReady.file;
+      const src = signalReady.source;
+      const fileObj = signalReady.file;
 
       const fd = new FormData();
-      const uploadName = normalizedCsv.name || src.name || fileObj.name || 'ecg.csv';
-      if(normalizedCsv.removedIndex){
-        fd.append('index_removed', 'true');
-      }
+      const uploadName = src.name || fileObj.name || 'ecg_signal.csv';
       if(typeof Blob !== 'undefined' && fileObj instanceof Blob){
         fd.append('file', fileObj, uploadName);
       }else{
         fd.append('file', fileObj);
       }
 
-      const ctrl = new AbortController();
+      const ctrl = task.controller;
       activeToolAbortController = ctrl;
       const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
       let resp = null;
@@ -4645,20 +5402,23 @@ async function runStudio(type, opts){
         out = await resp.json().catch(()=>({}));
       }finally{
         clearTimeout(timer);
-        if(activeToolAbortController === ctrl) activeToolAbortController = null;
+        if(activeToolAbortController === ctrl && !studioTaskWasStopped(task)) activeToolAbortController = null;
       }
+      if(studioTaskWasStopped(task)) return;
       if(!resp || !resp.ok){
         throw new Error((out && (out.detail || out.msg || out.error)) || ('HTTP ' + (resp ? resp.status : '0')));
       }
       renderEcgReconstructResult(src, out);
     }catch(e){
+      if(studioTaskWasStopped(task)) return;
       const msg = (e && e.name === 'AbortError')
         ? '请求超时（300秒），请稍后重试。'
         : (e && e.message ? e.message : String(e));
       ensureResultContent('');
-      appendAI('心电图补全失败：' + msg);
+      appendAI('ECG 信号补全失败：' + msg);
     }finally{
-      studioRunning = false;
+      if(activeStudioTask === task) studioRunning = false;
+      finishStudioTask(task);
     }
     return;
   }
@@ -4690,7 +5450,38 @@ async function runStudio(type, opts){
     }
   }
 
-  if(studioRunning) return;
+  let ecgomicsInputs = null;
+  let task = null;
+  if(type==='ecgd'){
+    if(!validateSelectedSourcesForEcgomics()) return;
+    task = beginStudioTask(type, 'ECG 特征提取');
+    if(!task) return;
+    showResultTaskProgress('正在准备 ECG 特征...', '正在读取并校验所选波形来源', '');
+    try{
+      ecgomicsInputs = await buildEcgomicsInputs();
+    }catch(e){
+      if(studioTaskWasStopped(task)) return;
+      if(e && e.message === '已取消波形 CSV 特征提取'){
+        finishStudioTask(task);
+        return;
+      }
+      showToolSelectionError(
+        'ECG 特征提取',
+        e && e.message ? e.message : '当前来源不能用于 ECG 特征提取。',
+        checkedSources()
+      );
+      finishStudioTask(task);
+      return;
+    }
+    if(studioTaskWasStopped(task)) return;
+  }
+
+  if(studioRunning){
+    if(task) finishStudioTask(task);
+    return;
+  }
+  if(!task) task = beginStudioTask(type, '智能体分析');
+  if(!task) return;
   studioRunning = true;
 
   studioCards.forEach(c=>{
@@ -4702,48 +5493,60 @@ async function runStudio(type, opts){
   rc.style.display='flex';
   rc.style.flexDirection='column';
 
-  // XML -> ECGOmics direct mode (no 手动数字化 dependency)
+  // ECGOmics accepts original XML or digitized/reconstructed waveform CSV as raw signal.
   if(type==='ecgd'){
-    rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>正在调用 ECGOmics 提取 XML 特征，请稍候…</p></div>`;
+    showResultTaskProgress('正在生成 ECG 特征...', 'ECGOmics 正在处理所选波形来源', '');
     try{
-      const xmlList = await buildXmlSourcesForEcgomics();
+      const inputs = ecgomicsInputs || [];
 
       let okCount = 0;
       const reports = [];
-      for(let i=0;i<xmlList.length;i++){
-        const xmlSrc = xmlList[i];
-        const xmlText = await readXmlTextFromSource(xmlSrc);
-        if(!xmlText || xmlText.length < 20 || xmlText.indexOf('<') < 0 || xmlText.indexOf('>') < 0){
-          reports.push({ name: xmlSrc.name || ('source_' + (i+1)), ok:false, msg:'内容不是有效 XML' });
-          continue;
+      for(let i=0;i<inputs.length;i++){
+        if(studioTaskWasStopped(task)) break;
+        const input = inputs[i];
+        const src = input.source;
+        let payload = input.payload;
+        if(input.mode === 'xml'){
+          const xmlText = await readXmlTextFromSource(src);
+          if(!xmlText || xmlText.length < 20 || xmlText.indexOf('<') < 0 || xmlText.indexOf('>') < 0){
+            reports.push({ name: src.name || ('source_' + (i+1)), ok:false, msg:'内容不是有效 XML' });
+            continue;
+          }
+          payload = { xmlData: xmlText, inputType: 'xml', zero: 0, gain: 1, filter: 'MeanDecomposition' };
         }
-        const payload = { xmlData: xmlText, inputType: 'xml', zero: 0, gain: 1, filter: 'MeanDecomposition' };
         const resp = await apiFetch('/api/ecgomics/analyze', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: task.controller.signal
         });
         const out = await resp.json().catch(()=>({}));
+        if(studioTaskWasStopped(task)) break;
         if(!resp.ok || (out && typeof out.code !== 'undefined' && Number(out.code) !== 200)){
-          reports.push({ name: xmlSrc.name || ('source_' + (i+1)), ok:false, msg:(out.detail || out.msg || ('HTTP ' + resp.status)) });
+          reports.push({ name: src.name || ('source_' + (i+1)), ok:false, msg:(out.detail || out.msg || ('HTTP ' + resp.status)) });
           continue;
         }
-        const csvName = renderEcgomicsXmlResult(xmlSrc, out);
+        const csvName = renderEcgomicsXmlResult(src, out);
         okCount += 1;
-        reports.push({ name: xmlSrc.name || ('source_' + (i+1)), ok:true, msg:'SUCCESS', csv: csvName || '' });
+        const route = input.mode === 'raw' ? ('raw / ' + input.usedLead) : 'XML';
+        reports.push({ name: src.name || ('source_' + (i+1)), ok:true, msg:'SUCCESS · ' + route, csv: csvName || '' });
       }
+      if(studioTaskWasStopped(task)) return;
       const reportHtml = reports.map(r => `<li>${esc(r.name)}：${r.ok ? '✅' : '❌'} ${esc(r.msg)}${r.csv ? (' · CSV: ' + esc(r.csv)) : ''}</li>`).join('');
       ensureResultContent('');
       appendAI(`ECGOmics 批量处理完成：共 ${reports.length} 个文件，成功 ${okCount} 个。\n` + reports.map(r => `${r.name}：${r.ok ? 'SUCCESS' : 'FAIL'} ${r.msg}${r.csv ? (' · CSV: ' + r.csv) : ''}`).join('\n'));
     }catch(e){
+      if(studioTaskWasStopped(task)) return;
       ensureResultContent('');
       appendAI('ECGOmics 提取失败：' + (e.message || String(e)));
     }
     studioRunning = false;
+    finishStudioTask(task);
     return;
   }
 
-  rc.innerHTML=`<div class="result-spinning"><div class="spin"></div><p>AI 正在生成分析报告，请稍候…</p></div>`;
+  const selectedSourceCount = sources.filter(s=>s.checked).length;
+  showResultTaskProgress('正在生成分析报告...', '基于 ' + selectedSourceCount + ' 个来源', 'purple');
 
   const srcContent = sources.filter(s=>s.checked).map(s=>s.content||s.name).join('\n\n---\n\n');
   const prompts = {
@@ -4766,12 +5569,14 @@ async function runStudio(type, opts){
   };
 
   try{
-    const text = await callAI('你是专业分析助手，用中文回答。', [{role:'user',content:prompts[type]}], 1200);
+    const text = await callAI('你是专业分析助手，用中文回答。', [{role:'user',content:prompts[type]}], 1200, '', task.controller.signal);
+    if(studioTaskWasStopped(task)) return;
     currentResultText = text;
     currentResultFileName = `analysis_${type}_${Date.now()}.txt`;
     renderResultText(text);
     appendAI(text);
   } catch(e){
+    if(studioTaskWasStopped(task)) return;
     const errHtml = !hasServerApiKey(aiConfig.provider)
       ? `<div style="padding:20px;font-size:13px;">⚠️ 后端尚未配置该模型的 API Key，请联系管理员写入。</div>`
       : `<div style="padding:20px;color:#dc2626;font-size:13px;">连接 AI 出错：${e.message}</div>`;
@@ -4779,6 +5584,7 @@ async function runStudio(type, opts){
     appendAI((!hasServerApiKey(aiConfig.provider) ? '后端尚未配置该模型的 API Key，请联系管理员写入。' : ('连接 AI 出错：' + e.message)));
   }
   studioRunning = false;
+  finishStudioTask(task);
 }
 function renderResultText(text){
   const rc = document.getElementById('resultContent');
@@ -4837,9 +5643,12 @@ function saveResult(){
 function addNote(){ prompt('输入笔记内容：'); }
 
 // ======================== UPLOAD ========================
+let sourceImportBusy = false;
+
 function openUploadModal(){
   document.getElementById('umoDefault').style.display='';
   document.getElementById('progWrap').style.display='none';
+  clearImportIssues();
   hideUmoSub();
   openMo('uploadMo');
 }
@@ -4851,119 +5660,289 @@ function showUmoSub(id){
   document.getElementById('umoDefault').style.display='none';
 }
 function hideUmoSub(){
-  ['url','text','drive'].forEach(k=>{
+  ['text'].forEach(k=>{
     const panel = document.getElementById('umoSub-'+k);
     if(panel) panel.classList.remove('show');
   });
   document.getElementById('umoDefault').style.display='';
 }
-function submitUrl(){
-  const url = document.getElementById('urlIn').value.trim();
-  if(!url) return;
-  addSrc(url,'url',`来源网页：${url}`, null);
-  document.getElementById('urlIn').value='';
-}
 function submitText(){
   const text = document.getElementById('textIn').value.trim();
   if(!text) return;
   const name = '粘贴文本_' + (sources.length+1) + '.txt';
-  addSrcWithProgress(name, 'txt', text, null);
+  addSrc(name, 'txt', text, null);
   document.getElementById('textIn').value='';
 }
-function onFileSelect(e){
+async function onFileSelect(e){
   const files = Array.from((e && e.target && e.target.files) ? e.target.files : []);
   if(!files.length) return;
-  files.forEach(function(f){ readFile(f); });
+  await importSourceFiles(files);
+  if(e && e.target) e.target.value = '';
 }
-function onFolderSelect(e){
+async function onFolderSelect(e){
   const files = Array.from((e && e.target && e.target.files) ? e.target.files : []);
   if(!files.length) return;
-  files.forEach(function(f){ readFile(f); });
+  await importSourceFiles(files);
+  if(e && e.target) e.target.value = '';
 }
 function dov(e){e.preventDefault();document.getElementById('umoDrop').classList.add('drag');}
 function ddl(e){document.getElementById('umoDrop').classList.remove('drag');}
-function ddr(e){e.preventDefault();document.getElementById('umoDrop').classList.remove('drag');if(e.dataTransfer.files.length)readFile(e.dataTransfer.files[0]);}
+async function ddr(e){
+  e.preventDefault();
+  document.getElementById('umoDrop').classList.remove('drag');
+  const files = await droppedSourceFiles(e.dataTransfer);
+  if(files.length) importSourceFiles(files);
+}
 
-function readFile(f){
-  const isText = f.type==='text/plain'||/csv/i.test(String(f.type||''))||/xml/i.test(String(f.type||''))||/\\.csv$/i.test(f.name)||/\\.xml$/i.test(f.name)||f.name.endsWith('.md')||f.name.endsWith('.txt');
-  const isImg = /\.(png|jpg|jpeg|bmp|tiff?|gif)$/i.test(f.name) || f.type.startsWith('image/');
-  const isPdf = /\.pdf$/i.test(f.name) || /pdf/i.test(String(f.type||''));
-  if(isText){
-    const r = new FileReader();
-    r.onload = ev => {
-      const ext = String(f.name.split('.').pop()||'').toLowerCase();
-      const isXml = ext==='xml' || /xml/i.test(String(f.type||''));
-      const preview = isXml ? String((ev.target && ev.target.result) || '') : ev.target.result;
-      addSrcWithProgress(f.name, ext, preview, null, f);
-    };
-    r.readAsText(f);
-  } else if(isImg){
-    const r = new FileReader();
-    r.onload = ev => addSrcWithProgress(f.name, f.name.split('.').pop(), '[图像文件，可在 手动数字化 工具中打开]', ev.target.result, f);
-    r.readAsDataURL(f);
-  } else if(isPdf){
-    addSrcWithProgress(f.name, 'pdf', '[PDF 文件，可自动转换第1页后发送到手动数字化]', null, f);
-  } else {
-    addSrcWithProgress(f.name, f.name.split('.').pop(), '['+f.name+' 已上传]', null, f);
+const SOURCE_IMPORT_EXTENSIONS = new Set(['xml','pdf','png','jpg','jpeg','bmp','tif','tiff','gif','webp','csv','tsv','json','txt','md']);
+
+function fileExtension(name){
+  const m = String(name || '').match(/\.([^.]+)$/);
+  return m ? m[1].toLowerCase() : 'file';
+}
+
+function importedSourceName(f){
+  return String((f && (f.__heartosRelativePath || f.webkitRelativePath)) || (f && f.name) || '').replace(/^\/+/, '');
+}
+
+function rememberDroppedPath(file, path){
+  if(!file || !path) return file;
+  try{
+    Object.defineProperty(file, '__heartosRelativePath', {value:String(path).replace(/^\/+/, ''), configurable:true});
+  }catch(_){
+    try{ file.__heartosRelativePath = String(path).replace(/^\/+/, ''); }catch(__){ }
+  }
+  return file;
+}
+
+function supportedImportFile(f){
+  const ext = fileExtension(f && f.name);
+  const mime = String((f && f.type) || '').toLowerCase();
+  return SOURCE_IMPORT_EXTENSIONS.has(ext) || mime.startsWith('image/') || mime === 'application/pdf';
+}
+
+function ignoredImportFile(f){
+  const path = importedSourceName(f);
+  return path.split('/').some(part => /^\./.test(part)) || /^(thumbs\.db|desktop\.ini)$/i.test(String(f && f.name || ''));
+}
+
+function readDroppedDirectory(reader){
+  return new Promise((resolve, reject) => {
+    reader.readEntries(resolve, reject);
+  });
+}
+
+async function collectDroppedEntry(entry, path, files){
+  if(!entry) return;
+  const nextPath = path ? (path + '/' + entry.name) : entry.name;
+  if(entry.isFile){
+    await new Promise(resolve => {
+      entry.file(file => {
+        files.push(rememberDroppedPath(file, nextPath));
+        resolve();
+      }, resolve);
+    });
+    return;
+  }
+  if(!entry.isDirectory) return;
+  const reader = entry.createReader();
+  while(true){
+    const entries = await readDroppedDirectory(reader).catch(() => []);
+    if(!entries.length) break;
+    for(const child of entries) await collectDroppedEntry(child, nextPath, files);
   }
 }
 
-function addSrcWithProgress(name, type, content, imageDataUrl, rawFile){
+async function droppedSourceFiles(dataTransfer){
+  if(!dataTransfer) return [];
+  const items = Array.from(dataTransfer.items || []);
+  const entries = items.map(item => item && item.webkitGetAsEntry ? item.webkitGetAsEntry() : null).filter(Boolean);
+  if(entries.length){
+    const files = [];
+    for(const entry of entries) await collectDroppedEntry(entry, '', files);
+    return files;
+  }
+  return Array.from(dataTransfer.files || []);
+}
+
+function readFileValue(f, asDataUrl){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
+    r.onerror = () => reject(new Error('无法读取文件：' + String(f && f.name || '未命名文件')));
+    if(asDataUrl) r.readAsDataURL(f); else r.readAsText(f);
+  });
+}
+
+async function prepareImportedSource(f){
+  const ext = fileExtension(f.name);
+  const name = importedSourceName(f) || f.name;
+  const mime = String(f.type || '');
+  const isText = /^text\//i.test(mime) || /(csv|xml|json|markdown)/i.test(mime) || ['xml','csv','tsv','json','md','txt','log','yaml','yml'].includes(ext);
+  const isImg = /\.(png|jpg|jpeg|bmp|tiff?|gif|webp)$/i.test(f.name) || mime.startsWith('image/');
+  const isPdf = /\.pdf$/i.test(f.name) || /pdf/i.test(String(f.type||''));
+  if(isText){
+    return {name:name, type:ext, content:await readFileValue(f, false), imageDataUrl:null, rawFile:f};
+  }
+  if(isImg){
+    return {name:name, type:ext, content:'[图像文件，可在 手动数字化 工具中打开]', imageDataUrl:await readFileValue(f, true), rawFile:f};
+  }
+  if(isPdf){
+    return {name:name, type:'pdf', content:'[PDF 文件，可自动转换第1页后发送到手动数字化]', imageDataUrl:null, rawFile:f};
+  }
+  return {name:name, type:ext, content:'[' + name + ' 已上传]', imageDataUrl:null, rawFile:f};
+}
+
+function clearImportIssues(){
+  const box = document.getElementById('importIssues');
+  if(box) box.classList.remove('show');
+}
+
+function showImportIssues(unsupportedFiles, failedFiles){
+  const unsupported = Array.from(unsupportedFiles || []);
+  const failed = Array.from(failedFiles || []);
+  const box = document.getElementById('importIssues');
+  if(!box || (!unsupported.length && !failed.length)) return false;
+  const lines = unsupported.map(function(file){
+    return '<li>' + esc(importedSourceName(file) || file.name || '未命名文件') + '：不支持该文件格式</li>';
+  }).concat(failed.map(function(name){
+    return '<li>' + esc(name || '未命名文件') + '：文件读取失败</li>';
+  }));
+  document.getElementById('importIssuesTitle').textContent = '部分文件未导入';
+  document.getElementById('importIssuesSub').textContent =
+    '已导入支持的文件；以下文件存在兼容性问题，请更换格式后重新选择。';
+  document.getElementById('importIssuesList').innerHTML = lines.join('');
+  box.classList.add('show');
+  return true;
+}
+
+async function importSourceFiles(fileList){
+  if(sourceImportBusy){
+    showToast('正在导入文件，请稍候');
+    return;
+  }
+  clearImportIssues();
+  const all = Array.from(fileList || []);
+  const visible = all.filter(f => f && !ignoredImportFile(f));
+  const files = visible.filter(supportedImportFile);
+  const unsupportedFiles = visible.filter(function(file){ return !supportedImportFile(file); });
+  const skipped = all.length - visible.length;
+  const unsupported = visible.length - files.length;
+  if(!files.length){
+    if(unsupported){
+      showImportIssues(unsupportedFiles, []);
+      openMo('uploadMo');
+    }else{
+      showToast('未找到可导入的文件');
+    }
+    return;
+  }
+  sourceImportBusy = true;
   document.getElementById('umoDefault').style.display='none';
-  hideUmoSub();
   const pw = document.getElementById('progWrap');
   const pf = document.getElementById('progFill');
   const ps = document.getElementById('progStatus');
-  document.getElementById('progFile').textContent = name;
   pw.style.display='';
-  pf.style.width='0';
-  let p=0;
-  const steps=['正在读取文件…','正在解析内容…','正在调用 AI 分析…','正在生成摘要…','处理完成！'];
-  let si=0;
-  ps.textContent=steps[0];
-  const iv=setInterval(()=>{
-    p+=Math.random()*15+8; if(p>100)p=100;
-    pf.style.width=p+'%';
-    const ni=Math.floor(p/25); if(ni>si&&ni<steps.length){si=ni;ps.textContent=steps[si];}
-    if(p>=100){ clearInterval(iv); setTimeout(()=>addSrc(name,type,content,imageDataUrl,rawFile),400); }
-  },150);
+  pf.style.width='0%';
+  const imported = [];
+  const failed = [];
+  const unsynced = [];
+  try{
+    for(let i=0;i<files.length;i++){
+      const file = files[i];
+      document.getElementById('progFile').textContent = file.name + '  (' + (i + 1) + '/' + files.length + ')';
+      ps.textContent = '正在读取并导入文件...';
+      pf.style.width = Math.round((i / files.length) * 100) + '%';
+      try{
+        const prepared = await prepareImportedSource(file);
+        const source = appendSourceRecord(prepared.name, prepared.type, prepared.content, prepared.imageDataUrl, prepared.rawFile);
+        imported.push(source);
+        ps.textContent = '正在保存文件...';
+        if(!(await persistSourceFileIfNeeded(source, prepared.rawFile))) unsynced.push(prepared.name);
+      }catch(err){
+        failed.push(file.name);
+      }
+    }
+    pf.style.width = '100%';
+    ps.textContent = '导入完成';
+    const hasIssues = showImportIssues(unsupportedFiles, failed);
+    if(imported.length){
+      finalizeSourceImport(imported);
+      if(!hasIssues) closeMo('uploadMo');
+    }
+    const notes = [];
+    if(skipped) notes.push('忽略 ' + skipped + ' 个系统文件');
+    if(unsupported) notes.push(unsupported + ' 个不支持格式已在对话框列出');
+    if(failed.length) notes.push(failed.length + ' 个文件读取失败');
+    if(unsynced.length) notes.push(unsynced.length + ' 个文件未同步到服务器');
+    showToast((imported.length ? ('已导入 ' + imported.length + ' 个来源') : '没有文件成功导入') + (notes.length ? '，' + notes.join('，') : ''));
+  }finally{
+    sourceImportBusy = false;
+    pw.style.display='none';
+    pf.style.width='0%';
+    document.getElementById('umoDefault').style.display='';
+  }
+}
+
+function readFile(f){
+  return importSourceFiles([f]);
 }
 
 async function persistSourceFileIfNeeded(srcObj, rawFile){
-  if(!srcObj || !rawFile || srcObj.fileId || srcObj.serverFileId) return;
+  if(!srcObj || !rawFile || srcObj.fileId || srcObj.serverFileId) return true;
   try{
     const fd = new FormData();
     fd.append('file', rawFile, srcObj.name || rawFile.name || 'source.bin');
     fd.append('source', 'heartos');
     const resp = await apiFetch('/api/files/upload', { method:'POST', body: fd });
     const out = await resp.json().catch(()=>({}));
-    if(!resp.ok) return;
+    if(!resp.ok) return false;
     srcObj.fileId = out.id || '';
     srcObj.serverFileId = out.id || '';
     srcObj.fileUrl = out.url || out.fileUrl || '';
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
-  }catch(_){ }
+    return true;
+  }catch(_){
+    return false;
+  }
 }
 
-function addSrc(name,type,content,imageDataUrl,rawFile){
-  const id=sources.length+1;
+function nextSourceId(){
+  return sources.reduce((max, src) => Math.max(max, Number(src && src.id) || 0), 0) + 1;
+}
+
+function appendSourceRecord(name,type,content,imageDataUrl,rawFile){
+  const id=nextSourceId();
   const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null};
   sources.push(srcObj);
   window.sources = sources;
-  persistSourceFileIfNeeded(srcObj, rawFile);
-  window.__heartosJustAddedSourceId = id;
   if(srcObj.imageDataUrl || (srcObj.fileObj && /^image\//i.test(String(srcObj.fileObj.type||'')))){
     window.__heartosLastImageSource = srcObj;
   }
+  return srcObj;
+}
+
+function finalizeSourceImport(imported){
+  if(!Array.isArray(imported) || !imported.length) return;
+  const latest = imported[imported.length - 1];
+  window.__heartosJustAddedSourceId = latest.id;
+  window.__heartosJustImportedSourceIds = imported.map(function(src){ return src.id; });
   if(curNb) curNb.srcs=sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
+  renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
+}
+
+function addSrc(name,type,content,imageDataUrl,rawFile){
+  const srcObj = appendSourceRecord(name,type,content,imageDataUrl,rawFile);
+  if(rawFile) persistSourceFileIfNeeded(srcObj, rawFile);
+  finalizeSourceImport([srcObj]);
   closeMo('uploadMo');
   document.getElementById('progWrap').style.display='none';
   document.getElementById('progFill').style.width='0';
   document.getElementById('umoDefault').style.display='';
-  renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
+  return srcObj;
 }
 
 // ======================== MODALS ========================
@@ -5153,6 +6132,7 @@ let authReadyResolve = null;
 let authReadyPromise = null;
 let __authMeCheckedAt = 0;
 let __authMeInflight = null;
+let __authSubmitting = false;
 const AUTH_ME_TTL_MS = 120000;
 
 function setAppAuthed(authed){
@@ -5171,6 +6151,23 @@ function setAuthMsg(msg, isErr){
   el.style.color = isErr ? '#f87171' : '#34d399';
 }
 
+function setAuthSubmitting(next, label){
+  __authSubmitting = !!next;
+  var pri = document.getElementById('authLoginBtn');
+  var alt = document.getElementById('authRegisterBtn');
+  if(pri){
+    pri.disabled = __authSubmitting;
+    pri.textContent = label || (authMode === 'login' ? '登录' : '注册');
+    pri.style.opacity = __authSubmitting ? '.72' : '';
+    pri.style.cursor = __authSubmitting ? 'wait' : '';
+  }
+  if(alt){
+    alt.disabled = __authSubmitting;
+    alt.style.opacity = __authSubmitting ? '.6' : '';
+    alt.style.cursor = __authSubmitting ? 'wait' : '';
+  }
+}
+
 function setAuthModeAndShow(mode){
   authMode = mode || 'login';
   var w = document.getElementById('authDisplayWrap');
@@ -5182,6 +6179,7 @@ function setAuthModeAndShow(mode){
   if(help) help.classList.toggle('auth-hidden', authMode !== 'register');
   if(btn) btn.textContent = authMode === 'login' ? '注册' : '登录';
   if(pri) pri.textContent = authMode === 'login' ? '登录' : '注册';
+  setAuthSubmitting(false);
   if(gate) gate.classList.remove('auth-hidden');
   setAuthMsg('');
 }
@@ -5212,6 +6210,7 @@ function getWeakPasswordReason(password, username){
 }
 
 async function submitAuthLogin(){
+  if(__authSubmitting) return;
   var ctl = null;
   var tm = null;
   try{
@@ -5223,8 +6222,9 @@ async function submitAuthLogin(){
       if(weakReason){ setAuthMsg(weakReason, true); return; }
     }
     var url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    var body = { username: u, password: await deriveAuthPassword(u, p) };
+    var body = { username: u, password: p };
     if(authMode === 'register') body.display_name = (document.getElementById('authDisplayName').value || '').trim();
+    setAuthSubmitting(true, authMode === 'login' ? '登录中…' : '注册中…');
     ctl = new AbortController();
     tm = setTimeout(function(){ try{ ctl.abort('auth-timeout'); }catch(_){} }, 12000);
     var resp = await fetch(apiUrl(url), {
@@ -5238,9 +6238,9 @@ async function submitAuthLogin(){
     if(!resp.ok) throw new Error(out.detail || '认证失败');
     setAuthSession(out.token, { user_id: out.user_id, username: out.username, display_name: out.display_name });
     updateUserAvatarUI();
-    try{ await loadAiConfigFromServer(); }catch(_){}
-    setAuthMsg('登录成功', false);
-    try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
+    setAuthMsg('登录成功，正在加载对话历史…', false);
+    setAuthSubmitting(true, '加载中…');
+    await loadAuthedAppData();
     setAppAuthed(true);
     if(authReadyResolve){ authReadyResolve(true); authReadyResolve = null; authReadyPromise = null; }
   }catch(e){
@@ -5252,6 +6252,10 @@ async function submitAuthLogin(){
       msg = e.message;
     }
     setAuthMsg(msg, true);
+  }finally{
+    if(!getAuthToken() || document.getElementById('authGate')?.classList.contains('auth-hidden') === false){
+      setAuthSubmitting(false);
+    }
   }
 }
 
@@ -5271,7 +6275,6 @@ async function ensureLogin(){
   }
   var now = Date.now();
   if((now - __authMeCheckedAt) < AUTH_ME_TTL_MS){
-    setAppAuthed(true);
     return true;
   }
   if(__authMeInflight) return await __authMeInflight;
@@ -5282,7 +6285,6 @@ async function ensureLogin(){
         var me = await r.json();
         setAuthSession(token, { user_id: me.user_id, username: me.username, display_name: me.display_name });
         __authMeCheckedAt = Date.now();
-        setAppAuthed(true);
         return true;
       }
     }catch(_){ }
@@ -5414,6 +6416,7 @@ async function callAI(system, messages, maxTokens=1000, overrideKey='', signal=n
   }catch(e){
     console.error('callAI err', e);
     if(e && e.name === 'AbortError'){
+      if(signal && signal.aborted) throw e;
       throw new Error('后端响应超时（60s），请重试或检查网络。');
     }
     throw e;
@@ -5550,12 +6553,33 @@ function showToast(msg){
 // ======================== INIT ========================
 renderHome();
 
+async function loadAuthedAppData(){
+  try{
+    await loadAiConfigFromServer();
+  }catch(_){ }
+  try{
+    await loadNotebooksFromServer();
+  }catch(e){
+    notebooks = [];
+    __nbLoaded = true;
+    document.getElementById('homePage').classList.add('active');
+    document.getElementById('nbPage').classList.remove('active');
+    renderHome();
+    if(!__heartosHistoryReady){
+      history.replaceState({page:'home'}, '', '#conversations');
+      __heartosHistoryReady = true;
+    }
+    console.warn('[heartos-auth] notebook load failed', e && e.message ? e.message : e);
+    showToast('对话历史加载失败，可刷新后重试');
+  }
+}
+
 async function initAuthBoot(){
   setAppAuthed(false);
   try{
     await ensureLogin();
-    try{ await loadAiConfigFromServer(); }catch(_){}
-    try{ await loadNotebooksFromServer(); }catch(_){ renderHome(); }
+    setAuthMsg('正在加载对话历史…', false);
+    await loadAuthedAppData();
     setAppAuthed(true);
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
@@ -5581,33 +6605,6 @@ updateApiStatus();
   </div>
 </div>
 
-<div class="mo" id="shareMo" onclick="closeMoOut(event,'shareMo')">
-  <div class="mo-box" style="width:560px;" onclick="event.stopPropagation()">
-    <button class="mo-close" onclick="closeMo('shareMo')">×</button>
-    <div class="nbn-head">
-      <h2>邮件分享对话</h2>
-      <p>会把当前对话的来源、问题和 AI 回复整理到邮件正文中。</p>
-    </div>
-    <div class="share-form">
-      <div class="share-field">
-        <label for="shareEmailTo">收件人邮箱</label>
-        <input id="shareEmailTo" type="email" placeholder="name@example.com">
-      </div>
-      <div class="share-field">
-        <label for="shareEmailSubject">邮件标题</label>
-        <input id="shareEmailSubject" type="text" placeholder="HeartOS 对话分享">
-      </div>
-      <div class="share-field">
-        <label for="shareEmailNote">补充内容</label>
-        <textarea id="shareEmailNote" placeholder="可补充说明、请求或背景信息"></textarea>
-      </div>
-      <div class="share-actions">
-        <button class="umo-btn" onclick="closeMo('shareMo')">取消</button>
-        <button class="umo-btn ok" onclick="shareNotebookByEmail()">打开邮件</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ==================== ECG OVERLAY ==================== -->
 <div class="ecg-overlay" id="ecgOverlay">
@@ -7035,8 +8032,6 @@ document.addEventListener('keydown',function(e){
 </script>
 <script id="heartos-ecg-bridge-v1">
 (function(){
-  var ecgomicsInFlight = false;
-  var ecgomicsDoneMap = Object.create(null);
   var lastHandEcgExtractedPayload = null;
 
   function getSourcesRef(){
@@ -7143,16 +8138,22 @@ document.addEventListener('keydown',function(e){
     if(!data || !data.csv) return;
     var fileName = _normalizeCsvNameBySource(data.fileName || '', data.sourceName || '');
     var csvText = String(data.csv);
+    var savedData = Object.assign({}, data);
     if(typeof addAnalysisResultFile === 'function'){
-      addAnalysisResultFile({
+      var resultFile = addAnalysisResultFile({
         name: fileName,
         type: 'csv',
         mime: 'text/csv;charset=utf-8',
         content: csvText,
         source: '手动数字化'
       });
+      if(resultFile && resultFile.name){
+        savedData.fileName = resultFile.name;
+        savedData.sourceName = '';
+      }
     }
-    renderHandEcgCsvToStudio(data);
+    renderHandEcgCsvToStudio(savedData);
+    return savedData;
   }
 
   function parseHandEcgCsv(csvText){
@@ -7672,132 +8673,12 @@ document.addEventListener('keydown',function(e){
       console.log('[heartos-final] 手动数字化 CSV saved upstream:', payload.file_name);
     }catch(e){
       console.warn('[heartos-final] 手动数字化 CSV upstream save failed:', e);
-    }
-  }
-
-  function pickBestLead(data){
-    var fs = Number(data && data.fs) || 500;
-    var waveforms = (data && data.waveforms) || {};
-    var leads = Array.isArray(data && data.leads) ? data.leads.slice() : Object.keys(waveforms);
-    var bestLead = '';
-    var bestArr = [];
-    for(var i=0;i<leads.length;i++){
-      var lead = leads[i];
-      var arr = waveforms[lead];
-      if(Array.isArray(arr) && arr.length > bestArr.length){
-        bestArr = arr;
-        bestLead = lead;
+      if(typeof showToast === 'function'){
+        showToast('结果已保存到分析结果，但同步服务器失败');
       }
-    }
-    if(!bestLead){
-      var keys = Object.keys(waveforms || {});
-      for(var j=0;j<keys.length;j++){
-        var k = keys[j];
-        var a = waveforms[k];
-        if(Array.isArray(a) && a.length > bestArr.length){
-          bestArr = a;
-          bestLead = k;
-        }
+      if(typeof appendAI === 'function'){
+        appendAI('手动数字化结果已保存在分析结果中，但同步服务器失败：' + (e && e.message ? e.message : '请检查后端配置或网络连接。'));
       }
-    }
-    return { lead: bestLead || 'I', arr: bestArr || [], fs: fs };
-  }
-
-  function topDiagnosis(ecgomics){
-    var diag = (((ecgomics||{}).data||{}).Functional_ECGomics||{}).electrocardiogram_diagnosis_related || {};
-    var rows = [];
-    Object.keys(diag).forEach(function(name){
-      var v = diag[name];
-      var score = null;
-      if(Array.isArray(v) && v.length){
-        score = Math.max.apply(null, v);
-      }else if(typeof v === 'number'){
-        score = v;
-      }
-      if(score !== null && isFinite(score)) rows.push({ name:name, score:score });
-    });
-    rows.sort(function(a,b){ return b.score - a.score; });
-    return rows.slice(0,5);
-  }
-
-  function renderEcgomicsToStudio(ecgomics, usedLead){
-    return;
-  }
-
-  function appendEcgomicsMessage(ecgomics, usedLead){
-    var list = document.getElementById('msgsList');
-    if(!list) return;
-    var code = ecgomics && ecgomics.code;
-    var msg = (ecgomics && ecgomics.msg) || '-';
-    var data = (ecgomics && ecgomics.data) || {};
-    var structural = data.Structural_ECGomics || {};
-    var heart = structural.heart_rate_related || {};
-    var qrs = structural.qrs_complex_related || {};
-    var qt = structural.qt_interval_related || {};
-    var hr = heart.HR;
-    var top = topDiagnosis(ecgomics);
-    var diagHtml = top.length
-      ? '<p style="font-size:12px;color:#6b7280;margin-top:6px;">诊断候选：' + top.map(function(x){ return esc(x.name) + ' ' + fmtMetric(x.score, 3); }).join('，') + '</p>'
-      : '';
-    var row = document.createElement('div');
-    row.className = 'msg-ai';
-    row.innerHTML =
-      '<div class="ai-av">AI</div>' +
-      '<div class="ai-body">' +
-        '<p><strong>ECGOmics 分析完成</strong>：code=' + code + '，msg=' + msg + '</p>' +
-        '<p style="font-size:12px;color:#6b7280;">导联：' + esc(usedLead || '-') +
-          '，HR：' + (hr == null ? '-' : fmtMetric(Number(hr), 1) + ' bpm') +
-          '，QRS：' + (qrs.QRS_duration == null ? '-' : fmtMetric(Number(qrs.QRS_duration), 1)) +
-          '，QT：' + (qt.QT_interval == null ? '-' : fmtMetric(Number(qt.QT_interval), 1)) +
-          '，QTc：' + (qt.QTc == null ? '-' : fmtMetric(Number(qt.QTc), 1)) + '。</p>' +
-        diagHtml +
-      '</div>';
-    list.appendChild(row);
-    scrollChatBottom();
-  }
-
-  async function runEcgomicsAuto(data){
-    var picked = pickBestLead(data);
-    if(!picked.arr || picked.arr.length < 100){
-      console.warn('[heartos-final] ECGOmics skip: empty/too short lead');
-      return;
-    }
-
-    var sig = [picked.lead, picked.fs, picked.arr.length, picked.arr[0], picked.arr[picked.arr.length-1]].join('|');
-    if(ecgomicsDoneMap[sig] || ecgomicsInFlight) return;
-    ecgomicsInFlight = true;
-
-    try{
-      var payload = {
-        ecgData: picked.arr,
-        ecgSampleRate: picked.fs,
-        inputType: 'raw',
-        zero: 0,
-        gain: 1,
-        filter: 'MeanDecomposition'
-      };
-
-      var resp = await apiFetch('/api/ecgomics/analyze', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-
-      var out = await resp.json().catch(function(){ return { code: resp.status, msg: 'non-json response', data: null }; });
-      if(!resp.ok){
-        throw new Error(out.detail || out.msg || ('HTTP ' + resp.status));
-      }
-
-      ecgomicsDoneMap[sig] = true;
-      renderEcgomicsToStudio(out, picked.lead);
-      appendEcgomicsMessage(out, picked.lead);
-    }catch(err){
-      console.error('[heartos-final] ECGOmics analyze error', err);
-      try{
-        appendAI('ECGOmics 分析失败：' + (err && err.message ? err.message : String(err)));
-      }catch(_){ }
-    }finally{
-      ecgomicsInFlight = false;
     }
   }
 
@@ -7807,7 +8688,6 @@ document.addEventListener('keydown',function(e){
     if(t === 'HEARTOS_ECG_EXTRACTED'){
       lastHandEcgExtractedPayload = d;
       renderExtractionToStudio(d);
-      runEcgomicsAuto(d);
       return;
     }
     if(t === 'HEARTOS_ECG_CSV'){
@@ -7817,9 +8697,9 @@ document.addEventListener('keydown',function(e){
         d.imageH = d.imageH || lastHandEcgExtractedPayload.imageH;
         d.waveforms = d.waveforms || lastHandEcgExtractedPayload.waveforms;
       }
-      upsertCsvSource(d);
-      appendCsvMessage(d);
-      persistHandEcgCsv(d);
+      var savedData = upsertCsvSource(d) || d;
+      appendCsvMessage(savedData);
+      persistHandEcgCsv(savedData);
       return;
     }
   });
@@ -7897,7 +8777,11 @@ document.addEventListener('keydown',function(e){
       var rect = bgCanvas.getBoundingClientRect();
       var w = Math.round(rect.width);
       var h = Math.round(rect.height);
-      if (w === bgLastW && h === bgLastH) return;
+      if (w < 1 || h < 1) {
+        bgLastW = 0; bgLastH = 0; bgTiles = [];
+        return false;
+      }
+      if (w === bgLastW && h === bgLastH && bgTiles.length) return true;
       bgLastW = w; bgLastH = h;
       bgCanvas.width  = w * dpr;
       bgCanvas.height = h * dpr;
@@ -7907,6 +8791,7 @@ document.addEventListener('keydown',function(e){
         var laneH = h * 0.18; // height of ECG stroke area per lane
         return makeTile(lane.PW, laneH, 'rgba(' + lane.color + ',' + lane.opacity + ')', lane.lw);
       });
+      return true;
     }
 
     var bgPrev = null;
@@ -7915,6 +8800,10 @@ document.addEventListener('keydown',function(e){
       var dt = Math.min((ts - bgPrev) / 1000, 0.05);
       bgPrev = ts;
 
+      if (!bgResize()) {
+        requestAnimationFrame(bgDraw);
+        return;
+      }
       var w = bgLastW, h = bgLastH;
       bgCtx.clearRect(0, 0, w, h);
 

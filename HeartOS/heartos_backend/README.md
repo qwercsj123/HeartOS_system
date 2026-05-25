@@ -12,7 +12,52 @@
 
 ---
 
-## 1) Windows 本机部署（推荐先用这个）
+## 1) macOS 本机启动
+
+### 前置条件
+- Python 3.10+（建议 3.11）
+
+### 启动后端
+```bash
+cd /Users/chen/Documents/HeartOS_system/HeartOS/heartos_backend
+./start.sh
+```
+
+常用调试参数：
+```bash
+# 临时换端口，不修改 .env
+APP_PORT=9010 ./start.sh
+
+# 关闭热重载（某些受限目录或沙箱环境下需要）
+HEARTOS_RELOAD=0 ./start.sh
+
+# 依赖已经安装好时，跳过 pip install
+HEARTOS_SKIP_PIP_INSTALL=1 ./start.sh
+
+# 指定 Python 3.10+ 路径
+PYTHON_BIN=/path/to/python3.12 ./start.sh
+```
+
+`start.sh` 会自动处理：
+- 如果 `.env` 不存在，从 `.env.example` 复制一份
+- 如果 `.venv` 是 Windows 复制过来的环境，备份为 `.venv.windows-backup.<时间>`
+- 自动选择 Python 3.10+ 并创建 macOS 可用的 `.venv`
+- 安装 `requirements.txt`
+- 按 `.env` 中的 `APP_HOST` / `APP_PORT` 启动服务
+
+本地调试建议：
+```env
+APP_AUTH_MODE=local
+```
+
+后端默认监听：`http://127.0.0.1:9000`
+
+健康检查：
+- 打开 `http://127.0.0.1:9000/health`
+
+---
+
+## 2) Windows 本机部署
 
 ### 前置条件
 - Python 3.10+（建议 3.11）
@@ -30,7 +75,7 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 
 ---
 
-## 2) Docker 部署（Windows/Linux 通用）
+## 3) Docker 部署（Windows/Linux 通用）
 
 ```powershell
 cd E:\HeartOS\heartos_backend
@@ -44,19 +89,19 @@ docker compose down
 
 ---
 
-## 3) 启动前端（HeartOS 与 HandECG 同目录）
+## 4) 启动前端（HeartOS 与 HandECG 同目录）
 
-```powershell
-cd E:\HeartOS
-python -m http.server 8080
+```bash
+cd /Users/chen/Documents/HeartOS_system/HeartOS
+python3 -m http.server 8080
 ```
 
 打开：
-- `http://127.0.0.1:8080/noteai_v4_0423.html`
+- `http://127.0.0.1:8080/index.html`
 
 ---
 
-## 4) 前端如何连接后端
+## 5) 前端如何连接后端
 
 前端默认连接：`http://127.0.0.1:9000`
 
@@ -68,7 +113,7 @@ location.reload()
 
 ---
 
-## 5) 稳定性与兼容性建议
+## 6) 稳定性与兼容性建议
 
 - 前端与后端用同一域名或同一网段，减少跨域问题
 - CORS 在生产环境改成精确域名，不建议长期 `*`
@@ -78,7 +123,7 @@ location.reload()
 
 ---
 
-## 6) 常见问题
+## 7) 常见问题
 
 ### 1. `/health` 打不开
 - 检查端口 9000 是否被占用

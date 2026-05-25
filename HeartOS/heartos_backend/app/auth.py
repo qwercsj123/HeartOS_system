@@ -94,13 +94,13 @@ def verify_user(username: str, password: str) -> dict[str, Any] | None:
         stored_hash = str(u.get("password_hash", ""))
         if hmac.compare_digest(_hash_password(password, salt), stored_hash):
             return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
-        if _is_client_password_digest(password):
-            default_password = settings.default_password or ""
-            default_digest = _client_password_digest(str(u.get("username") or username), default_password)
-            if hmac.compare_digest(password, default_digest) and hmac.compare_digest(_hash_password(default_password, salt), stored_hash):
-                u["password_hash"] = _hash_password(password, salt)
-                _save_users(db)
-                return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
+        # Some browser builds briefly stored a derived credential instead of
+        # the typed password. Accept it once from plaintext input and migrate.
+        derived_password = _client_password_digest(username, password)
+        if hmac.compare_digest(_hash_password(derived_password, salt), stored_hash):
+            u["password_hash"] = _hash_password(password, salt)
+            _save_users(db)
+            return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
     return None
 
 

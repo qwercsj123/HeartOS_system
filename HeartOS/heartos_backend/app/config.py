@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     public_base_url: str = Field(default="http://127.0.0.1:9000")
     max_upload_mb: int = Field(default=20)
     ecgomics_url: str = Field(default="http://110.157.241.24:18023/ECGOmics")
-    ai_ecg_digitize_url: str = Field(default="")
+    ai_ecg_digitize_url: str = Field(default="http://110.157.241.24:18022/digitize")
     ecg_reconstruct_url: str = Field(default="http://219.147.100.43:18007/reconstruct")
     impute_ecg_save_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/heartos/saveImputeECGR")
     llm_default_provider: str = Field(default="zhipu")

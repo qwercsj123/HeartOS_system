@@ -4318,6 +4318,120 @@ function getNextUnboxedLead(fromLead = state.selectedLead) {
 }
 
 // ════════════════════════════════════════════════════════
+//  COLUMN X-ALIGNMENT（列内时间轴对齐，列间独立，第一行为主）
+//
+//  设计原则（横向独立、第一行主控）：
+//  • 各列在 X 方向相互独立 —— 同一行的不同列不共享 x1。
+//  • 同一列的所有导联必须共享同一个 x1（时间轴起点一致），
+//    该 x1 始终 = 该列"第一行"导联的 x1。
+//  • 主控关系是**单向**的：
+//      - 调整第一行 → 同列其它行立即跟随对齐到第一行的 x1；
+//      - 调整其它行 → 不会改变第一行，且其自身 x1 会被强制
+//        拉回到第一行的 x1（用户只能改 y 和宽度）。
+//    这样无论操作哪一行，列内 x1 永远等于第一行的 x1。
+//  • 如果第一行尚未标注：以"该列已存在的、最靠近第一行的那个
+//    框"为临时基准；一旦第一行被画出，立即重新以第一行为准。
+//
+//  "同列"定义：在当前布局预设中，x1 比例相差 < 0.03。
+// ════════════════════════════════════════════════════════
+
+/**
+ * 返回与 lead 同列的所有导联（含自身），按 y1 升序（从上到下）。
+ * 列表第一项即"第一行"导联（如 4×3 布局中列1的 I、列2的 aVR…）。
+ */
+function getColSiblings(lead) {
+  const preset = selectedPreset || '4x3';
+  const layoutDef = LAYOUT_PRESETS[preset];
+  if (!layoutDef || !layoutDef.leads) return [lead];
+  const leadsObj = layoutDef.leads;
+  const selfFrac = leadsObj[lead];
+  if (!selfFrac) return [lead];
+  const selfX1 = selfFrac[0];
+  const siblings = Object.entries(leadsObj)
+    .filter(([, frac]) => Math.abs(frac[0] - selfX1) < 0.03)
+    .sort((a, b) => a[1][1] - b[1][1])   // 按 y1 升序（从上到下）
+    .map(([l]) => l);
+  return siblings.length > 0 ? siblings : [lead];
+}
+
+/**
+ * 返回 lead 所在列的"第一行"导联名（按布局预设 y1 最小者）。
+ */
+function getColFirstRowLead(lead) {
+  const sibs = getColSiblings(lead);
+  return sibs.length > 0 ? sibs[0] : lead;
+}
+
+/**
+ * 返回该列的主基准 x1：
+ *  • 优先取第一行导联的 x1；
+ *  • 若第一行尚未标注，则取该列中"最靠近第一行"的已有框 x1；
+ *  • 若该列一个框都没有，返回 null。
+ */
+function getColMasterX1(lead) {
+  const sibs = getColSiblings(lead);     // 已按 y1 升序
+  for (const sib of sibs) {
+    const b = state.boxes[sib];
+    if (b) return b.x1;
+  }
+  return null;
+}
+
+/**
+ * 对 lead 的框应用列对齐（第一行主控模式）：
+ *
+ *  情况 A：lead 就是该列的"第一行"（或临时基准 = 第一行尚无、
+ *          当前 lead 是最靠近第一行的已存在框）
+ *   → 把该列其它已存在的同列框的 x1 全部同步到 lead 的 x1，
+ *     各自宽度保持不变（x2 随之平移）。
+ *
+ *  情况 B：lead 是该列的"其它行"，且第一行已经被画过
+ *   → 把 lead 自己的 x1 强制拉回到第一行的 x1，
+ *     lead 自己的宽度保持不变（x2 随之平移）。
+ *     不会修改第一行，也不会影响列内其它行。
+ *
+ * 适用场景：新画框（draw）、调整大小（resize）、整体移动（move）
+ * 结束后都应调用本函数。
+ */
+function applyColX1Alignment(lead) {
+  if (!state.boxes[lead]) return;
+  const firstRow = getColFirstRowLead(lead);
+  const firstRowBox = state.boxes[firstRow];
+
+  // 判定 lead 是否是当前"主控"角色：
+  //  • 若第一行已存在 → 主控 = 第一行；
+  //  • 若第一行不存在 → 主控 = 当前已存在框中最靠近第一行那个。
+  const masterLead = firstRowBox ? firstRow : (function () {
+    const sibs = getColSiblings(lead);
+    for (const sib of sibs) if (state.boxes[sib]) return sib;
+    return lead;
+  })();
+
+  if (lead === masterLead) {
+    // ── 情况 A：lead 是主控 → 同列其它行跟随 ──
+    const masterX1 = state.boxes[lead].x1;
+    getColSiblings(lead).forEach(sib => {
+      if (sib === lead || !state.boxes[sib]) return;
+      const b = state.boxes[sib];
+      if (Math.abs(b.x1 - masterX1) < 0.5) return;
+      const w = b.x2 - b.x1;
+      state.boxes[sib] = { ...b, x1: masterX1, x2: masterX1 + w };
+      invalidateLeadCanvas(sib);
+      if (typeof updateLeadItem === 'function') updateLeadItem(sib);
+    });
+  } else {
+    // ── 情况 B：lead 是从属行 → 拉回主控 x1，不动主控也不动其它行 ──
+    const masterX1 = state.boxes[masterLead].x1;
+    const b = state.boxes[lead];
+    if (Math.abs(b.x1 - masterX1) < 0.5) return;
+    const w = b.x2 - b.x1;
+    state.boxes[lead] = { ...b, x1: masterX1, x2: masterX1 + w };
+    invalidateLeadCanvas(lead);
+    if (typeof updateLeadItem === 'function') updateLeadItem(lead);
+  }
+}
+
+// ════════════════════════════════════════════════════════
 //  MOUSE
 // ════════════════════════════════════════════════════════
 function getCanvasPos(e) {
@@ -4622,6 +4736,10 @@ function onMouseUp(e) {
     }
     // Box was moved or resized — invalidate its isolated canvas
     invalidateLeadCanvas(state.dragState.lead);
+    // ── 移动或调整大小后，同步同列 x1（任意导联调整都会成为该列新基准）──
+    if (state.dragState.type === 'resize' || state.dragState.type === 'move') {
+      applyColX1Alignment(state.dragState.lead);
+    }
     state.dragState=null; updateCounts(); renderOverlay(); return;
   }
   // ── Crop mouse up ──
@@ -4671,6 +4789,8 @@ function onMouseUp(e) {
       };
       // New box drawn — invalidate any prior isolated canvas
       invalidateLeadCanvas(state.selectedLead);
+      // ── 列对齐：同列导联 x1 统一，确保时间轴起点一致 ──
+      applyColX1Alignment(state.selectedLead);
       updateLeadItem(state.selectedLead); updateCounts();
       const next=getNextUnboxedLead(state.selectedLead);
       if (next) setTimeout(()=>selectLead(next),80);
