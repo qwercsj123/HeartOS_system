@@ -318,6 +318,14 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .lab-modal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;}
 .lab-modal-grid .lab-card{min-height:78px;padding:11px 12px 10px;border-radius:14px;}
 .lab-modal-grid .lab-card .lab-name{font-size:12.5px;white-space:normal;}
+.lab-modal-grid button.lab-card{width:100%;font-family:inherit;text-align:left;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;}
+.lab-modal-grid button.lab-card:hover{transform:translateY(-1px);border-color:#bbb3e3;box-shadow:var(--sh1);}
+.lab-modal-grid button.lab-card:focus-visible{outline:2px solid #6854c4;outline-offset:2px;}
+.lab-card-desc{font-size:10.5px;line-height:1.45;color:#667085;}
+.lab-demo-dialog{width:min(1240px,calc(100vw - 32px));height:min(90vh,900px);max-height:none;}
+.lab-demo-body{padding:0;flex:1;min-height:0;background:#f6f8fb;}
+.lab-demo-frame{width:100%;height:100%;display:block;border:0;background:#f6f8fb;}
+.lab-demo-chip{font-size:11px;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:999px;padding:4px 9px;font-weight:700;white-space:nowrap;}
 .lab-modal-empty{padding:36px 16px;text-align:center;color:var(--text3);font-size:12px;border:1px dashed var(--border2);border-radius:14px;background:var(--bg);}
 .add-note-b{width:100%;margin-top:10px;padding:10px 12px;border-radius:16px;border:1px dashed var(--border2);background:transparent;font-size:12px;font-family:inherit;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;gap:7px;transition:all .15s;font-weight:500;}
 .add-note-b:hover{background:var(--bg3);color:var(--text2);border-color:var(--border);}
@@ -1036,6 +1044,7 @@ let __initialUploadPromptShown = false;
 window.__heartosJustAddedSourceId = null;
 let summaryRequestSeq = 0;
 let summaryInFlight = false;
+let queuedSummaryRequest = null;
 
 function updateChatSendButton(){
   const btn = document.getElementById('chatSendBtn');
@@ -1842,6 +1851,26 @@ function hasEcgSignalSource(){
   return scoped.some(isEcgSignalSource);
 }
 
+function isConfirmedEcgSignalSource(src){
+  if(!src) return false;
+  if(src.__fromDigitize || src.__fromReconstruct) return true;
+  const ext = sourceExt(src);
+  if(ext === 'csv' || ext === 'tsv'){
+    const profile = buildDelimitedProfile(String(src.content || ''), ext === 'tsv' ? '\t' : ',');
+    return profile.matchedLeads.length >= 2;
+  }
+  if(ext === 'xml') return /(digits|waveform|wave|mdc_ecg_lead_)/i.test(String(src.content || ''));
+  if(ext === 'json') return /(ecgDataRaw|ecgData|waveforms|signals|leads)/i.test(String(src.content || ''));
+  return false;
+}
+
+function hasConfirmedEcgSignalSource(){
+  if(!Array.isArray(sources)) return false;
+  const selected = sources.filter(function(src){ return src && src.checked; });
+  const scoped = selected.length ? selected : sources;
+  return scoped.some(isConfirmedEcgSignalSource);
+}
+
 function sourceKindLabel(src){
   const ext = sourceExt(src);
   if(ext === 'pdf' || /pdf/i.test(sourceMime(src))) return 'PDF 文件';
@@ -1903,11 +1932,11 @@ async function buildSourceInitialSummary(src){
     if(totalChars) chips.push(totalChars + ' 字符');
     if(['csv','tsv'].includes(sourceExt(src))){
       const delimiter = sourceExt(src) === 'tsv' ? '\t' : ',';
-      const rows = parseDelimitedRows(text, delimiter, 12).filter(r => r.some(c => String(c).trim()));
-      const cols = rows.length ? rows.reduce((m, r) => Math.max(m, r.length), 0) : 0;
-      if(rows.length) chips.push(Math.max(rows.length - 1, 0) + '+ 行数据');
-      if(cols) chips.push(cols + ' 列');
-      body = '已完成表格结构初步解析。若这是 ECG 时序信号，可继续进行 ECG 信号补全；系统会移除表头、时间列和样本序号，并按补全接口约定用 0 标记缺失波形。';
+      const profile = buildDelimitedProfile(rawText, delimiter);
+      if(profile.rowCountLabel) chips.push(profile.rowCountLabel + ' 行数据');
+      if(profile.colCount) chips.push(profile.colCount + ' 列');
+      if(profile.matchedLeads.length) chips.push(profile.matchedLeads.length + ' 个 ECG 导联');
+      body = profile.overview || '已完成表格结构解析，可基于实际列名和数值质量进一步解读。';
       actions = `<button class="sq" onclick="runStudio('ecgrecon')">ECG 信号补全</button>
         <button class="sq" onclick="runStudio('ecgd')">ECG 特征提取</button>`;
     }else if(sourceExt(src) === 'xml'){
@@ -1940,6 +1969,35 @@ function summarizeTextForAI(text, maxLen){
   const s = String(text || '').slice(0, limit * 3).replace(/\s+/g, ' ').trim();
   if(!s) return '';
   return s.length > limit ? s.slice(0, limit) + '\n...[内容已截断]' : s;
+}
+
+function summaryItemText(item){
+  if(item == null) return '';
+  if(typeof item !== 'object') return String(item).trim();
+  if(Array.isArray(item)){
+    return item.map(summaryItemText).filter(Boolean).join('；');
+  }
+  const entries = Object.entries(item).filter(function(entry){
+    const value = entry[1];
+    return value != null && (typeof value !== 'object' || Array.isArray(value));
+  });
+  if(!entries.length) return '';
+  const labelMap = {
+    text:'', content:'', value:'', finding:'发现', finding_text:'发现',
+    label:'项目', name:'项目', evidence:'依据', reason:'依据',
+    conclusion:'结论', interpretation:'解读', unit:'单位'
+  };
+  return entries.map(function(entry){
+    const key = String(entry[0] || '');
+    const value = summaryItemText(entry[1]);
+    if(!value) return '';
+    const label = Object.prototype.hasOwnProperty.call(labelMap, key) ? labelMap[key] : key;
+    return label ? (label + '：' + value) : value;
+  }).filter(Boolean).join('；');
+}
+
+function renderSummaryRichText(value){
+  return esc(summaryItemText(value)).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
 function buildSummaryWorkflowActions(latestSrc, imgCount){
@@ -2006,7 +2064,7 @@ function renderWorkflowActions(actions){
 
 async function buildSourceInterpretationContext(){
   const list = Array.isArray(sources) ? sources.slice(-8) : [];
-  const hasSignal = hasEcgSignalSource();
+  const hasSignal = hasConfirmedEcgSignalSource();
   const parts = await Promise.all(list.map(async function(src, i){
     if(!src) return '';
     const name = src.name || ('来源 ' + (i + 1));
@@ -2032,46 +2090,8 @@ async function buildSourceInterpretationContext(){
         const lowerExt = ext.toLowerCase();
         if(lowerExt === 'csv' || lowerExt === 'tsv'){
           const delimiter = lowerExt === 'tsv' ? '\t' : ',';
-          const rows = parseDelimitedRows(text, delimiter, 20).filter(r => r.some(c => String(c).trim()));
-          const headers = rows[0] || [];
-          const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim()));
-          const cols = headers.length || (rows.length ? rows.reduce((m, r) => Math.max(m, r.length), 0) : 0);
-          const totalLines = rawText ? (rawText.match(/\n/g) || []).length : 0;
-          lines.push('表格结构：约 ' + totalLines.toLocaleString() + ' 行数据，' + cols + ' 列。');
-          if(headers.length) lines.push('列名：' + headers.slice(0, 40).join(', '));
-
-          // 对每列做统计分析
-          if(dataRows.length >= 2 && headers.length){
-            const colStats = [];
-            headers.slice(0, 20).forEach(function(h, ci){
-              const vals = dataRows.map(r => String(r[ci] || '').trim()).filter(Boolean);
-              if(!vals.length) return;
-              const nums = vals.map(Number).filter(n => Number.isFinite(n));
-              if(nums.length >= Math.floor(vals.length * 0.8)){
-                // 数值列
-                const mn = Math.min(...nums), mx = Math.max(...nums);
-                const mean = (nums.reduce((a,b)=>a+b,0)/nums.length);
-                const nonZero = nums.filter(n=>n!==0).length;
-                colStats.push(h + '（数值，范围 ' + mn.toFixed(3).replace(/\.?0+$/,'') + '~' + mx.toFixed(3).replace(/\.?0+$/,'') + '，均值≈' + mean.toFixed(2).replace(/\.?0+$/,'') + (nonZero < nums.length ? '，含零值' : '') + '）');
-              } else {
-                // 分类列
-                const uniq = [...new Set(vals)];
-                if(uniq.length <= 8) colStats.push(h + '（分类，取值：' + uniq.join('、') + '）');
-                else colStats.push(h + '（文本，样例：' + vals.slice(0,3).join('、') + '）');
-              }
-            });
-            if(colStats.length) lines.push('列统计：\n  ' + colStats.join('\n  '));
-          }
-
-          // 判断是否是 ECG 波形数据
-          const ecgLeadNames = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6','AVR','AVL','AVF'];
-          const matchedLeads = headers.filter(h => ecgLeadNames.some(l => h.replace(/^lead[_\s-]*/i,'').toLowerCase() === l.toLowerCase()));
-          if(matchedLeads.length >= 2){
-            lines.push('ECG导联列：' + matchedLeads.join(', ') + '（共' + matchedLeads.length + '个导联）');
-            lines.push('信号数据状态：已识别为多导联 ECG 波形信号，可直接进行补全或特征提取。');
-          } else {
-            lines.push('信号数据状态：该表格为时序/信号数据，可用于 ECG 信号补全或特征提取，不要建议再次数字化。');
-          }
+          const profile = buildDelimitedProfile(rawText, delimiter);
+          lines.push.apply(lines, profile.contextLines);
         }else if(lowerExt === 'xml'){
           const root = String(text).match(/<([A-Za-z_][\w:.-]*)[\s>]/);
           if(root) lines.push('XML 根节点：' + root[1]);
@@ -2184,7 +2204,7 @@ ${contextText || '无额外文本上下文'}`;
 }
 
 function summaryItemHasReliableValue(item){
-  const text = String(item || '').replace(/\*\*/g, '').replace(/^[\s*•-]+/, '').trim();
+  const text = summaryItemText(item).replace(/\*\*/g, '').replace(/^[\s*•-]+/, '').trim();
   if(!text) return false;
   const missingValue = '(?:未清晰识别|未能清晰识别|未识别|无法识别|不能识别|未提取|未读取|未显示|未提供|无法确认|不能确认|不确定|未知|不详|无数据|N\\/?A|--+)';
   const onlyMissing = new RegExp('^' + missingValue + '(?:[。；;，, ]|$)', 'i');
@@ -2204,7 +2224,7 @@ function cleanSummaryText(summary){
 }
 
 function isWorkflowRecommendationText(item){
-  const text = String(item || '').replace(/\*\*/g, '').replace(/^[\s*•\-]+/, '').trim();
+  const text = summaryItemText(item).replace(/\*\*/g, '').replace(/^[\s*•\-]+/, '').trim();
   return /^(?:建议下一步|后续建议|下一步(?:分析)?建议|推荐工作流|工作流建议)\s*[：:]?/.test(text) ||
     /(?:通过|使用|进行|建议).{0,16}(?:手动数字化|自动数字化).{0,16}(?:提取|分析|获得)/.test(text);
 }
@@ -2261,6 +2281,108 @@ function parseDelimitedRows(text, delimiter, maxRows){
     rows.push(row);
   }
   return rows;
+}
+
+function formatProfileNumber(value){
+  if(!Number.isFinite(value)) return '';
+  const abs = Math.abs(value);
+  const digits = abs && abs < 0.01 ? 6 : (abs < 1 ? 4 : 3);
+  return value.toFixed(digits).replace(/\.?0+$/, '') || '0';
+}
+
+function buildDelimitedProfile(text, delimiter){
+  const limit = 20001;
+  const rows = parseDelimitedRows(text, delimiter, limit).filter(function(row){
+    return row.some(function(cell){ return String(cell).trim(); });
+  });
+  const truncated = rows.length >= limit;
+  const colCount = rows.reduce(function(max, row){ return Math.max(max, row.length); }, 0);
+  const firstRow = rows[0] || [];
+  const nonEmptyFirst = firstRow.filter(function(cell){ return String(cell).trim(); });
+  const hasHeader = nonEmptyFirst.some(function(cell){
+    const value = String(cell).trim();
+    return value && !Number.isFinite(Number(value));
+  });
+  const headers = Array.from({length: colCount}, function(_, i){
+    const source = hasHeader ? String(firstRow[i] || '').trim() : '';
+    return source || ('列' + (i + 1));
+  });
+  const dataRows = rows.slice(hasHeader ? 1 : 0);
+  const rowCountLabel = truncated ? ('至少 ' + dataRows.length.toLocaleString()) : dataRows.length.toLocaleString();
+  const statRows = dataRows.slice(0, 10000);
+  const stats = headers.map(function(header, index){
+    const values = statRows.map(function(row){ return String(row[index] == null ? '' : row[index]).trim(); });
+    const present = values.filter(Boolean);
+    const numbers = present.map(Number).filter(Number.isFinite);
+    const numeric = present.length > 0 && numbers.length === present.length;
+    const missing = values.length - present.length;
+    if(!numeric){
+      return {name:header, numeric:false, missing:missing, unique:[...new Set(present)].slice(0, 4)};
+    }
+    const min = Math.min.apply(null, numbers);
+    const max = Math.max.apply(null, numbers);
+    const zeroCount = numbers.filter(function(value){ return value === 0; }).length;
+    return {
+      name:header, numeric:true, missing:missing, min:min, max:max,
+      zeroCount:zeroCount, count:numbers.length, constant:min === max
+    };
+  });
+  const ecgLeadNames = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6'];
+  const matchedLeads = hasHeader ? headers.filter(function(header){
+    const normalized = header.replace(/^lead[_\s-]*/i, '').toLowerCase();
+    return ecgLeadNames.some(function(lead){ return normalized === lead.toLowerCase(); });
+  }) : [];
+  const timeIndex = hasHeader ? headers.findIndex(function(header){ return /^(?:time|time_ms|timestamp|sample|index)$/i.test(header); }) : -1;
+  let timing = '';
+  if(timeIndex >= 0 && dataRows.length >= 2){
+    const first = Number(dataRows[0][timeIndex]);
+    const second = Number(dataRows[1][timeIndex]);
+    const last = Number(dataRows[dataRows.length - 1][timeIndex]);
+    if(Number.isFinite(first) && Number.isFinite(second) && Number.isFinite(last)){
+      const unit = /ms/i.test(headers[timeIndex]) ? ' ms' : '';
+      timing = headers[timeIndex] + ' 首个间隔 ' + formatProfileNumber(second - first) + unit +
+        '，取值跨度 ' + formatProfileNumber(last - first) + unit;
+    }
+  }
+  const qualityNotes = [];
+  stats.forEach(function(stat){
+    if(stat.missing > 0) qualityNotes.push(stat.name + ' 缺失 ' + stat.missing + '/' + statRows.length);
+    if(stat.numeric && stat.constant) qualityNotes.push(stat.name + ' 为常量 ' + formatProfileNumber(stat.min));
+    if(stat.numeric && stat.count > 0 && stat.zeroCount / stat.count >= 0.5){
+      qualityNotes.push(stat.name + ' 零值 ' + stat.zeroCount + '/' + stat.count);
+    }
+  });
+  let overview = '已解析 ' + rowCountLabel + ' 条记录、' + colCount + ' 列的 ' + (delimiter === '\t' ? 'TSV' : 'CSV') + ' 表格。';
+  if(matchedLeads.length >= 2){
+    overview += '根据列名识别到 ' + matchedLeads.length + ' 个 ECG 导联（' + matchedLeads.join('、') + '）。';
+  }else if(!hasHeader){
+    overview += '文件没有可识别表头，不能仅凭数值列确认导联含义或医学结论。';
+  }else{
+    overview += '列名未形成可确认的多导联 ECG 标识。';
+  }
+  const contextLines = [
+    '表格结构：' + rowCountLabel + ' 行数据，' + colCount + ' 列；' + (hasHeader ? '存在表头。' : '未识别到表头，列语义未知。')
+  ];
+  if(hasHeader) contextLines.push('列名：' + headers.slice(0, 40).join(', '));
+  if(timing) contextLines.push('时间轴：' + timing + '。');
+  const statText = stats.slice(0, 20).map(function(stat){
+    if(!stat.numeric) return stat.name + '（非数值列' + (stat.missing ? '，缺失 ' + stat.missing : '') + '）';
+    return stat.name + '（范围 ' + formatProfileNumber(stat.min) + '~' + formatProfileNumber(stat.max) +
+      (stat.missing ? '，缺失 ' + stat.missing + '/' + statRows.length : '') +
+      (stat.zeroCount ? '，零值 ' + stat.zeroCount + '/' + stat.count : '') +
+      (stat.constant ? '，常量列' : '') + '）';
+  });
+  if(statText.length) contextLines.push('列统计（基于 ' + statRows.length.toLocaleString() + ' 行）：\n  ' + statText.join('\n  '));
+  if(matchedLeads.length >= 2){
+    contextLines.push('ECG 导联证据：列名匹配 ' + matchedLeads.join(', ') + '（共 ' + matchedLeads.length + ' 个导联）。');
+  }else{
+    contextLines.push('ECG 导联证据：不足；不得把该表格断言为 ECG 波形或推导生理异常。');
+  }
+  if(qualityNotes.length) contextLines.push('数据质量提示：' + qualityNotes.slice(0, 8).join('；') + '。');
+  return {
+    hasHeader:hasHeader, headers:headers, colCount:colCount, rowCountLabel:rowCountLabel,
+    matchedLeads:matchedLeads, stats:stats, overview:overview, contextLines:contextLines
+  };
 }
 
 function renderPreviewNote(kind, detail){
@@ -2649,7 +2771,7 @@ function renderChat(){
     if(Array.isArray(msgs) && msgs.length){
       msgs.forEach(function(m){ replayMsgToDom(m); });
     }
-    // 切换回来：若有缓存摘要直接还原，不重新调 AI
+    // 切换回来优先恢复缓存；旧的异常/未完成缓存会自动重新分析。
     if(window.__heartosJustSwitchedNotebook){
       window.__heartosJustSwitchedNotebook = false;
       window.__heartosJustImportedSourceIds = null;
@@ -2658,7 +2780,9 @@ function renderChat(){
       if(curNb.sumHtml && sb2){ sb2.innerHTML = curNb.sumHtml; }
       if(curNb.suggHtml && sq2){ sq2.innerHTML = curNb.suggHtml; }
       setTimeout(()=>{ const a=document.getElementById('chatArea'); if(a) a.scrollTop=a.scrollHeight; },100);
-      return;
+      const cachedSummary = String(curNb.sumHtml || '');
+      const needsRefresh = !cachedSummary || /\[object Object\]|class="spin"|正在(?:分析|生成|重新)/.test(cachedSummary);
+      if(!needsRefresh) return;
     }
   } else {
     // Additional source added: update count, add a new-source notification bubble, then re-summarize
@@ -2687,15 +2811,20 @@ function renderChat(){
 }
 
 async function callClaudeForSummary(latestSrc, isImg, importedBatch){
-  // 防止并发：已有摘要在执行时，记录最新请求序号后直接返回
+  // 始终保留最后一次请求；当前请求结束后立即重跑最新来源，避免卡在 loading 状态。
   summaryRequestSeq++;
   const mySeq = summaryRequestSeq;
-  if(summaryInFlight){ return; }
+  if(summaryInFlight){
+    queuedSummaryRequest = {latestSrc:latestSrc, isImg:isImg, importedBatch:importedBatch};
+    return;
+  }
   summaryInFlight = true;
+  queuedSummaryRequest = null;
 
   const sb = document.getElementById('sumBody');
   const sq = document.getElementById('suggQs');
   if(!sb){ summaryInFlight = false; return; }
+  let fallbackSummaryHtml = '';
 
   function saveSummaryCache(){
     if(!curNb) return;
@@ -2714,6 +2843,7 @@ async function callClaudeForSummary(latestSrc, isImg, importedBatch){
       buildSourceInitialSummary(latestSrc),
       new Promise(r => setTimeout(() => r({html:'', actions:''}), 8000))
     ]);
+    fallbackSummaryHtml = initialSummary.html || '';
     if(isStale()){ return; }
     if(initialSummary.html && sb.querySelector('.spin')){
       sb.innerHTML = initialSummary.html + '<p style="margin-top:10px;color:var(--text3);font-size:13px;">正在生成 AI 摘要...</p>';
@@ -2739,7 +2869,7 @@ async function callClaudeForSummary(latestSrc, isImg, importedBatch){
       .join('\n\n---\n\n').slice(0, 8000);
 
     const imgCount = sources.filter(s => s.imageDataUrl).length;
-    const hasSignal = hasEcgSignalSource();
+    const hasSignal = hasConfirmedEcgSignalSource();
 
     const [interpretContext, summaryImageDataUrl] = await Promise.race([
       Promise.all([buildSourceInterpretationContext(), pickSummaryImageDataUrl(latestSrc)]),
@@ -2769,11 +2899,12 @@ async function callClaudeForSummary(latestSrc, isImg, importedBatch){
 要求：
 1. 不要只复述文件名，要提取文件类型、结构、关键字段/内容、医学或心电图相关线索。
 2. ${hasSignal ? '当前来源中已存在 ECG 信号数据；图像仅作为辅助参考，不要建议再次进行手动数字化或自动数字化。' : '如果是心电图图像，不要输出"无法读取像素/无法分析"作为主要结论；可以说明可通过手动数字化或自动数字化提取哪些 ECG 参数。'}
-3. 对于 CSV/TSV 数据文件，必须基于已提供的列统计信息做实质性总结：说明数据规模、各列含义和取值范围、信号质量特征（如是否有缺失值/零值）、导联覆盖情况。不要输出"未提供具体信息"等无价值描述。
+3. 对于 CSV/TSV 数据文件，必须基于已提供的程序统计证据做实质性总结：说明数据规模、已有列名、取值范围和数据质量特征（如缺失值/零值/常量列）。没有表头时只称为"列1、列2..."，不得赋予导联或生理含义。
 4. 心电图图像摘要可覆盖：导联布局、纸速/增益、心率、节律、PR、QRS、QT/QTc、ST-T、R 波进展、异常 Q 波、噪声/基线漂移、数字化质控；每一项仅在文件中能可靠提取时输出。
-5. 输出仅包含总体解读和可靠提取到的关键发现；不要输出后续操作、工具推荐或工作流建议。
-6. 用中文，简洁但信息密度高，关键概念用 **加粗**。
-7. 只返回 JSON：{"summary":"...","findings":["..."]}
+5. CSV 中的零值、常量值或缺失值属于数据质量事实，不等同于采集异常、疾病或特定生理信号；除非来源提供明确诊断字段，否则不得推导诊断。
+6. 输出仅包含总体解读和可靠提取到的关键发现；不要输出后续操作、工具推荐或工作流建议。
+7. 用中文，简洁但信息密度高，关键概念用 **加粗**。
+8. 只返回 JSON：{"summary":"...","findings":["..."]}
 summary：2-4句话，包含数据规模和主要特征，不能是通用描述。findings：基于实际数据的具体发现，最多5条，每条含具体数值或字段名。`;
     const finalPrompt = hasSignal ? sysPrompt + '\n另：当前来源已有 ECG 信号数据，不要建议数字化，后续可进行补全或特征提取。' : sysPrompt;
     const userContent = '请解读以下 ' + sources.length + ' 个上传来源的文件信息：\n\n' + (interpretContext || textContent);
@@ -2786,9 +2917,24 @@ summary：2-4句话，包含数据规模和主要特征，不能是通用描述�
     let parsed;
     try{ parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()); }
     catch(_){ parsed = {summary: raw, findings:[]}; }
+    if(!parsed || typeof parsed !== 'object' || Array.isArray(parsed)){
+      parsed = {summary: raw, findings:[]};
+    }
 
-    if(sb && parsed.summary){
-      maybeAutoTitleNotebook(parsed.summary || (latestSrc && latestSrc.name));
+    const parsedSummary = cleanSummaryText(summaryItemText(parsed.summary));
+    const listSections = [
+      ['患者及检查信息', parsed.patient_info],
+      ['数字化测量参数', parsed.measurements],
+      ['机读诊断结论', parsed.diagnosis],
+      ['关键发现', parsed.findings]
+    ];
+    const hasListContent = listSections.some(function(section){
+      return Array.isArray(section[1]) && section[1].some(function(item){
+        return summaryItemHasReliableValue(item) && !isWorkflowRecommendationText(item);
+      });
+    });
+    if(sb && (parsedSummary || hasListContent)){
+      maybeAutoTitleNotebook(parsedSummary || (latestSrc && latestSrc.name));
       const imgNote = imgCount > 0 && !hasSignal
         ? '<p style="margin-top:8px;padding:8px 10px;background:#f6f8fb;border-radius:12px;font-size:13px;color:#667085;border:1px solid #e5e7eb;">另有 <strong>' + imgCount + '</strong> 张图像，可使用心电图分析卡片进行数字化分析。</p>'
         : '';
@@ -2797,26 +2943,35 @@ summary：2-4句话，包含数据规模和主要特征，不能是通用描述�
         const visible = items.filter(function(x){ return summaryItemHasReliableValue(x) && !isWorkflowRecommendationText(x); });
         if(!visible.length) return '';
         return '<div style="margin-top:10px;"><div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">' + title + '</div><ul style="margin:0;padding-left:18px;color:var(--text2);font-size:13px;line-height:1.7;">' +
-          visible.slice(0,5).map(function(x){ return '<li>' + esc(String(x||'')).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>') + '</li>'; }).join('') + '</ul></div>';
+          visible.slice(0,5).map(function(x){ return '<li>' + renderSummaryRichText(x) + '</li>'; }).join('') + '</ul></div>';
       };
-      sb.innerHTML = '<p>' + String(parsed.summary||'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>') + '</p>' +
+      sb.innerHTML = (parsedSummary ? ('<p>' + renderSummaryRichText(parsedSummary) + '</p>') : '') +
         renderList('患者及检查信息', parsed.patient_info) +
         renderList('数字化测量参数', parsed.measurements) +
         renderList('机读诊断结论', parsed.diagnosis) +
         renderList('关键发现', parsed.findings) +
         imgNote;
+    }else if(sb){
+      sb.innerHTML = fallbackSummaryHtml || '<p style="color:var(--text2)">已加载来源，但模型未返回可展示的可靠摘要。</p>';
     }
     if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, imgCount));
     saveSummaryCache();
 
   } catch(err){
     if(isStale()){ return; }
-    if(sb) sb.innerHTML = '<p style="color:var(--text2)">已加载来源，可在下方提问。</p>' +
+    if(sb) sb.innerHTML = (fallbackSummaryHtml || '<p style="color:var(--text2)">已加载来源，可在下方提问。</p>') +
       '<p style="margin-top:10px;font-size:12px;color:#dc2626;">AI 摘要生成失败：' + esc(err && err.message ? err.message : String(err)) + '</p>';
     if(sq) sq.innerHTML = renderWorkflowActions(buildSummaryWorkflowActions(latestSrc, sources.filter(s => s.imageDataUrl).length));
     saveSummaryCache();
   } finally {
     summaryInFlight = false;
+    if(queuedSummaryRequest){
+      const next = queuedSummaryRequest;
+      queuedSummaryRequest = null;
+      setTimeout(function(){
+        callClaudeForSummary(next.latestSrc, next.isImg, next.importedBatch);
+      }, 0);
+    }
   }
 }
 
@@ -4352,7 +4507,7 @@ let studioCards = [
   {id:'ecg',  cls:'ecg-card',  icon:'heart',  iconBg:'rgba(185,101,129,.12)',   name:'手动数字化',  desc:'手动校正波形并导出高质量 CSV（精确）'},
 ];
 let futureLabCards = [
-  {icon:'spark', name:'预测分析模型', status:'研发中', phase:'developing'},
+  {icon:'heart', name:'AI单导联运动心电冠心病风险筛查报告', desc:'患者可读报告 Demo · CAD 风险分层与就医建议', status:'研发演示', phase:'developing', action:'cadScreeningReport'},
   {icon:'lab', name:'多模态模型', status:'规划中', phase:'planned'}
 ];
 let currentResultText = '';
@@ -4847,14 +5002,19 @@ function renderFutureLabModalBody(){
     }
   });
   return groups.filter(g => (buckets[g.key] || []).length > 0).map(g => {
-    const items = buckets[g.key].map(c => `
-      <div class="lab-card" title="${escAttr(c.name + ' - ' + c.status)}" aria-label="${escAttr(c.name + '，' + c.status)}">
+    const items = buckets[g.key].map(c => {
+      const inner = `
         <div class="lab-card-top">
           <span class="lab-card-icon">${uiIcon(c.icon,'ui-icon sm')}</span>
           <span class="lab-status ${c.phase === 'planned' ? 'planned' : ''}">${esc(c.status)}</span>
         </div>
         <div class="lab-name">${esc(c.name)}</div>
-      </div>`).join('');
+        ${c.desc ? `<div class="lab-card-desc">${esc(c.desc)}</div>` : ''}`;
+      if(c.action){
+        return `<button class="lab-card" type="button" onclick="openFutureLabFeature('${escAttr(c.action)}', event)" title="${escAttr(c.name + ' - 打开演示')}" aria-label="${escAttr('打开' + c.name + '演示')}">${inner}</button>`;
+      }
+      return `<div class="lab-card" title="${escAttr(c.name + ' - ' + c.status)}" aria-label="${escAttr(c.name + '，' + c.status)}">${inner}</div>`;
+    }).join('');
     return `<section class="lab-group">
       <div class="lab-group-head">
         <span class="lab-group-title"><span class="dot ${g.dotCls}"></span>${esc(g.title)}</span>
@@ -4875,6 +5035,48 @@ function openFutureLabModal(evt){
 
 function closeFutureLabModal(){
   const modal = document.getElementById('futureLabModal');
+  if(modal) modal.classList.remove('open');
+}
+
+function ensureFutureLabFeatureModal(){
+  let modal = document.getElementById('futureLabFeatureModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'futureLabFeatureModal';
+  modal.className = 'lab-modal';
+  modal.innerHTML = `<div class="lab-modal-dialog lab-demo-dialog" role="dialog" aria-modal="true" aria-labelledby="futureLabFeatureTitle" onclick="event.stopPropagation()">
+    <div class="lab-modal-head">
+      <div class="lab-modal-head-l">
+        <span class="lab-modal-head-icon">${uiIcon('heart')}</span>
+        <div>
+          <div class="lab-modal-title" id="futureLabFeatureTitle">AI单导联运动心电冠心病风险筛查报告</div>
+          <div class="lab-modal-sub">患者可读报告 Demo · 展示 CAD 风险分层、融合概率、AI 风险信号与就医建议</div>
+        </div>
+      </div>
+      <span class="lab-demo-chip">研发演示</span>
+      <button class="lab-modal-close" type="button" onclick="closeFutureLabFeatureModal()" title="关闭">×</button>
+    </div>
+    <div class="lab-demo-body">
+      <iframe class="lab-demo-frame" id="futureLabFeatureFrame" title="AI单导联运动心电冠心病风险筛查报告" sandbox="allow-scripts"></iframe>
+    </div>
+  </div>`;
+  modal.addEventListener('click', closeFutureLabFeatureModal);
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function openFutureLabFeature(action, evt){
+  if(evt) evt.stopPropagation();
+  if(action !== 'cadScreeningReport') return;
+  closeFutureLabModal();
+  const modal = ensureFutureLabFeatureModal();
+  const frame = modal.querySelector('#futureLabFeatureFrame');
+  if(frame && !frame.getAttribute('src')) frame.setAttribute('src', 'ECG_Screening_Report.html');
+  modal.classList.add('open');
+}
+
+function closeFutureLabFeatureModal(){
+  const modal = document.getElementById('futureLabFeatureModal');
   if(modal) modal.classList.remove('open');
 }
 

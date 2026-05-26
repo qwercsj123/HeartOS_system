@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI单导联运动心电冠心病风险筛查报告 - Demo</title>
+<style>
+:root {
+  --bg: #f6f8fb;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --blue: #2563eb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 18px 36px;
+}
+.hero {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 60%, #14b8a6 100%);
+  color: white;
+  border-radius: 26px;
+  padding: 28px;
+  box-shadow: 0 14px 36px rgba(15,23,42,0.10);
+}
+.heroRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.logo {
+  width: 62px;
+  height: 62px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.25);
+  font-size: 34px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+.subtitle {
+  margin-top: 8px;
+  color: rgba(255,255,255,0.92);
+  line-height: 1.6;
+  font-size: 15px;
+  max-width: 720px;
+}
+.heroTag {
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.26);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.section { margin-top: 18px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 8px 22px rgba(15,23,42,0.045);
+}
+.caseBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.caseBtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.caseBtn {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 999px;
+  padding: 9px 13px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  color: #334155;
+}
+.caseBtn.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: #eff6ff;
+  font-weight: 800;
+}
+.sectionTitle {
+  font-size: 18px;
+  font-weight: 850;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: #eff6ff;
+  color: var(--blue);
+  border: 1px solid #dbeafe;
+}
+.summaryGrid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.85fr;
+  gap: 18px;
+}
+.resultCard { border-width: 2px; }
+.lowStyle { background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 85%); border-color: #a7f3d0; }
+.midStyle { background: linear-gradient(180deg, #fff7ed 0%, #ffffff 85%); border-color: #fed7aa; }
+.highStyle { background: linear-gradient(180deg, #fef2f2 0%, #ffffff 85%); border-color: #fecaca; }
+.label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bigValue {
+  margin-top: 8px;
+  font-size: 34px;
+  line-height: 1.18;
+  font-weight: 900;
+}
+.desc {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: #475569;
+}
+.riskPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-weight: 850;
+  margin-top: 12px;
+}
+.lowPill { background: #dcfce7; color: #166534; }
+.midPill { background: #ffedd5; color: #9a3412; }
+.highPill { background: #fee2e2; color: #991b1b; }
+.prob {
+  font-size: 36px;
+  font-weight: 950;
+  margin-top: 8px;
+}
+.probText {
+  color: #64748b;
+  line-height: 1.65;
+  font-size: 14px;
+  margin-top: 8px;
+}
+.riskBarWrap { margin-top: 18px; }
+.riskBar {
+  position: relative;
+  height: 38px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #10b981 0%, #84cc16 26%, #f59e0b 58%, #ef4444 100%);
+  box-shadow: inset 0 2px 7px rgba(0,0,0,0.12);
+}
+.threshold {
+  position: absolute;
+  top: -7px;
+  bottom: 0;
+  border-left: 2px dashed rgba(255,255,255,0.95);
+}
+.marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.markerDot {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #0f172a;
+  border: 5px solid #ffffff;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.legend {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  text-align: center;
+  margin-top: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #475569;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  line-height: 1.9;
+  color: #334155;
+}
+.rows {
+  display: grid;
+  gap: 10px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  background: #f8fafc;
+  border-radius: 16px;
+}
+.row span { color: var(--muted); }
+.row strong { text-align: right; }
+.note {
+  margin-top: 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  border-radius: 18px;
+  padding: 15px;
+  line-height: 1.75;
+  font-size: 14px;
+}
+.explainGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.miniCard {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 16px;
+}
+.miniCard h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.miniCard p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.footerNote {
+  color: #64748b;
+  line-height: 1.75;
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .summaryGrid, .grid2, .explainGrid { grid-template-columns: 1fr; }
+  h1 { font-size: 25px; }
+  .bigValue { font-size: 28px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <section class="hero">
+    <div class="heroRow">
+      <div class="brand">
+        <div class="logo">♥</div>
+        <div>
+          <h1>AI单导联运动心电冠心病风险筛查报告</h1>
+          <div class="subtitle">
+            将单导联运动心电 AI 筛查结果转化为患者可读的风险报告，展示 CAD 风险等级、融合风险概率、
+            AI 心电风险信号和下一步就医建议。本报告仅用于 AI 辅助筛查，不替代临床诊断。
+          </div>
+        </div>
+      </div>
+      <div class="heroTag">患者端演示报告</div>
+    </div>
+  </section>
+  <section class="section card">
+    <div class="caseBox">
+      <div>
+        <div class="sectionTitle" style="margin-bottom:4px;"><div class="icon">▦</div>演示病例</div>
+        <div class="footerNote">实际使用时患者仅查看本人的报告；此处保留病例切换，仅用于演示不同风险等级。</div>
+      </div>
+      <div class="caseBtns" id="caseBtns"></div>
+    </div>
+  </section>
+  <section class="section summaryGrid">
+    <div class="card resultCard" id="resultCard">
+      <div class="label">筛查结论</div>
+      <div class="bigValue" id="resultHeadline"></div>
+      <div class="riskPill" id="riskPill"></div>
+      <div class="desc" id="resultText"></div>
+    </div>
+    <div class="card">
+      <div class="label">融合风险概率</div>
+      <div class="prob" id="riskProb"></div>
+      <div class="probText">
+        该概率综合 AI 心电风险信号、年龄、性别、BMI 与运动心率反应计算，用于提示是否需要进一步心血管评估。
+      </div>
+      <div class="riskBarWrap">
+        <div class="riskBar">
+          <div class="threshold" id="tLow"></div>
+          <div class="threshold" id="tHigh"></div>
+          <div class="marker" id="scoreMarker"><div class="markerDot"></div></div>
+        </div>
+        <div class="legend"><span>低风险</span><span>中风险</span><span>高风险</span></div>
+      </div>
+    </div>
+  </section>
+  <section class="section grid2">
+    <div class="card">
+      <div class="sectionTitle"><div class="icon">→</div>下一步就医建议</div>
+      <ol class="steps" id="stepList"></ol>
+      <div class="note">
+        <b>重要提示：</b>如果出现胸痛、胸闷、气短、晕厥、持续心悸，或运动时不适加重，请及时就医，
+        不要仅依赖本次筛查结果。
+      </div>
+    </div>
+    <div class="card">
+      <div class="sectionTitle"><div class="icon">✓</div>本报告关键信息</div>
+      <div class="rows">
+        <div class="row"><span>风险等级</span><strong id="riskLevelRow"></strong></div>
+        <div class="row"><span>融合风险概率</span><strong id="riskProbRow"></strong></div>
+        <div class="row"><span>AI 心电风险信号</span><strong id="aiSignalRow"></strong></div>
+        <div class="row"><span>运动心率反应</span><strong id="hrRow"></strong></div>
+        <div class="row"><span>年龄 / 性别</span><strong id="basicRow"></strong></div>
+        <div class="row"><span>BMI</span><strong id="bmiRow"></strong></div>
+      </div>
+    </div>
+  </section>
+  <section class="section card">
+    <div class="sectionTitle"><div class="icon">?</div>患者需要了解的三件事</div>
+    <div class="explainGrid">
+      <div class="miniCard">
+        <h3>这不是临床诊断</h3>
+        <p>AI 结果仅提示风险等级。最终诊断需要医生结合症状、病史和进一步检查作出。</p>
+      </div>
+      <div class="miniCard">
+        <h3>高风险意味着什么</h3>
+        <p>高风险说明心电信号与个人信息显示出较强的预警模式，建议尽快接受专业心血管评估。</p>
+      </div>
+      <div class="miniCard">
+        <h3>低风险仍需关注症状</h3>
+        <p>低风险不等于零风险。如果出现胸痛或运动不适等症状，仍需及时咨询医生。</p>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+const CASES = [
+  {"eid":"1001176","age":42,"sex":"Female","bmi":28.04,"lr":0.0058,"ais":0.1083,"hrPct":0.4924,"risk":"Low"},
+  {"eid":"1001491","age":52,"sex":"Female","bmi":26.85,"lr":0.0589,"ais":0.5323,"hrPct":0.4493,"risk":"Low"},
+  {"eid":"1002061","age":55,"sex":"Female","bmi":41.74,"lr":0.0920,"ais":0.5978,"hrPct":0.6338,"risk":"Intermediate"},
+  {"eid":"6023190","age":55,"sex":"Male","bmi":26.24,"lr":0.0661,"ais":0.4539,"hrPct":0.5425,"risk":"Intermediate"},
+  {"eid":"6022832","age":47,"sex":"Male","bmi":33.52,"lr":0.2113,"ais":0.8121,"hrPct":0.4235,"risk":"High"},
+  {"eid":"6024075","age":54,"sex":"Female","bmi":29.72,"lr":0.2378,"ais":0.9099,"hrPct":0.4564,"risk":"High"}
+];
+const T_LOW = 0.065;
+const T_HIGH = 0.191;
+const MAX_RISK = 0.32;
+let selected = 2;
+function byId(id) { return document.getElementById(id); }
+function pct(v, digits=1) { return (v * 100).toFixed(digits) + "%"; }
+function aiLevel(ais) {
+  if (ais >= 0.7) return "强";
+  if (ais >= 0.4) return "中等";
+  return "低";
+}
+function meta(c) {
+  if (c.lr >= T_HIGH) {
+    return {
+      cls: "highStyle",
+      pill: "高风险：建议尽快就医评估",
+      pillCls: "highPill",
+      headline: "检测到较明确的冠心病风险信号",
+      description: "本次 AI 辅助运动心电筛查结果超过高风险阈值，提示与冠心病风险相关的信号较强。建议携带本报告前往心内科或由专业医生进一步评估。",
+      steps: [
+        "建议尽快预约心内科或专业医生进行评估。",
+        "就诊时请说明是否存在胸痛、胸闷、气短或运动耐量下降等症状。",
+        "医生可能结合情况安排常规心电图、血液检查、负荷试验或冠状动脉 CT 等进一步检查。",
+        "获得医生建议前，请避免突然增加运动强度。"
+      ]
+    };
+  }
+  if (c.lr >= T_LOW) {
+    return {
+      cls: "midStyle",
+      pill: "中风险：建议与医生进一步沟通",
+      pillCls: "midPill",
+      headline: "检测到部分冠心病风险信号",
+      description: "本次 AI 辅助运动心电筛查结果处于中风险范围，提示可能存在部分与冠心病相关的风险信号。若您伴有症状或心血管危险因素，建议与医生沟通本结果。",
+      steps: [
+        "建议在近期体检或门诊时向医生出示本报告。",
+        "请关注血压、血脂、血糖、体重、吸烟史和家族史等危险因素。",
+        "如果运动时出现胸部不适、胸痛或气短，请及时就医。",
+        "医生可能根据整体情况建议复查或进一步心血管评估。"
+      ]
+    };
+  }
+  return {
+    cls: "lowStyle",
+    pill: "低风险：继续常规健康管理",
+    pillCls: "lowPill",
+    headline: "未检测到明显高风险信号",
+    description: "本次 AI 辅助运动心电筛查结果低于低风险阈值，未检测到明显的冠心病高风险信号。请继续保持健康生活方式，并按照医生建议进行常规健康检查。",
+    steps: [
+      "保持规律运动、健康饮食和适当体重管理。",
+      "持续关注血压、血脂和血糖等心血管危险因素。",
+      "如果新出现胸痛、胸闷或运动不适，不要因为结果为低风险而忽视症状。",
+      "按照医生建议进行常规随访或健康检查。"
+    ]
+  };
+}
+function renderCases() {
+  const box = byId("caseBtns");
+  box.innerHTML = "";
+  CASES.forEach((c, i) => {
+    const btn = document.createElement("button");
+    btn.className = "caseBtn " + (i === selected ? "active" : "");
+    const riskLabel = {Low:"低风险", Intermediate:"中风险", High:"高风险"}[c.risk] || c.risk;
+    btn.textContent = `${riskLabel}病例 ${i + 1}`;
+    btn.onclick = () => { selected = i; render(); };
+    box.appendChild(btn);
+  });
+}
+function render() {
+  renderCases();
+  const c = CASES[selected];
+  const m = meta(c);
+  const resultCard = byId("resultCard");
+  resultCard.className = "card resultCard " + m.cls;
+  byId("resultHeadline").textContent = m.headline;
+  byId("resultText").textContent = m.description;
+  const pill = byId("riskPill");
+  pill.className = "riskPill " + m.pillCls;
+  pill.textContent = m.pill;
+  byId("riskProb").textContent = pct(c.lr);
+  byId("stepList").innerHTML = m.steps.map(x => `<li>${x}</li>`).join("");
+  byId("riskLevelRow").textContent = ({Low:"低风险", Intermediate:"中风险", High:"高风险"}[c.risk] || c.risk);
+  byId("riskProbRow").textContent = pct(c.lr);
+  byId("aiSignalRow").textContent = `${aiLevel(c.ais)} (AIS ${c.ais.toFixed(2)})`;
+  byId("hrRow").textContent = "达到年龄预测最大心率的 " + pct(c.hrPct);
+  byId("basicRow").textContent = `${c.age} 岁 / ${{Female:"女", Male:"男"}[c.sex] || c.sex}`;
+  byId("bmiRow").textContent = c.bmi.toFixed(1) + " kg/m²";
+  byId("tLow").style.left = (T_LOW / MAX_RISK * 100) + "%";
+  byId("tHigh").style.left = (T_HIGH / MAX_RISK * 100) + "%";
+  byId("scoreMarker").style.left = (Math.min(c.lr, MAX_RISK) / MAX_RISK * 100) + "%";
+}
+render();
+</script>
+</body>
+</html>
