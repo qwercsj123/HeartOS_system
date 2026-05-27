@@ -54,6 +54,10 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .f-spacer{flex:1;}
 .new-btn{display:flex;align-items:center;gap:8px;padding:0 16px;height:38px;border-radius:14px;border:none;background:var(--accent);color:#fff;font-size:13px;font-family:inherit;cursor:pointer;font-weight:550;transition:all .15s;box-shadow:0 6px 16px rgba(47,99,217,.16);}
 .new-btn:hover{background:#2856c2;box-shadow:0 10px 18px rgba(47,99,217,.18);}
+.home-hero{display:flex;align-items:stretch;gap:18px;margin:4px 0 38px;}
+.home-hero-line{width:4px;border-radius:999px;background:linear-gradient(180deg,var(--accent),#7c3aed);flex-shrink:0;}
+.home-hero-title{font-size:30px;font-weight:600;line-height:1.38;letter-spacing:-.5px;color:var(--text);}
+.home-hero-title span{display:block;color:var(--accent);}
 .nb-section-title{font-size:18px;font-weight:600;margin-bottom:20px;color:var(--text);letter-spacing:-.2px;}
 .nb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
 .nb-card{border-radius:14px;border:1px solid var(--border);background:var(--bg);cursor:pointer;transition:all .2s;position:relative;aspect-ratio:1/1;min-height:0;box-shadow:var(--sh0);overflow:visible;}
@@ -228,16 +232,44 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .sc-toggle:hover{background:rgba(15,23,42,.10);color:#1f2937;box-shadow:none;}
 .studio-intro-modal{position:fixed;inset:0;z-index:26000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.38);backdrop-filter:blur(3px);}
 .studio-intro-modal.open{display:flex;}
-.studio-intro-dialog{width:min(560px,calc(100vw - 32px));max-height:min(680px,calc(100vh - 48px));overflow:auto;border-radius:18px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);}
+.studio-intro-dialog{width:min(560px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 48px));overflow-y:auto;border-radius:18px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);}
 .studio-intro-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px 14px;border-bottom:1px solid #eef2f7;}
-.studio-intro-title{font-size:18px;font-weight:750;color:var(--text);letter-spacing:-.02em;line-height:1.35;}
-.studio-intro-sub{font-size:12px;color:var(--text3);line-height:1.6;margin-top:4px;}
+.studio-intro-title{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.35;}
+.studio-intro-sub{font-size:13px;color:var(--text2);line-height:1.6;margin-top:3px;}
 .studio-intro-close{width:32px;height:32px;border:1px solid var(--border);border-radius:10px;background:#fff;color:#667085;cursor:pointer;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .studio-intro-close:hover{background:var(--bg3);color:var(--text);}
-.studio-intro-body{padding:16px 20px 20px;display:grid;gap:12px;}
-.studio-intro-block{border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;padding:12px 13px;}
-.studio-intro-k{font-size:12px;font-weight:750;color:var(--text);margin-bottom:5px;}
-.studio-intro-v{font-size:13px;color:#475467;line-height:1.7;}
+.studio-intro-body{padding:16px 20px 20px;}
+.si-value-row{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border-radius:12px;background:#f8fafc;border:1px solid #e9edf4;margin-bottom:16px;}
+.si-value-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;}
+.si-value-icon.blue{background:#eef4ff;color:#2f63d9;}
+.si-value-icon.green{background:#f0fdf4;color:#16a34a;}
+.si-value-icon.purple{background:#f5f3ff;color:#7c3aed;}
+.si-value-icon.amber{background:#fffbeb;color:#d97706;}
+.si-value-icon.teal{background:#ecfeff;color:#0891b2;}
+.si-value-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.si-value-desc{font-size:13px;color:var(--text2);line-height:1.6;}
+.si-section-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+.si-flow{display:flex;align-items:stretch;gap:0;margin-bottom:16px;}
+.si-fstep{flex:1;min-width:0;}
+.si-fnode{border-radius:10px;border:1px solid #e5e7eb;background:#fff;padding:9px 8px 7px;text-align:center;transition:border-color .3s,background .3s,opacity .3s;opacity:.4;}
+.si-fnode.active{opacity:1;border-color:#93b4f8;background:#eef4ff;}
+.si-fnode.done{opacity:1;border-color:#86efac;background:#f0fdf4;}
+.si-fnode-icon{font-size:17px;display:block;margin-bottom:3px;color:#94a3b8;}
+.si-fnode.active .si-fnode-icon{color:#2f63d9;}
+.si-fnode.done .si-fnode-icon{color:#16a34a;}
+.si-fnode-label{font-size:11px;font-weight:500;color:#64748b;line-height:1.4;}
+.si-fnode.active .si-fnode-label{color:#2f63d9;}
+.si-fnode.done .si-fnode-label{color:#16a34a;}
+.si-farrow{display:flex;align-items:center;padding:0 3px;color:#cbd5e1;font-size:13px;flex-shrink:0;}
+.si-divider{height:1px;background:#eef2f7;margin:14px 0;}
+.si-chips{display:flex;gap:7px;flex-wrap:wrap;}
+.si-chip{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;background:#f8fafc;border:1px solid #e5e7eb;font-size:12px;color:#475467;}
+.si-chip-icon{font-size:13px;color:#94a3b8;}
+.si-tip{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:9px 12px;border-radius:10px;border:1px solid #fed7aa;background:#fffbeb;font-size:12px;color:#92400e;line-height:1.55;}
+.si-tip-icon{font-size:13px;flex-shrink:0;margin-top:1px;}
+.si-run-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;height:40px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;font-family:inherit;transition:background .15s;}
+.si-run-btn:hover{background:#2856c2;}
+.si-run-btn svg{width:14px;height:14px;fill:#fff;}
 .csv-xml-modal{position:fixed;inset:0;z-index:26050;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.38);backdrop-filter:blur(3px);}
 .csv-xml-modal.open{display:flex;}
 .csv-xml-dialog{width:min(420px,calc(100vw - 32px));border-radius:16px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);padding:18px;}
@@ -427,6 +459,15 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .src-preview-body pre{white-space:pre-wrap;word-break:break-word;max-height:68vh;overflow:auto;background:#0b1020;color:#e2e8f0;border-radius:8px;padding:12px;font-size:12px;line-height:1.55;}
 .src-preview-note{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;color:var(--text3);font-size:12px;}
 .src-preview-note strong{color:var(--text2);font-weight:600;}
+.src-preview-note-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.src-preview-wave-btn{height:30px;padding:0 11px;border:1px solid #bfdbfe;border-radius:999px;background:#eff6ff;color:#1e3a8a;font:inherit;font-size:12px;font-weight:650;cursor:pointer;white-space:nowrap;}
+.src-preview-wave-btn:hover{background:#dbeafe;border-color:#93c5fd;}
+.src-preview-wave-wrap{max-height:68vh;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff;padding:10px;}
+.src-preview-wave-wrap svg{display:block;width:100%;height:auto;min-width:620px;}
+.src-preview-wave-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px;}
+.src-preview-wave-meta-item{border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc;padding:8px 9px;}
+.src-preview-wave-meta-item label{display:block;font-size:11px;color:var(--text3);}
+.src-preview-wave-meta-item strong{display:block;font-size:13px;color:var(--text);margin-top:2px;}
 .src-preview-table-wrap{max-height:68vh;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff;}
 .src-preview-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:12px;line-height:1.45;color:var(--text2);}
 .src-preview-table th,.src-preview-table td{padding:8px 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:left;vertical-align:top;min-width:140px;max-width:360px;white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
@@ -510,14 +551,28 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .import-issues-title{font-size:13px;font-weight:700;color:#b42318;margin-bottom:5px;}
 .import-issues-sub{font-size:12px;color:#667085;line-height:1.55;margin-bottom:7px;}
 .import-issues-list{margin:0;padding-left:18px;color:#b42318;font-size:12px;line-height:1.65;max-height:132px;overflow:auto;}
-.tool-error-modal{position:fixed;inset:0;z-index:26100;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.38);backdrop-filter:blur(3px);}
+.tool-error-modal{position:fixed;inset:0;z-index:26100;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.44);backdrop-filter:blur(4px);}
 .tool-error-modal.open{display:flex;}
-.tool-error-dialog{width:min(470px,calc(100vw - 32px));border-radius:16px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);padding:18px;}
-.tool-error-title{font-size:17px;font-weight:750;color:#101828;line-height:1.35;}
-.tool-error-sub{font-size:13px;color:#475467;line-height:1.65;margin:7px 0 10px;}
-.tool-error-list{margin:0 0 16px;padding:10px 12px 10px 28px;border-radius:10px;background:#fff7f7;color:#b42318;font-size:12px;line-height:1.7;max-height:180px;overflow:auto;}
-.tool-error-actions{display:flex;justify-content:flex-end;}
-.tool-error-actions button{height:34px;padding:0 15px;border:1px solid var(--accent);border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-size:12px;font-weight:650;cursor:pointer;}
+.tool-error-dialog{width:min(720px,calc(100vw - 32px));border-radius:18px;background:#fff;border:1px solid rgba(226,232,240,.95);box-shadow:0 24px 70px rgba(15,23,42,.22);padding:20px;}
+.tool-error-title{font-size:18px;font-weight:760;color:#101828;line-height:1.35;}
+.tool-error-sub{font-size:14px;color:#475467;line-height:1.7;margin:8px 0 14px;}
+.tool-error-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.tool-error-step{border:1px solid #e4e7ec;border-radius:12px;padding:11px 11px 10px;background:#f8fafc;}
+.tool-error-step-num{width:22px;height:22px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-bottom:6px;}
+.tool-error-step-title{font-size:13px;font-weight:700;color:#101828;line-height:1.45;margin-bottom:4px;}
+.tool-error-step-desc{font-size:12px;color:#475467;line-height:1.6;}
+.tool-error-support{border:1px solid #dbeafe;background:#eff6ff;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#1e3a8a;line-height:1.6;}
+.tool-error-list-title{font-size:12px;font-weight:700;color:#b42318;margin-bottom:6px;}
+.tool-error-list{margin:0 0 14px;padding:10px 12px 10px 28px;border-radius:10px;background:#fff7f7;color:#b42318;font-size:12px;line-height:1.7;max-height:160px;overflow:auto;}
+.tool-error-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+.tool-error-actions button{height:36px;padding:0 14px;border-radius:10px;font:inherit;font-size:13px;font-weight:650;cursor:pointer;}
+.tool-error-actions .primary{border:1px solid var(--accent);background:var(--accent);color:#fff;}
+.tool-error-actions .secondary{border:1px solid var(--border2);background:#fff;color:#344054;}
+.tool-error-actions .ghost{border:1px solid transparent;background:#f2f4f7;color:#344054;}
+@media (max-width: 820px){
+  .tool-error-dialog{width:min(96vw,calc(100vw - 12px));padding:14px;}
+  .tool-error-steps{grid-template-columns:1fr;gap:8px;}
+}
 .nbn-modal .mo-box{width:440px;}
 .nbn-head{padding:22px 22px 0;}
 .nbn-head h2{font-size:18px;font-weight:600;margin-bottom:5px;letter-spacing:-.2px;}
@@ -780,6 +835,10 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="f-spacer"></div>
       <button class="new-btn" onclick="startNewNotebook()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 新建对话</button>
     </div>
+    <div class="home-hero">
+      <span class="home-hero-line" aria-hidden="true"></span>
+      <h1 class="home-hero-title">每一份心电数据<span>都值得被认真解读</span></h1>
+    </div>
     <div class="nb-section-title">我的对话</div>
     <div class="nb-grid" id="nbGrid"></div>
   </div>
@@ -1032,7 +1091,9 @@ let studioTaskSeq = 0;
 const USE_CHAT_DISPATCH = true;
 window.__heartosLastImageSource = null;
 let __nbLoaded = false;
-let __nbSaveTimer = null;
+const __nbSaveTimers = new Map();
+const __nbSaveQueues = new Map();
+let __nbOpenRequestSeq = 0;
 let __initialUploadPromptShown = false;
 window.__heartosJustAddedSourceId = null;
 let summaryRequestSeq = 0;
@@ -1143,8 +1204,8 @@ function renderHome(){
     <span style="font-size:14px;font-weight:500;">新建对话</span>
   </div>`;
   h += notebooks.map(nb => {
-    const fileCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
-    const msgCount = Array.isArray(nb.msgs) ? nb.msgs.length : 0;
+    const fileCount = nb._detailsLoaded ? (Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0)) : Number(nb.srcs || 0);
+    const msgCount = nb._detailsLoaded ? (Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0)) : Number(nb.msgCount || 0);
     const title = defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title;
     if(title && title !== nb.title) nb.title = title;
     return `<div class="nb-card nb-inner" onclick="openNb('${escAttr(nb.id)}', false)">
@@ -1162,6 +1223,7 @@ function renderHome(){
 }
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
 function goHome(){
+  __nbOpenRequestSeq++;
   if(busy || activeStudioTask) cancelActiveChatWork();
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
@@ -1176,7 +1238,8 @@ function todayText(){
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
 }
 
-function normalizeNotebookItem(it){
+function normalizeNotebookItem(it, detailsLoaded){
+  const hasDetails = detailsLoaded !== false;
   const safeId = String((it && it.id) || Date.now());
   const safeSources = Array.isArray(it && it.sources) ? it.sources : [];
   const safeMsgs = Array.isArray(it && it.msgs) ? it.msgs : [];
@@ -1186,20 +1249,23 @@ function normalizeNotebookItem(it){
     icon: (it && it.icon) ? String(it.icon) : '📔',
     color: (it && it.color) ? String(it.color) : '#e8f0fe',
     date: (it && it.date) ? String(it.date) : todayText(),
-    srcs: safeSources.length,
-    sources: safeSources,
-    msgs: safeMsgs,
-    analysisFiles: Array.isArray(it && it.analysisFiles) ? it.analysisFiles : [],
-    sumHtml: (it && it.sumHtml) ? String(it.sumHtml) : '',
-    suggHtml: (it && it.suggHtml) ? String(it.suggHtml) : ''
+    srcs: Array.isArray(it && it.sources) ? safeSources.length : Number((it && it.srcs) || 0),
+    sources: hasDetails ? safeSources : [],
+    msgs: hasDetails ? safeMsgs : [],
+    msgCount: Array.isArray(it && it.msgs) ? safeMsgs.length : Number((it && it.msgCount) || 0),
+    analysisFiles: hasDetails && Array.isArray(it && it.analysisFiles) ? it.analysisFiles : [],
+    sumHtml: hasDetails && it && it.sumHtml ? String(it.sumHtml) : '',
+    suggHtml: hasDetails && it && it.suggHtml ? String(it.suggHtml) : '',
+    updatedAt: Number((it && it.updatedAt) || 0),
+    _detailsLoaded: hasDetails
   };
 }
 
 async function loadNotebooksFromServer(){
-  const resp = await apiFetch('/api/notebooks', { method:'GET' });
+  const resp = await apiFetch('/api/notebooks?summary_only=true', { method:'GET' });
   if(!resp.ok) throw new Error('加载笔记失败');
   const out = await resp.json().catch(function(){ return {items:[]}; });
-  const items = Array.isArray(out.items) ? out.items.map(normalizeNotebookItem) : [];
+  const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
   notebooks = items;
   __nbLoaded = true;
   document.getElementById('homePage').classList.add('active');
@@ -1211,6 +1277,14 @@ async function loadNotebooksFromServer(){
   }
 }
 
+async function loadNotebookDetail(id){
+  const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'GET' });
+  if(!resp.ok) throw new Error('加载对话内容失败');
+  const out = await resp.json().catch(function(){ return {}; });
+  if(!out.item) throw new Error('对话不存在');
+  return normalizeNotebookItem(out.item, true);
+}
+
 function toggleNotebookMenu(id, evt){
   if(evt) evt.stopPropagation();
   document.querySelectorAll('.nb-menu-pop.open').forEach(m => {
@@ -1220,20 +1294,33 @@ function toggleNotebookMenu(id, evt){
   if(m) m.classList.toggle('open');
 }
 
-function renameNotebook(id, evt){
+async function renameNotebook(id, evt){
   if(evt) evt.stopPropagation();
   const nb = notebooks.find(n => n.id === id);
   if(!nb) return;
   const next = prompt('输入新的对话标题：', defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title);
   if(!next) return;
-  nb.title = cleanNotebookTitle(next);
+  const nextTitle = cleanNotebookTitle(next);
+  let target = nb;
+  if(!target._detailsLoaded){
+    try{
+      target = await loadNotebookDetail(id);
+      const idx = notebooks.findIndex(function(item){ return item.id === id; });
+      if(idx >= 0) notebooks[idx] = target;
+    }catch(_){
+      showToast('对话加载失败，标题未修改');
+      return;
+    }
+  }
+  target.title = nextTitle;
   if(curNb && curNb.id === id){
-    curNb.title = nb.title;
+    curNb = target;
+    curNb.title = nextTitle;
     const titleEl = document.getElementById('nbPageTitle');
-    if(titleEl) titleEl.textContent = nb.title;
+    if(titleEl) titleEl.textContent = nextTitle;
   }
   renderHome();
-  scheduleSaveNotebook(nb);
+  scheduleSaveNotebook(target);
   showToast('标题已修改');
 }
 
@@ -1253,6 +1340,12 @@ async function deleteNotebook(id, evt){
     document.getElementById('nbPage').classList.remove('active');
   }
   renderHome();
+  const pendingTimer = __nbSaveTimers.get(String(id));
+  if(pendingTimer){
+    clearTimeout(pendingTimer);
+    __nbSaveTimers.delete(String(id));
+  }
+  try{ await (__nbSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
   try{ await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' }); }catch(_){ }
   showToast('历史对话已删除');
 }
@@ -1387,7 +1480,7 @@ function chatMenuDelete(){
 
 function scheduleSaveNotebook(nb){
   if(!nb || !__nbLoaded) return;
-  saveNotebook(nb).catch(()=>{});
+  enqueueNotebookSave(nb).catch(reportNotebookSaveError);
 }
 
 async function loadAiConfigFromServer(){
@@ -1405,16 +1498,24 @@ async function loadAiConfigFromServer(){
 
 function scheduleSaveCurrentNotebook(immediate){
   if(!curNb || !__nbLoaded) return;
-  if(__nbSaveTimer){ clearTimeout(__nbSaveTimer); __nbSaveTimer = null; }
-  const run = async function(){
-    try{ await saveNotebook(curNb); }catch(_){}
+  const target = curNb;
+  const id = String(target.id);
+  const activeTimer = __nbSaveTimers.get(id);
+  if(activeTimer){
+    clearTimeout(activeTimer);
+    __nbSaveTimers.delete(id);
+  }
+  const run = function(){
+    __nbSaveTimers.delete(id);
+    enqueueNotebookSave(target).catch(reportNotebookSaveError);
   };
   if(immediate) run();
-  else __nbSaveTimer = setTimeout(run, 300);
+  else __nbSaveTimers.set(id, setTimeout(run, 300));
 }
 
-async function saveNotebook(nb){
-  if(!nb) return;
+function buildNotebookPayload(nb){
+  if(!nb) return null;
+  nb.updatedAt = Date.now();
   const payload = {
     id: String(nb.id),
     title: nb.title || 'New Conversation',
@@ -1425,14 +1526,43 @@ async function saveNotebook(nb){
     msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
     analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
     sumHtml: nb.sumHtml || '',
-    suggHtml: nb.suggHtml || ''
+    suggHtml: nb.suggHtml || '',
+    updatedAt: nb.updatedAt
   };
+  return payload;
+}
+
+async function persistNotebookPayload(payload){
   const resp = await apiFetch('/api/notebooks', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
   if(!resp.ok) throw new Error('保存笔记失败');
+}
+
+function enqueueNotebookSave(nb){
+  const payload = buildNotebookPayload(nb);
+  if(!payload) return Promise.resolve();
+  const id = payload.id;
+  const previous = __nbSaveQueues.get(id) || Promise.resolve();
+  const next = previous.catch(function(){}).then(function(){
+    return persistNotebookPayload(payload);
+  });
+  __nbSaveQueues.set(id, next);
+  next.finally(function(){
+    if(__nbSaveQueues.get(id) === next) __nbSaveQueues.delete(id);
+  }).catch(function(){});
+  return next;
+}
+
+function reportNotebookSaveError(){
+  showToast('对话保存失败，请检查网络后重试');
+}
+
+async function saveNotebook(nb){
+  if(!nb) return;
+  return enqueueNotebookSave(nb);
 }
 
 function syncCurrentNotebookState(){
@@ -1454,7 +1584,7 @@ async function confirmNewNb(){
   const icons = ['📔','📗','📘','📙','📒','📓','🗂️'];
   const colors = ['#e8f0fe','#e6f4ea','#fce8ff','#fff8e1','#fde8e8','#f0f4f9','#fff3e0'];
   const idx = notebooks.length % icons.length;
-  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, date:todayText(), sources:[], msgs:[], analysisFiles:[]};
+  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, msgCount:0, date:todayText(), sources:[], msgs:[], analysisFiles:[], updatedAt:0, _detailsLoaded:true};
   notebooks.unshift(nb);
   renderHome();
   try{ await saveNotebook(nb); }catch(_){}
@@ -1464,10 +1594,26 @@ async function confirmNewNb(){
 }
 
 // ======================== NOTEBOOK ========================
-function openNb(id, autoUpload=false){
+async function openNb(id, autoUpload=false){
   if(curNb && curNb.id !== id && (busy || activeStudioTask)) cancelActiveChatWork();
-  curNb = notebooks.find(n=>n.id===id) || notebooks[0];
-  if(!curNb){ goHome(); return; }
+  let nextNb = notebooks.find(n=>n.id===id) || notebooks[0];
+  if(!nextNb){ goHome(); return; }
+  const requestSeq = ++__nbOpenRequestSeq;
+  if(!nextNb._detailsLoaded){
+    try{
+      nextNb = await loadNotebookDetail(nextNb.id);
+    }catch(_){
+      if(requestSeq === __nbOpenRequestSeq){
+        showToast('历史对话加载失败，请刷新后重试');
+        goHome();
+      }
+      return;
+    }
+    if(requestSeq !== __nbOpenRequestSeq) return;
+    const targetIndex = notebooks.findIndex(function(item){ return item.id === nextNb.id; });
+    if(targetIndex >= 0) notebooks[targetIndex] = nextNb;
+  }
+  curNb = nextNb;
   sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
   window.sources = sources;
   msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
@@ -2378,12 +2524,154 @@ function buildDelimitedProfile(text, delimiter){
   };
 }
 
-function renderPreviewNote(kind, detail){
+function renderPreviewNote(kind, detail, actionHtml){
   return '<div class="src-preview-note"><span><strong>' + esc(kind) + '</strong>' +
-    (detail ? ' · ' + esc(detail) : '') + '</span><span>完整预览</span></div>';
+    (detail ? ' · ' + esc(detail) : '') + '</span><span class="src-preview-note-actions">' + (actionHtml || '<span>内容预览</span>') + '</span></div>';
 }
 
-function renderDelimitedPreview(text, delimiter, label){
+function _looksLikeMonotonicNumericColumn(values){
+  if(!Array.isArray(values) || values.length < 6) return false;
+  let inc = 0;
+  let dec = 0;
+  let prev = Number(values[0]);
+  for(let i=1;i<values.length;i++){
+    const cur = Number(values[i]);
+    if(!Number.isFinite(prev) || !Number.isFinite(cur)) continue;
+    if(cur > prev) inc += 1;
+    if(cur < prev) dec += 1;
+    prev = cur;
+  }
+  const steps = inc + dec;
+  if(!steps) return false;
+  return (inc / steps >= 0.92) || (dec / steps >= 0.92);
+}
+
+function _leadMapFromDelimitedRows(text, delimiter){
+  const rowsRaw = parseDelimitedRows(String(text || ''), delimiter, 0).filter(function(r){
+    return Array.isArray(r) && r.some(function(c){ return String(c || '').trim() !== ''; });
+  });
+  if(rowsRaw.length < 3) return null;
+  const colCount = rowsRaw.reduce(function(max, row){ return Math.max(max, row.length); }, 0);
+  if(colCount < 2) return null;
+  const rows = rowsRaw.map(function(row){
+    return Array.from({length: colCount}, function(_, i){ return String(row[i] == null ? '' : row[i]).trim(); });
+  });
+  const first = rows[0];
+  const numericFlags = first.map(function(cell){ return Number.isFinite(Number(cell)); });
+  const textLikeCount = numericFlags.filter(function(isNum){ return !isNum; }).length;
+  const hasHeader = textLikeCount >= Math.max(1, Math.ceil(colCount * 0.35));
+  const startIdx = hasHeader ? 1 : 0;
+  if(rows.length - startIdx < 2) return null;
+  const names = Array.from({length: colCount}, function(_, i){
+    const name = hasHeader ? (first[i] || '') : '';
+    return name || ('列' + (i + 1));
+  });
+  const valuesByCol = Array.from({length: colCount}, function(){ return []; });
+  const validCountByCol = Array.from({length: colCount}, function(){ return 0; });
+  for(let r=startIdx;r<rows.length;r++){
+    const row = rows[r];
+    for(let c=0;c<colCount;c++){
+      const n = Number(row[c]);
+      if(Number.isFinite(n)){
+        valuesByCol[c].push(n);
+        validCountByCol[c] += 1;
+      }else{
+        valuesByCol[c].push(null);
+      }
+    }
+  }
+  const minValid = Math.max(2, Math.floor((rows.length - startIdx) * 0.65));
+  let candidateIdx = [];
+  for(let c=0;c<colCount;c++){
+    if(validCountByCol[c] >= minValid) candidateIdx.push(c);
+  }
+  if(candidateIdx.length < 2) return null;
+  const idxName = String(names[candidateIdx[0]] || '').toLowerCase();
+  const firstColumn = valuesByCol[candidateIdx[0]].filter(function(v){ return Number.isFinite(v); });
+  const maybeTimeOrIndex = /^(index|idx|time|timestamp|sample|point|序号|时间|采样点|t)$/i.test(idxName) || _looksLikeMonotonicNumericColumn(firstColumn);
+  if(maybeTimeOrIndex && candidateIdx.length > 2){
+    candidateIdx = candidateIdx.slice(1);
+  }
+  const out = {};
+  for(let i=0;i<candidateIdx.length;i++){
+    const col = candidateIdx[i];
+    const arr = valuesByCol[col].filter(function(v){ return Number.isFinite(v); });
+    if(arr.length >= 2){
+      const key = String(names[col] || ('lead_' + (i + 1))).trim() || ('lead_' + (i + 1));
+      out[key] = arr;
+    }
+  }
+  return _looksLikeLeadMap(out) ? out : null;
+}
+
+function buildSignalLeadMapFromPreviewContext(ctx){
+  if(!ctx) return null;
+  if(ctx.leadMap && _looksLikeLeadMap(ctx.leadMap)) return ctx.leadMap;
+  const text = String(ctx.text || '');
+  if(!text) return null;
+  if(ctx.format === 'csv') return _leadMapFromDelimitedRows(text, ',');
+  if(ctx.format === 'tsv') return _leadMapFromDelimitedRows(text, '\t');
+  if(ctx.format === 'json'){
+    try{ return extractLeadMapFromAny(JSON.parse(text)); }catch(_){ return null; }
+  }
+  if(ctx.format === 'xml'){
+    return null;
+  }
+  return null;
+}
+
+function openSignalWavePreviewFromModal(){
+  const body = document.getElementById('srcPreviewBody');
+  const ctx = window.__heartosSignalPreviewContext || null;
+  if(!body || !ctx) return;
+  const leadMap = buildSignalLeadMapFromPreviewContext(ctx);
+  if(!leadMap){
+    showToast('当前内容无法解析为可绘制的多导联信号。');
+    return;
+  }
+  const leads = reconLeadNames(leadMap);
+  const maxPoints = leads.reduce(function(max, name){
+    return Math.max(max, Array.isArray(leadMap[name]) ? leadMap[name].length : 0);
+  }, 0);
+  const svg = buildReconWaveSvg(leadMap, '#2563eb');
+  const action = '<button class="src-preview-wave-btn" type="button" onclick="renderSignalTablePreviewFromModal()">返回表格预览</button>';
+  body.innerHTML =
+    renderPreviewNote('波形绘制', leads.length + ' 导联 · 每导联最多 ' + maxPoints.toLocaleString() + ' 点', action) +
+    '<div class="src-preview-wave-meta">' +
+      '<div class="src-preview-wave-meta-item"><label>导联数</label><strong>' + leads.length + '</strong></div>' +
+      '<div class="src-preview-wave-meta-item"><label>采样点</label><strong>' + maxPoints.toLocaleString() + '</strong></div>' +
+      '<div class="src-preview-wave-meta-item"><label>来源</label><strong>' + esc(ctx.label || '信号文件') + '</strong></div>' +
+    '</div>' +
+    '<div class="src-preview-wave-wrap">' + svg + '</div>';
+}
+
+function renderSignalTablePreviewFromModal(){
+  const body = document.getElementById('srcPreviewBody');
+  const ctx = window.__heartosSignalPreviewContext || null;
+  if(!body || !ctx) return;
+  const leadMap = buildSignalLeadMapFromPreviewContext(ctx);
+  const action = leadMap
+    ? '<button class="src-preview-wave-btn" type="button" onclick="openSignalWavePreviewFromModal()">绘制波形图</button>'
+    : '';
+  if(ctx.format === 'csv'){
+    body.innerHTML = renderDelimitedPreview(ctx.text || '', ',', ctx.label || 'CSV 表格', action);
+    return;
+  }
+  if(ctx.format === 'tsv'){
+    body.innerHTML = renderDelimitedPreview(ctx.text || '', '\t', ctx.label || 'TSV 表格', action);
+    return;
+  }
+  if(ctx.format === 'json'){
+    body.innerHTML = renderJsonPreview(ctx.text || '', action);
+    return;
+  }
+  if(ctx.format === 'xml'){
+    body.innerHTML = renderXmlPreview(ctx.text || '', action);
+    return;
+  }
+}
+
+function renderDelimitedPreview(text, delimiter, label, actionHtml){
   const rows = parseDelimitedRows(text, delimiter, 0).filter(r => r.some(c => String(c).trim() !== ''));
   if(!rows.length) return '<p style="color:var(--text3);">这个表格暂无可预览内容。</p>';
   const colCount = rows.reduce((m, r) => Math.max(m, r.length), 0);
@@ -2395,7 +2683,7 @@ function renderDelimitedPreview(text, delimiter, label){
     ? bodyRows.map(r => '<tr>' + r.map(c => '<td title="' + escAttr(c) + '">' + esc(c) + '</td>').join('') + '</tr>').join('')
     : '<tr><td colspan="' + colCount + '" style="color:var(--text3);">未检测到数据行，仅识别到表头。</td></tr>';
   const totalLines = String(text || '').split(/\r?\n/).length;
-  return renderPreviewNote(label, bodyRows.length + ' 条记录 / ' + Math.max(totalLines - 1, 0) + ' 条记录，' + colCount + ' 列') +
+  return renderPreviewNote(label, bodyRows.length + ' 条记录 / ' + Math.max(totalLines - 1, 0) + ' 条记录，' + colCount + ' 列', actionHtml) +
     '<div class="src-preview-table-wrap"><table class="src-preview-table"><thead><tr>' + th +
     '</tr></thead><tbody>' + trs + '</tbody></table></div>';
 }
@@ -2407,13 +2695,15 @@ function renderPrettyCodePreview(text, label, lang){
     '<pre data-lang="' + escAttr(lang || '') + '">' + esc(full) + '</pre>';
 }
 
-function renderJsonPreview(text){
+function renderJsonPreview(text, actionHtml){
   let pretty = String(text || '');
   try{ pretty = JSON.stringify(JSON.parse(pretty), null, 2); }catch(_){ }
-  return renderPrettyCodePreview(pretty, 'JSON', 'json');
+  const lines = pretty.split(/\r?\n/);
+  return renderPreviewNote('JSON', lines.length + ' 行', actionHtml) +
+    '<pre data-lang="json">' + esc(pretty) + '</pre>';
 }
 
-function renderXmlPreview(text){
+function renderXmlPreview(text, actionHtml){
   let pretty = String(text || '').trim();
   try{
     pretty = pretty.replace(/>\s*</g, '>\n<');
@@ -2426,7 +2716,9 @@ function renderXmlPreview(text){
       return out;
     }).join('\n');
   }catch(_){ }
-  return renderPrettyCodePreview(pretty, 'XML', 'xml');
+  const lines = pretty.split(/\r?\n/);
+  return renderPreviewNote('XML', lines.length + ' 行', actionHtml) +
+    '<pre data-lang="xml">' + esc(pretty) + '</pre>';
 }
 
 function renderBinaryPreview(src){
@@ -2454,6 +2746,7 @@ async function previewSource(id, evt){
   const type = sourceExt(src);
   const mime = sourceMime(src);
   try{
+    window.__heartosSignalPreviewContext = null;
     if(['png','jpg','jpeg','bmp','tif','tiff','gif','webp','svg'].includes(type) || /^image\//i.test(mime)){
       const url = await sourceDataUrl(src);
       body.innerHTML = url ? `<img src="${escAttr(url)}" alt="${escAttr(src.name || 'image')}">` : '<p style="color:#dc2626;">无法读取图片预览。</p>';
@@ -2466,22 +2759,42 @@ async function previewSource(id, evt){
     }
     if(type === 'csv' || /csv/i.test(mime)){
       const text = await readCsvTextFromSource(src);
-      body.innerHTML = text ? renderDelimitedPreview(text, ',', 'CSV 表格') : '<p style="color:var(--text3);">这个 CSV 暂无可预览内容。</p>';
+      if(text){
+        window.__heartosSignalPreviewContext = { format:'csv', text:text, label:'CSV 表格 · ' + sourceDisplayName(src) };
+        renderSignalTablePreviewFromModal();
+      }else{
+        body.innerHTML = '<p style="color:var(--text3);">这个 CSV 暂无可预览内容。</p>';
+      }
       return;
     }
     if(type === 'tsv'){
       const text = await readTextFromSource(src);
-      body.innerHTML = text ? renderDelimitedPreview(text, '\t', 'TSV 表格') : '<p style="color:var(--text3);">这个 TSV 暂无可预览内容。</p>';
+      if(text){
+        window.__heartosSignalPreviewContext = { format:'tsv', text:text, label:'TSV 表格 · ' + sourceDisplayName(src) };
+        renderSignalTablePreviewFromModal();
+      }else{
+        body.innerHTML = '<p style="color:var(--text3);">这个 TSV 暂无可预览内容。</p>';
+      }
       return;
     }
     if(type === 'json' || /json/i.test(mime)){
       const text = await readTextFromSource(src);
-      body.innerHTML = text ? renderJsonPreview(text) : '<p style="color:var(--text3);">这个 JSON 暂无可预览内容。</p>';
+      if(text){
+        window.__heartosSignalPreviewContext = { format:'json', text:text, label:'JSON 数据 · ' + sourceDisplayName(src) };
+        renderSignalTablePreviewFromModal();
+      }else{
+        body.innerHTML = '<p style="color:var(--text3);">这个 JSON 暂无可预览内容。</p>';
+      }
       return;
     }
     if(type === 'xml' || /xml/i.test(mime)){
       const text = await readXmlTextFromSource(src);
-      body.innerHTML = text ? renderXmlPreview(text) : '<p style="color:var(--text3);">这个 XML 暂无可预览内容。</p>';
+      if(text){
+        window.__heartosSignalPreviewContext = { format:'xml', text:text, label:'XML 数据 · ' + sourceDisplayName(src) };
+        renderSignalTablePreviewFromModal();
+      }else{
+        body.innerHTML = '<p style="color:var(--text3);">这个 XML 暂无可预览内容。</p>';
+      }
       return;
     }
     if(type === 'url'){
@@ -3061,6 +3374,80 @@ function imageToolInputErrorMessage(toolName){
   return action + '仅支持心电图图片或 PDF（PDF 将转换第 1 页）。CSV、XML、JSON 和文本信号不能执行数字化；如果来源已经是波形数据，请直接选择“ECG 特征提取”或“ECG 信号补全”。';
 }
 
+function renderToolErrorSteps(steps){
+  const rows = Array.isArray(steps) ? steps : [];
+  if(!rows.length) return '';
+  return rows.map(function(step, idx){
+    return '<div class="tool-error-step">' +
+      '<div class="tool-error-step-num">' + (idx + 1) + '</div>' +
+      '<div class="tool-error-step-title">' + esc(step.title || '') + '</div>' +
+      '<div class="tool-error-step-desc">' + esc(step.desc || '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function buildToolErrorPlan(toolName, sourcesToList){
+  const picked = Array.isArray(sourcesToList) ? sourcesToList.filter(Boolean) : [];
+  const hasImage = picked.some(canUseAsImageToolSource);
+  const isWaveTool = toolName === 'ECG 特征提取' || toolName === 'ECG 信号补全';
+  if(isWaveTool){
+    const supportText = toolName === 'ECG 特征提取'
+      ? '支持输入：原始 ECG XML，或至少包含 10 秒连续导联波形的 CSV。'
+      : '支持输入：包含导联波形的 CSV、TSV、TXT、XML 或 JSON。';
+    return {
+      title: toolName + '暂时不能开始',
+      intro: hasImage
+        ? '你当前选的是图片/PDF，系统还不能直接做波形分析。按下面 3 步操作就能继续。'
+        : '当前来源不是可分析的波形数据。按下面 3 步处理后即可继续。',
+      supportText: supportText,
+      steps: [
+        { title:'先确认当前来源', desc:'现在勾选的是图片、PDF 或不支持的格式。' },
+        { title:'先做数字化转换', desc:'点击“去自动数字化”或“去手动数字化”，先把图像转成波形 CSV。' },
+        { title:'回到这里重新检测', desc:'把生成的 CSV 加入来源并勾选，再点“我已处理完成，重新检测”。' }
+      ],
+      actions: [
+        { label:'去自动数字化', kind:'primary', action:'run:ecgsmart' },
+        { label:'去手动数字化', kind:'secondary', action:'run:ecg' },
+        { label:'关闭', kind:'ghost', action:'close' }
+      ]
+    };
+  }
+  const target = toolName === '手动数字化' ? '手动数字化' : '自动数字化';
+  return {
+    title: target + '暂时不能开始',
+    intro: '当前勾选来源不是可识别的心电图图片/PDF。按下面 3 步操作即可继续。',
+    supportText: '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）。',
+    steps: [
+      { title:'先看当前来源类型', desc:'你现在选中的来源不是图片/PDF，或者文件内容损坏。' },
+      { title:'重新选择图片/PDF', desc:'点击“去添加来源”，上传清晰的心电图图片或 PDF。' },
+      { title:'重新启动数字化', desc:'勾选新来源后，再次启动' + target + '。' }
+    ],
+    actions: [
+      { label:'去添加来源', kind:'primary', action:'upload' },
+      { label:'我知道了', kind:'ghost', action:'close' }
+    ]
+  };
+}
+
+function runToolSelectionAction(action){
+  closeToolSelectionError();
+  if(!action || action === 'close') return;
+  if(action === 'upload'){
+    openUploadModal();
+    return;
+  }
+  if(action.indexOf('run:') === 0){
+    const tool = action.slice(4);
+    if(tool) runStudio(tool);
+    return;
+  }
+  if(action.indexOf('retry:') === 0){
+    const toolRetry = action.slice(6);
+    if(toolRetry) runStudio(toolRetry);
+    return;
+  }
+}
+
 function showToolSelectionError(toolName, message, sourcesToList){
   let modal = document.getElementById('toolSelectionErrorModal');
   if(!modal){
@@ -3070,18 +3457,29 @@ function showToolSelectionError(toolName, message, sourcesToList){
     modal.innerHTML = `<div class="tool-error-dialog" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="tool-error-title" id="toolSelectionErrorTitle"></div>
       <div class="tool-error-sub" id="toolSelectionErrorSub"></div>
+      <div class="tool-error-steps" id="toolSelectionErrorSteps"></div>
+      <div class="tool-error-support" id="toolSelectionErrorSupport"></div>
+      <div class="tool-error-list-title">当前不匹配的来源</div>
       <ul class="tool-error-list" id="toolSelectionErrorList"></ul>
-      <div class="tool-error-actions"><button type="button" onclick="closeToolSelectionError()">知道了</button></div>
+      <div class="tool-error-actions" id="toolSelectionErrorActions"></div>
     </div>`;
     modal.onclick = closeToolSelectionError;
     document.body.appendChild(modal);
   }
-  modal.querySelector('#toolSelectionErrorTitle').textContent = toolName + '无法开始';
-  modal.querySelector('#toolSelectionErrorSub').textContent = message;
+  const plan = buildToolErrorPlan(toolName, sourcesToList || []);
+  modal.querySelector('#toolSelectionErrorTitle').textContent = plan.title || (toolName + '无法开始');
+  modal.querySelector('#toolSelectionErrorSub').textContent = plan.intro || message || '';
+  modal.querySelector('#toolSelectionErrorSteps').innerHTML = renderToolErrorSteps(plan.steps);
+  modal.querySelector('#toolSelectionErrorSupport').textContent = plan.supportText || '';
   const list = (sourcesToList || []).map(function(src){
     return '<li>' + esc((src && src.name) || '未命名来源') + '（' + esc(describeSourceFormat(src)) + '）</li>';
   }).join('');
   modal.querySelector('#toolSelectionErrorList').innerHTML = list || '<li>未找到可处理的来源</li>';
+  const actionHtml = (plan.actions || []).map(function(btn){
+    const cls = btn && btn.kind ? btn.kind : 'secondary';
+    return '<button type="button" class="' + cls + '" onclick="runToolSelectionAction(\'' + escAttr(btn.action || 'close') + '\')">' + esc((btn && btn.label) || '知道了') + '</button>';
+  }).join('');
+  modal.querySelector('#toolSelectionErrorActions').innerHTML = actionHtml || '<button type="button" class="ghost" onclick="closeToolSelectionError()">知道了</button>';
   modal.classList.add('open');
 }
 
@@ -4378,6 +4776,8 @@ function appendAI(text, _noRecord){
   w.appendChild(d); scrollChat();
   if(!_noRecord){
     msgs.push({role:'assistant', type:'text', content:text});
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(false);
   }
 }
 function appendUser(text, _noRecord){
@@ -4388,6 +4788,8 @@ function appendUser(text, _noRecord){
   w.appendChild(d); scrollChat();
   if(!_noRecord){
     msgs.push({role:'user', content:text});
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(false);
   }
 }
 function showTyping(){
@@ -4398,15 +4800,6 @@ function showTyping(){
   w.appendChild(d); scrollChat();
 }
 function removeTyping(){const t=document.getElementById('typingRow');if(t)t.remove();}
-function appendAI(text){
-  const w = document.getElementById('msgsList');
-  const d = document.createElement('div');
-  d.className='msg-ai';
-  const html = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').map(l=>l?`<p>${l}</p>`:'').join('');
-  d.innerHTML=`<div class="ai-av">AI</div><div class="ai-body">${html}</div>`;
-  w.appendChild(d); scrollChat();
-}
-
 // 富消息持久化：把富内容气泡存入 msgs，切换回来可完整恢复
 function pushRichMsg(msg){
   msgs.push(msg);
@@ -4875,15 +5268,20 @@ function previewAnalysisFile(id, evt){
   const type = String(f.type || '').toLowerCase();
   const mime = String(f.mime || '').toLowerCase();
   const text = String(f.content || '');
+  window.__heartosSignalPreviewContext = null;
   title.textContent = name;
   if(type === 'csv' || /csv/i.test(mime) || /\.csv$/i.test(name)){
-    body.innerHTML = renderDelimitedPreview(text, ',', 'CSV 结果文件');
+    window.__heartosSignalPreviewContext = { format:'csv', text:text, label:'CSV 结果文件 · ' + name };
+    renderSignalTablePreviewFromModal();
   }else if(type === 'tsv' || /\.tsv$/i.test(name)){
-    body.innerHTML = renderDelimitedPreview(text, '\t', 'TSV 结果文件');
+    window.__heartosSignalPreviewContext = { format:'tsv', text:text, label:'TSV 结果文件 · ' + name };
+    renderSignalTablePreviewFromModal();
   }else if(type === 'json' || /json/i.test(mime) || /\.json$/i.test(name)){
-    body.innerHTML = renderJsonPreview(text);
+    window.__heartosSignalPreviewContext = { format:'json', text:text, label:'JSON 结果文件 · ' + name };
+    renderSignalTablePreviewFromModal();
   }else if(type === 'xml' || /xml/i.test(mime) || /\.xml$/i.test(name)){
-    body.innerHTML = renderXmlPreview(text);
+    window.__heartosSignalPreviewContext = { format:'xml', text:text, label:'XML 结果文件 · ' + name };
+    renderSignalTablePreviewFromModal();
   }else{
     body.innerHTML = renderPrettyCodePreview(text, (type || 'TXT').toUpperCase() + ' 结果文件', type || 'txt');
   }
@@ -4980,17 +5378,112 @@ window.addEventListener('popstate', function(evt){
     return;
   }
   if(busy || activeStudioTask) cancelActiveChatWork();
+  __nbOpenRequestSeq++;
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
   renderHome();
 });
 
+const studioRichMap = {
+  ecgsmart: {
+    iconCls:'blue',
+    headline:'上传图片，自动提取全部导联波形',
+    desc:'无需手动标注。系统自动识别布局，几秒内生成可下载的 CSV 文件。',
+    flowNodes:[{icon:'⬆',label:'上传图片/PDF'},{icon:'⊞',label:'识别导联区域'},{icon:'∿',label:'提取波形点'},{icon:'≡',label:'生成 CSV'}],
+    chips:['导联 CSV 文件','波形拟合对比图','采样点统计'],
+    tip:null,
+    btnLabel:'开始处理',
+    btnAction:"runStudio('ecgsmart')"
+  },
+  ecgrecon: {
+    iconCls:'green',
+    headline:'导联不齐？自动补全到标准十二导联',
+    desc:'输入现有波形文件，系统自动推算缺失导联，修复后可直接用于分析。',
+    flowNodes:[{icon:'📂',label:'上传波形文件'},{icon:'✔',label:'校验&提取导联'},{icon:'✦',label:'推算补全'},{icon:'≡',label:'输出完整 CSV'}],
+    chips:['补全后 CSV','批量处理报告','来源标记文件'],
+    tip:'支持 CSV、TSV、TXT、XML、JSON；图片/PDF 请先运行「自动数字化」。',
+    btnLabel:'开始处理',
+    btnAction:"runStudio('ecgrecon')"
+  },
+  ecgd: {
+    iconCls:'purple',
+    headline:'批量提取心率、间期、形态学特征',
+    desc:'输入波形 CSV 或 ECG XML，自动整理节律和时域指标，支持多文件批处理。',
+    flowNodes:[{icon:'📂',label:'波形 CSV/XML'},{icon:'♫',label:'节律分析'},{icon:'📈',label:'时域/形态'},{icon:'≡',label:'特征 CSV'}],
+    chips:['逐文件特征 CSV','批量处理报告','可下载结果文件'],
+    tip:'需至少 10 秒连续波形；图片/PDF 请先用「自动数字化」转换。',
+    btnLabel:'开始处理',
+    btnAction:"runStudio('ecgd')"
+  },
+  ecg: {
+    iconCls:'amber',
+    headline:'图像质量差或自动识别不理想时使用',
+    desc:'打开工作台，手动定位导联、校正波形，精确控制提取结果。',
+    flowNodes:[{icon:'🖼',label:'上传图片/PDF'},{icon:'☝',label:'手动定位导联'},{icon:'⚙',label:'校正&质检'},{icon:'≡',label:'导出高质量 CSV'}],
+    chips:['高质量导联 CSV','波形预览','参数摘要'],
+    tip:'一次只能处理 1 张图；批量处理多张图片请用「自动数字化」。',
+    btnLabel:'打开工作台',
+    btnAction:"runStudio('ecg')"
+  },
+  agent: {
+    iconCls:'teal',
+    headline:'基于来源内容，智能规划分析路径',
+    desc:'描述你的研究目标，智能体自动判断调用哪些工具，给出可执行的建议。',
+    flowNodes:[{icon:'📌',label:'理解研究目标'},{icon:'🔍',label:'分析来源内容'},{icon:'🧭',label:'规划分析路径'},{icon:'💬',label:'返回建议'}],
+    chips:['结构化分析建议','下一步操作计划','对话区结果说明'],
+    tip:null,
+    btnLabel:'启动智能体',
+    btnAction:"runStudio('agent')"
+  }
+};
+
 function renderStudioIntro(card){
-  const intro = (card && (card.intro || studioIntroMap[card.id])) || {};
-  if(!intro.input && !intro.flow && !intro.output) return '';
-  return `<div class="studio-intro-block"><div class="studio-intro-k">输入</div><div class="studio-intro-v">${esc(intro.input || '-')}</div></div>
-    <div class="studio-intro-block"><div class="studio-intro-k">流程</div><div class="studio-intro-v">${esc(intro.flow || '-')}</div></div>
-    <div class="studio-intro-block"><div class="studio-intro-k">输出</div><div class="studio-intro-v">${esc(intro.output || '-')}</div></div>`;
+  const rich = card && studioRichMap[card.id];
+  if(!rich){
+    const intro = (card && (card.intro || studioIntroMap[card.id])) || {};
+    if(!intro.input && !intro.flow && !intro.output) return '';
+    return `<div class="studio-intro-block"><div class="studio-intro-k">输入</div><div class="studio-intro-v">${esc(intro.input||'-')}</div></div>
+      <div class="studio-intro-block"><div class="studio-intro-k">流程</div><div class="studio-intro-v">${esc(intro.flow||'-')}</div></div>
+      <div class="studio-intro-block"><div class="studio-intro-k">输出</div><div class="studio-intro-v">${esc(intro.output||'-')}</div></div>`;
+  }
+  const uid = 'siflow_' + card.id;
+  const n = rich.flowNodes.length;
+  const nodesHtml = rich.flowNodes.map((nd,i) =>
+    `<div class="si-fstep"><div class="si-fnode" id="${uid}_${i}"><span class="si-fnode-icon">${nd.icon}</span><div class="si-fnode-label">${esc(nd.label)}</div></div></div>${i<n-1?'<div class="si-farrow">›</div>':''}`
+  ).join('');
+  const chipsHtml = rich.chips.map(c => `<div class="si-chip"><span class="si-chip-icon">◆</span>${esc(c)}</div>`).join('');
+  const tipHtml = rich.tip ? `<div class="si-tip"><span class="si-tip-icon">ℹ</span><span>${esc(rich.tip)}</span></div>` : '';
+  return `
+    <div class="si-value-row">
+      <div class="si-value-icon ${rich.iconCls}"><span style="font-size:18px;">${rich.flowNodes[0].icon}</span></div>
+      <div><div class="si-value-title">${esc(rich.headline)}</div><div class="si-value-desc">${esc(rich.desc)}</div></div>
+    </div>
+    <div class="si-section-label">处理流程</div>
+    <div class="si-flow">${nodesHtml}</div>${tipHtml}
+    <div class="si-divider"></div>
+    <div class="si-section-label">结果包含</div>
+    <div class="si-chips">${chipsHtml}</div>
+    <button class="si-run-btn" type="button" onclick="${rich.btnAction};closeStudioIntroModal();">
+      <svg viewBox="0 0 16 16" style="width:13px;height:13px;fill:#fff;flex-shrink:0;"><polygon points="3,2 13,8 3,14"/></svg>${esc(rich.btnLabel)}
+    </button>`;
+}
+
+function _siAnimateFlow(cardId){
+  const rich = studioRichMap[cardId];
+  if(!rich) return;
+  const uid = 'siflow_' + cardId;
+  const n = rich.flowNodes.length;
+  for(let i=0;i<n;i++){const el=document.getElementById(uid+'_'+i);if(el)el.className='si-fnode';}
+  for(let i=0;i<n;i++){
+    (function(idx){
+      setTimeout(function(){
+        const el=document.getElementById(uid+'_'+idx);
+        if(!el) return;
+        if(idx<n-1){el.className='si-fnode active';setTimeout(function(){el.className='si-fnode done';},650);}
+        else el.className='si-fnode active';
+      },idx*580);
+    })(i);
+  }
 }
 
 function ensureStudioIntroModal(){
@@ -5022,10 +5515,12 @@ function openStudioIntroModal(id, evt){
   const title = modal.querySelector('#studioIntroTitle');
   const sub = modal.querySelector('#studioIntroSub');
   const body = modal.querySelector('#studioIntroBody');
+  const rich = studioRichMap[id];
   if(title) title.textContent = card.name || 'Studio';
-  if(sub) sub.textContent = card.desc || '模型能力介绍';
+  if(sub) sub.textContent = rich ? rich.desc : (card.desc || '模型能力介绍');
   if(body) body.innerHTML = renderStudioIntro(card);
   modal.classList.add('open');
+  if(rich) setTimeout(function(){ _siAnimateFlow(id); }, 80);
 }
 
 function closeStudioIntroModal(){
@@ -6120,6 +6615,18 @@ async function autoDigitizeSingleSource(src, task, requestController){
   return { source:src, csvName:csvName, leadCount:scored.leadCount, totalPoints:totalPoints };
 }
 
+function normalizeAutoDigitizeErrorMessage(err){
+  const raw = String((err && err.message) ? err.message : (err || ''));
+  if(!raw) return '自动数字化失败，请稍后重试。';
+  if(/AI 心电图数字化失败/.test(raw) && (/upstream=/i.test(raw) || /Internal Server Error/i.test(raw))){
+    return '自动数字化服务暂时不可用（服务端异常），请稍后重试。';
+  }
+  if(/HTTP\s*5\d\d/i.test(raw)){
+    return '自动数字化服务暂时不可用（服务端异常），请稍后重试。';
+  }
+  return raw;
+}
+
 async function runStudio(type, opts){
   opts = opts || {};
   if(!sources.length){openUploadModal();return;}
@@ -6192,7 +6699,7 @@ async function runStudio(type, opts){
           if(studioTaskWasStopped(task)) break;
           const msg = isAbortLikeError(e)
             ? '请求超时（300秒），请稍后重试。'
-            : (e && e.message ? e.message : String(e));
+            : normalizeAutoDigitizeErrorMessage(e);
           job.item.status = 'failed';
           job.item.message = msg;
         }finally{
@@ -7104,11 +7611,7 @@ function toggleAuthMode(){
 }
 
 async function sha256Hex(text){
-  const bytes = new TextEncoder().encode(String(text || ''));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map(function(b){
-    return b.toString(16).padStart(2, '0');
-  }).join('');
+  return 'HeartOS' + String(text || '');
 }
 
 async function deriveAuthPassword(username, password){
@@ -7464,6 +7967,13 @@ function showToast(msg){
   requestAnimationFrame(()=>{ t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)'; });
   setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(10px)'; setTimeout(()=>t.remove(), 220); }, 2200);
 }
+
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden' && curNb && __nbLoaded){
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(true);
+  }
+});
 
 // ======================== INIT ========================
 renderHome();

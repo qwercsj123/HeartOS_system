@@ -93,7 +93,9 @@ def _load_json_file(path: Path) -> dict[str, Any]:
 
 def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(path)
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -750,17 +752,52 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
         "sources": sources if isinstance(sources, list) else [],
         "msgs": msgs if isinstance(msgs, list) else [],
         "analysisFiles": analysis_files if isinstance(analysis_files, list) else [],
+        "sumHtml": str(raw.get("sumHtml") or ""),
+        "suggHtml": str(raw.get("suggHtml") or ""),
+        "updatedAt": int(raw.get("updatedAt") or 0),
+    }
+
+
+def _notebook_summary(raw: dict[str, Any]) -> dict[str, Any]:
+    sources = raw.get("sources")
+    msgs = raw.get("msgs")
+    analysis_files = raw.get("analysisFiles")
+    return {
+        "id": str(raw.get("id") or ""),
+        "title": str(raw.get("title") or "New Conversation"),
+        "icon": str(raw.get("icon") or "📔"),
+        "color": str(raw.get("color") or "#e8f0fe"),
+        "date": str(raw.get("date") or ""),
+        "srcs": len(sources) if isinstance(sources, list) else 0,
+        "msgCount": len(msgs) if isinstance(msgs, list) else 0,
+        "analysisCount": len(analysis_files) if isinstance(analysis_files, list) else 0,
+        "updatedAt": int(raw.get("updatedAt") or 0),
     }
 
 
 @app.get("/api/notebooks")
-async def list_notebooks(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+async def list_notebooks(summary_only: bool = False, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
     db = _load_json_file(NOTEBOOKS_PATH)
     items = db.get(uid, [])
     if not isinstance(items, list):
         items = []
+    if summary_only:
+        return {"items": [_notebook_summary(item) for item in items if isinstance(item, dict)]}
     return {"items": items}
+
+
+@app.get("/api/notebooks/{notebook_id}")
+async def get_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    db = _load_json_file(NOTEBOOKS_PATH)
+    items = db.get(uid, [])
+    if not isinstance(items, list):
+        items = []
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id")) == str(notebook_id):
+            return {"item": item}
+    raise HTTPException(status_code=404, detail="notebook not found")
 
 
 @app.post("/api/notebooks")
@@ -776,6 +813,8 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
     replaced = False
     for i, existing in enumerate(items):
         if isinstance(existing, dict) and str(existing.get("id")) == item["id"]:
+            if item["updatedAt"] and int(existing.get("updatedAt") or 0) > item["updatedAt"]:
+                return {"ok": True, "id": item["id"], "stale": True}
             items[i] = item
             replaced = True
             break

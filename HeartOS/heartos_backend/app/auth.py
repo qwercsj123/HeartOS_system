@@ -50,6 +50,16 @@ def _client_password_digest(username: str, password: str) -> str:
     return f"heartos:v1:sha256:{digest}"
 
 
+def _is_client_password_heartos(password: str) -> bool:
+    value = str(password or "")
+    return value.startswith("HeartOSheartos-auth-v1:")
+
+
+def _client_password_heartos(username: str, password: str) -> str:
+    normalized_user = str(username or "").strip().lower()
+    return "HeartOSheartos-auth-v1:" + normalized_user + ":" + str(password or "")
+
+
 def _load_users() -> dict[str, Any]:
     if not USERS_PATH.exists():
         _init_default_user()
@@ -101,6 +111,14 @@ def verify_user(username: str, password: str) -> dict[str, Any] | None:
             u["password_hash"] = _hash_password(password, salt)
             _save_users(db)
             return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
+        # Compatibility for deployments that replaced client digest logic with:
+        #   return "HeartOS" + text
+        # where text is "heartos-auth-v1:{user}:{password}".
+        derived_password_v2 = _client_password_heartos(username, password)
+        if hmac.compare_digest(_hash_password(derived_password_v2, salt), stored_hash):
+            u["password_hash"] = _hash_password(password, salt)
+            _save_users(db)
+            return {"id": u.get("id"), "username": u.get("username"), "display_name": u.get("display_name") or u.get("username")}
     return None
 
 
@@ -109,7 +127,7 @@ def register_user(username: str, password: str, display_name: str | None = None)
     username = (username or "").strip()
     if len(username) < 3:
         raise ValueError("用户名至少 3 位")
-    if not _is_client_password_digest(password):
+    if not _is_client_password_digest(password) and not _is_client_password_heartos(password):
         if len(password or "") < 6:
             raise ValueError("密码至少 6 位")
         if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
