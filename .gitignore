@@ -1,0 +1,9 @@
+HeartOS/heartos_backend/.venv/
+HeartOS/heartos_backend/.venv.windows-backup.20260521214904/
+HeartOS/heartos_backend/data/
+
+*.pyc
+.DS_Store
+.env
+__pycache__/
+.codex_tmp13/
