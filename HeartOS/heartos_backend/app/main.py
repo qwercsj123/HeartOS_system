@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import re
+import time
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -38,6 +39,7 @@ from .schemas import (
     ChatRequest,
     ChatResponse,
     ECGOmicsAnalyzeRequest,
+    FeedbackSubmitRequest,
     HandEcgSaveRequest,
     LoginRequest,
     LoginResponse,
@@ -66,6 +68,7 @@ LLM_GATEWAY = build_default_gateway()
 NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json").resolve()
 NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
+FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
 
 
 def _load_file_meta() -> dict[str, Any]:
@@ -734,6 +737,38 @@ async def save_ai_config(payload: dict[str, Any], user: dict[str, Any] = Depends
     db[uid][provider] = {"api_key": api_key}
     _save_json_file(AI_CONFIG_PATH, db)
     return {"ok": True, "provider": provider, "has_key": True}
+
+
+@app.post("/api/feedback")
+async def submit_feedback(
+    payload: FeedbackSubmitRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    message = payload.message.strip()
+    if len(message) < 5:
+        raise HTTPException(status_code=422, detail="反馈内容至少需要 5 个字符")
+
+    db = _load_json_file(FEEDBACK_PATH)
+    items = db.get("items", [])
+    if not isinstance(items, list):
+        items = []
+
+    record = {
+        "id": uuid.uuid4().hex,
+        "createdAt": int(time.time() * 1000),
+        "message": message,
+        "context": payload.context if isinstance(payload.context, dict) else {},
+        "status": "new",
+        "user": {
+            "id": str(user.get("id") or ""),
+            "username": str(user.get("username") or ""),
+            "display_name": str(user.get("display_name") or ""),
+        },
+    }
+    items.insert(0, record)
+    db["items"] = items[:1000]
+    _save_json_file(FEEDBACK_PATH, db)
+    return {"ok": True, "id": record["id"]}
 
 
 def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:

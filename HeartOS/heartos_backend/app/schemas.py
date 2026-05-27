@@ -84,6 +84,11 @@ class MeResponse(BaseModel):
     display_name: str
 
 
+class FeedbackSubmitRequest(BaseModel):
+    message: str = Field(min_length=5, max_length=5000)
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
 class HandEcgSaveRequest(BaseModel):
     user_id: str = ""
     image_base64: str = Field(min_length=1)
