@@ -22,7 +22,7 @@ PROVIDERS: dict[str, ProviderDef] = {
         default_model="deepseek-chat",
     ),
     "zhipu": ProviderDef(
-        name="Zhipu GLM",
+        name="HeartOS AI",
         url="https://open.bigmodel.cn/api/paas/v4/chat/completions",
         default_model="glm-4-flash",
     ),

@@ -49,6 +49,21 @@ from .schemas import (
 
 
 APP_VERSION = "1.4.1"
+PLATFORM_NAME = "HeartOS"
+DEFAULT_CHAT_SYSTEM = (
+    "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。"
+    "当用户询问“你是谁”“你是做什么的”时，请优先使用这句身份介绍，并围绕 HeartOS 的心电相关能力展开回答；"
+    "不要提及底层模型、第三方厂商或外部品牌。"
+    "回答使用中文，风格专业、清晰、可信。"
+)
+IDENTITY_REPLY = "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。"
+CAPABILITY_REPLY = "HeartOS 主要支持心电图数字化、ECG 特征提取、信号补全和相关心电数据分析。"
+PLATFORM_REPLY = "HeartOS 是一个面向心电数据处理与分析的平台，支持心电图数字化、特征提取、信号补全和相关分析任务。"
+GUIDE_REPLY = "你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合特征提取与信号补全。"
+INPUT_REPLY = "HeartOS 目前支持心电图图片、PDF、ECG XML、CSV，以及部分 TSV、TXT、JSON 等波形数据文件。"
+DIFF_REPLY = "手动数字化适合精细框选和人工校正，自动数字化适合快速处理标准心电图图片；如果自动结果不理想，建议切换到手动数字化。"
+FEATURE_REPLY = "ECG 特征提取用于从波形中提取结构化指标，信号补全用于对缺失导联或不完整波形进行重建与补全。"
+BOUNDARY_REPLY = "HeartOS 可以协助完成心电数据处理与分析，但不能替代医生作出临床诊断。"
 
 app = FastAPI(title=settings.name, version=APP_VERSION)
 app.add_middleware(
@@ -123,6 +138,72 @@ def _extract_json_object(text: str) -> dict[str, Any]:
     return {}
 
 
+def _is_identity_question(message: str) -> bool:
+    text = (message or "").strip().lower()
+    if not text:
+        return False
+    normalized = re.sub(r"\s+", "", text)
+    patterns = (
+        "你是谁",
+        "您是谁",
+        "你是做什么的",
+        "您是做什么的",
+        "介绍一下你自己",
+        "介绍下你自己",
+        "你叫什么",
+        "你叫啥",
+        "whoareyou",
+        "whatdoyoudo",
+    )
+    return any(p in normalized for p in patterns)
+
+
+def _match_canned_reply(message: str) -> str:
+    text = (message or "").strip().lower()
+    if not text:
+        return ""
+    normalized = re.sub(r"\s+", "", text)
+    if _is_identity_question(message):
+        return IDENTITY_REPLY
+    capability_patterns = (
+        "你能做什么", "您能做什么", "你可以做什么", "你有哪些功能", "你支持什么", "能做什么", "支持什么功能",
+    )
+    platform_patterns = (
+        "这个平台是干什么的", "heartos是什么", "介绍一下平台", "介绍下平台", "平台是做什么的", "heartos是做什么的",
+    )
+    guide_patterns = (
+        "我该怎么用你", "怎么开始", "如何开始", "怎么使用", "如何使用", "怎么用", "使用方法",
+    )
+    input_patterns = (
+        "支持哪些数据类型", "支持什么文件", "能上传什么文件", "支持哪些文件", "支持什么格式", "上传什么",
+    )
+    diff_patterns = (
+        "手动数字化和自动数字化有什么区别", "手动数字化和自动数字化区别", "手动和自动数字化有什么区别", "手动和自动数字化区别",
+    )
+    feature_patterns = (
+        "特征提取是做什么的", "信号补全是做什么的", "特征提取和信号补全分别是做什么的",
+        "特征提取和信号补全有什么区别", "ecg特征提取是做什么的",
+    )
+    boundary_patterns = (
+        "你是不是医生", "您是不是医生", "你能不能诊断", "能不能诊断", "能做诊断吗", "你是不是专家",
+    )
+    if any(p in normalized for p in capability_patterns):
+        return CAPABILITY_REPLY
+    if any(p in normalized for p in platform_patterns):
+        return PLATFORM_REPLY
+    if any(p in normalized for p in guide_patterns):
+        return GUIDE_REPLY
+    if any(p in normalized for p in input_patterns):
+        return INPUT_REPLY
+    if any(p in normalized for p in diff_patterns):
+        return DIFF_REPLY
+    if any(p in normalized for p in feature_patterns):
+        return FEATURE_REPLY
+    if any(p in normalized for p in boundary_patterns):
+        return BOUNDARY_REPLY
+    return ""
+
+
 async def _classify_intent_with_zhipu(
     *,
     message: str,
@@ -135,7 +216,7 @@ async def _classify_intent_with_zhipu(
         "字段: intent, route, target, reason, need_fields。"
         "intent 只能是: ecg_digitize, ecg_manual_digitize, ecg_reconstruct, ecgomics_analyze, report_generate, rag_search, agent_run, chat。"
         "route 只能是: api, agent, model。"
-        "target 取值示例: /api/ai-ecg-digitize, /api/ecg-reconstruct, /api/ecgomics/analyze, /tool/handecg/manual, /tool/report/generate, /tool/rag/search, ecg, ml, dl, stats, zhipu。"
+        "target 取值示例: /api/ai-ecg-digitize, /api/ecg-reconstruct, /api/ecgomics/analyze, /tool/handecg/manual, /tool/report/generate, /tool/rag/search, ecg, ml, dl, stats, heartos_chat。"
         "如果用户明确要求手动数字化，返回 ecg_manual_digitize + /tool/handecg/manual。"
         "如果用户明确要求自动数字化，返回 ecg_digitize + /api/ai-ecg-digitize。"
         "如果用户要求心电图补全、心电图重建、导联补全、波形重建，返回 ecg_reconstruct + /api/ecg-reconstruct。"
@@ -159,7 +240,7 @@ async def _classify_intent_with_zhipu(
     )
     parsed = _extract_json_object(out.get("reply", ""))
     if not parsed:
-        return {"intent": "chat", "route": "model", "target": "zhipu", "reason": "fallback", "need_fields": []}
+        return {"intent": "chat", "route": "model", "target": "heartos_chat", "reason": "fallback", "need_fields": []}
     return parsed
 
 
@@ -880,11 +961,28 @@ async def chat(req: ChatRequest, user: dict[str, Any] = Depends(get_current_user
     provider = (req.provider or settings.llm_default_provider).strip().lower()
     model = (req.model or settings.llm_default_model).strip()
     msg_list = [{"role": m.role, "content": m.content} for m in req.messages]
+    system_prompt = (req.system or "").strip() or DEFAULT_CHAT_SYSTEM
+    latest_user_message = ""
+    for item in reversed(msg_list):
+        if item.get("role") == "user":
+            latest_user_message = str(item.get("content") or "")
+            break
+    canned_reply = _match_canned_reply(latest_user_message)
+    if canned_reply:
+        return ChatResponse(
+            reply=canned_reply,
+            provider=provider,
+            model=model or settings.llm_default_model,
+            request_id=None,
+            raw=None,
+            user_id=str(user.get("id")),
+            username=str(user.get("username")),
+        )
 
     result = await LLM_GATEWAY.chat(
         provider_key=provider,
         model=model,
-        system=req.system or "",
+        system=system_prompt,
         messages=msg_list,
         max_tokens=req.max_tokens,
         temperature=req.temperature,
@@ -928,6 +1026,15 @@ async def run_agent(agent_id: str, req: AgentRunRequest, user: dict[str, Any] = 
 @app.post("/api/agent/auto-run", response_model=AgentAutoRunResponse)
 async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depends(get_current_user)) -> AgentAutoRunResponse:
     msg_text = (req.message or "").strip().lower()
+    canned_reply = _match_canned_reply(req.message or "")
+    if canned_reply:
+        return AgentAutoRunResponse(
+            intent="chat",
+            route="model",
+            target="heartos_identity",
+            reply=canned_reply,
+            action={"provider": "heartos", "model": "identity"},
+        )
     has_image = bool((req.context or {}).get("has_image"))
     has_xml = bool((req.context or {}).get("has_xml"))
     has_csv = bool((req.context or {}).get("has_csv"))
@@ -972,11 +1079,11 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
             elif "ecgomics" in msg_text or has_xml:
                 route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
             else:
-                route_plan = {"intent": "chat", "route": "model", "target": "zhipu"}
+                route_plan = {"intent": "chat", "route": "model", "target": "heartos_chat"}
 
     intent = str(route_plan.get("intent") or "chat")
     route = str(route_plan.get("route") or "model")
-    target = str(route_plan.get("target") or "zhipu")
+    target = str(route_plan.get("target") or "heartos_chat")
 
     if intent == "ecg_manual_digitize" or target == "/tool/handecg/manual":
         return AgentAutoRunResponse(
@@ -1037,7 +1144,7 @@ async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depend
         provider=req.provider,
         model=req.model,
         api_key=req.api_key,
-        system="",
+        system=DEFAULT_CHAT_SYSTEM,
         messages=[{"role": "user", "content": req.message}],
         max_tokens=req.max_tokens,
         temperature=req.temperature,

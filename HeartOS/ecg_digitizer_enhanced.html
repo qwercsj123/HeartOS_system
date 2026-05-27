@@ -6236,9 +6236,13 @@ function buildHeartOSPreviewImageDataUrl(presentLeads, fs) {
 function emitExtractionToHeartOS(presentLeads, fs) {
   const leads = Array.isArray(presentLeads) ? presentLeads.slice() : [];
   const waveforms = {};
+  const boxes = {};
   leads.forEach(lead => {
     if (state.extractedMV && state.extractedMV[lead]) {
       waveforms[lead] = downsampleSignal(state.extractedMV[lead], 240);
+    }
+    if (state.boxes && state.boxes[lead]) {
+      boxes[lead] = { ...state.boxes[lead] };
     }
   });
   const payload = {
@@ -6247,6 +6251,9 @@ function emitExtractionToHeartOS(presentLeads, fs) {
     leads: leads,
     fs: fs,
     pointsPerLead: leads.length ? ((state.extractedMV && state.extractedMV[leads[0]]) ? state.extractedMV[leads[0]].length : 0) : 0,
+    imageW: Number(state.imageW) || 0,
+    imageH: Number(state.imageH) || 0,
+    boxes: boxes,
     waveforms: waveforms,
     previewImageDataUrl: buildHeartOSPreviewImageDataUrl(leads, fs || ECG_CFG.FS_DEFAULT),
     ts: Date.now()
@@ -6255,15 +6262,25 @@ function emitExtractionToHeartOS(presentLeads, fs) {
 }
 
 function emitCSVToHeartOS(fileName, csv, presentLeads, fs, maxN) {
+  const leads = Array.isArray(presentLeads) ? presentLeads.slice() : [];
+  const boxes = {};
+  leads.forEach(lead => {
+    if (state.boxes && state.boxes[lead]) {
+      boxes[lead] = { ...state.boxes[lead] };
+    }
+  });
   const payload = {
     type: 'HEARTOS_ECG_CSV',
     tool: 'handecg',
     fileName: fileName || 'ecg.csv',
     sourceName: state.saveConfig.sourceName || '',
     csv: csv || '',
-    leads: Array.isArray(presentLeads) ? presentLeads.slice() : [],
+    leads: leads,
     fs: fs || ECG_CFG.FS_DEFAULT,
     pointsPerLead: maxN || 0,
+    imageW: Number(state.imageW) || 0,
+    imageH: Number(state.imageH) || 0,
+    boxes: boxes,
     previewImageDataUrl: buildHeartOSPreviewImageDataUrl(presentLeads, fs || ECG_CFG.FS_DEFAULT),
     ts: Date.now()
   };

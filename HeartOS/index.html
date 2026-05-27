@@ -1060,7 +1060,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="api-provider-tabs" id="apiProviderTabs">
         <button class="api-ptab active" onclick="selectProvider('openrouter',this)">OpenRouter（推荐）</button>
         <button class="api-ptab" onclick="selectProvider('deepseek',this)">DeepSeek</button>
-        <button class="api-ptab" onclick="selectProvider('zhipu',this)">智谱 GLM</button>
+        <button class="api-ptab" onclick="selectProvider('zhipu',this)">HeartOS AI</button>
         <button class="api-ptab" onclick="selectProvider('qwen',this)">通义千问</button>
         <button class="api-ptab" onclick="selectProvider('groq',this)">Groq（免费）</button>
       </div>
@@ -3438,12 +3438,12 @@ function buildToolErrorPlan(toolName, sourcesToList){
   const target = toolName === '手动数字化' ? '手动数字化' : '自动数字化';
   return {
     title: target + '暂时不能开始',
-    intro: '当前勾选来源不是可识别的心电图图片/PDF。按下面 3 步操作即可继续。',
-    supportText: '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）。',
+    intro: '当前勾选来源不是可识别的心电图图片/PDF，且' + target + '一次只能基于 1 个图片/PDF 来源启动。按下面 3 步操作即可继续。',
+    supportText: '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个来源启动数字化。',
     steps: [
       { title:'先看当前来源类型', desc:'你现在选中的来源不是图片/PDF，或者文件内容损坏。' },
       { title:'重新选择图片/PDF', desc:'点击“去添加来源”，上传清晰的心电图图片或 PDF。' },
-      { title:'重新启动数字化', desc:'勾选新来源后，再次启动' + target + '。' }
+      { title:'重新启动数字化', desc:'只勾选 1 个图片/PDF 来源后，再次启动' + target + '。' }
     ],
     actions: [
       { label:'去添加来源', kind:'primary', action:'upload' },
@@ -4563,7 +4563,7 @@ async function routeByLLM(userText){
   var providerBak = aiConfig.provider;
   var modelBak = aiConfig.model;
   try{
-    // Force routing model to Zhipu (teacher-required path)
+    // Route through the default HeartOS conversational model path
     aiConfig.provider = 'zhipu';
     if(!aiConfig.model || !/glm/i.test(String(aiConfig.model))){
       aiConfig.model = 'glm-4-flash';
@@ -4652,6 +4652,12 @@ async function sendMsg(){
   showTyping();
   setChatBusy(true);
   chatAbortController = new AbortController();
+
+  var cannedReply = getHeartosCannedReply(q);
+  if(cannedReply){
+    finishDispatchToolChat(q, cannedReply);
+    return;
+  }
 
   const requestedTool = requestedStudioToolFromChat(q);
   if(requestedTool){
@@ -4768,7 +4774,7 @@ async function sendMsg(){
 
   try{
     const reply = await callAI(
-      `你是一个专业的文档问答助手。严格基于以下来源内容回答问题，回答要准确、专业、有洞察力。如果内容不足以回答，请说明。\n\n来源内容：\n${srcContent.slice(0,6000)}`,
+      HEARTOS_IDENTITY_PROMPT + `\n\n你是一个专业的文档问答助手。严格基于以下来源内容回答问题，回答要准确、专业、有洞察力。如果内容不足以回答，请说明。\n\n来源内容：\n${srcContent.slice(0,6000)}`,
       [...history,{role:'user',content:q}],
       1000,
       '',
@@ -7505,17 +7511,17 @@ const AI_PROVIDERS = {
     getReply:(data)=>data.choices?.[0]?.message?.content||''
   },
   zhipu:{
-    name:'智谱 GLM',
+    name:'HeartOS AI',
     url:'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-    keyLabel:'智谱 API Key',
-    keyHint:'在 open.bigmodel.cn 注册，新用户有免费 Token。<a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank">获取 Key →</a>',
+    keyLabel:'HeartOS Access Key',
+    keyHint:'请输入 HeartOS AI 访问密钥；如未分配，请联系平台管理员。',
     models:[
-      {id:'glm-4-flash',name:'GLM-4-Flash（免费）'},
-      {id:'glm-4-air',name:'GLM-4-Air'},
-      {id:'glm-4',name:'GLM-4'},
+      {id:'glm-4-flash',name:'HeartOS Standard（快速）'},
+      {id:'glm-4-air',name:'HeartOS Enhanced'},
+      {id:'glm-4',name:'HeartOS Pro'},
     ],
     defaultModel:'glm-4-flash',
-    modelHint:'glm-4-flash 完全免费，速度快',
+    modelHint:'默认推荐 HeartOS Standard，响应更快',
     buildBody:(model,system,messages,maxTokens)=>({
       model,max_tokens:maxTokens,
       messages:[{role:'system',content:system},...messages]
@@ -7917,6 +7923,37 @@ function authHeaders(extra){
 }
 
 var __heartosEcgMsgSeq = 0;
+const HEARTOS_IDENTITY_PROMPT =
+  '我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。' +
+  '当用户询问“你是谁”“你是做什么的”时，请优先使用这句身份介绍，并围绕 HeartOS 的心电相关能力展开回答，不要提及底层模型、第三方厂商或外部品牌。' +
+  '回答使用中文，风格专业、清晰、可信。';
+const HEARTOS_IDENTITY_REPLY = '我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。';
+const HEARTOS_CAPABILITY_REPLY = 'HeartOS 主要支持心电图数字化、ECG 特征提取、信号补全和相关心电数据分析。';
+const HEARTOS_PLATFORM_REPLY = 'HeartOS 是一个面向心电数据处理与分析的平台，支持心电图数字化、特征提取、信号补全和相关分析任务。';
+const HEARTOS_GUIDE_REPLY = '你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合特征提取与信号补全。';
+const HEARTOS_INPUT_REPLY = 'HeartOS 目前支持心电图图片、PDF、ECG XML、CSV，以及部分 TSV、TXT、JSON 等波形数据文件。';
+const HEARTOS_DIFF_REPLY = '手动数字化适合精细框选和人工校正，自动数字化适合快速处理标准心电图图片；如果自动结果不理想，建议切换到手动数字化。';
+const HEARTOS_FEATURE_REPLY = 'ECG 特征提取用于从波形中提取结构化指标，信号补全用于对缺失导联或不完整波形进行重建与补全。';
+const HEARTOS_BOUNDARY_REPLY = 'HeartOS 可以协助完成心电数据处理与分析，但不能替代医生作出临床诊断。';
+function isHeartosIdentityQuestion(text){
+  var q = String(text || '').toLowerCase().replace(/\s+/g, '');
+  if(!q) return false;
+  return ['你是谁','您是谁','你是做什么的','您是做什么的','介绍一下你自己','介绍下你自己','你叫什么','你叫啥','whoareyou','whatdoyoudo']
+    .some(function(x){ return q.indexOf(x) >= 0; });
+}
+function getHeartosCannedReply(text){
+  var q = String(text || '').toLowerCase().replace(/\s+/g, '');
+  if(!q) return '';
+  if(isHeartosIdentityQuestion(text)) return HEARTOS_IDENTITY_REPLY;
+  if(['你能做什么','您能做什么','你可以做什么','你有哪些功能','你支持什么','能做什么','支持什么功能'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_CAPABILITY_REPLY;
+  if(['这个平台是干什么的','heartos是什么','介绍一下平台','介绍下平台','平台是做什么的','heartos是做什么的'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_PLATFORM_REPLY;
+  if(['我该怎么用你','怎么开始','如何开始','怎么使用','如何使用','怎么用','使用方法'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_GUIDE_REPLY;
+  if(['支持哪些数据类型','支持什么文件','能上传什么文件','支持哪些文件','支持什么格式','上传什么'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_INPUT_REPLY;
+  if(['手动数字化和自动数字化有什么区别','手动数字化和自动数字化区别','手动和自动数字化有什么区别','手动和自动数字化区别'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_DIFF_REPLY;
+  if(['特征提取是做什么的','信号补全是做什么的','特征提取和信号补全分别是做什么的','特征提取和信号补全有什么区别','ecg特征提取是做什么的'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_FEATURE_REPLY;
+  if(['你是不是医生','您是不是医生','你能不能诊断','能不能诊断','能做诊断吗','你是不是专家'].some(function(x){ return q.indexOf(x) >= 0; })) return HEARTOS_BOUNDARY_REPLY;
+  return '';
+}
 function getHeartosUserMeta(){
   var u = getAuthUser() || {};
   return {
@@ -8107,7 +8144,7 @@ async function testApiKey(){
   const prev = aiConfig;
   aiConfig = tmpCfg;
   try{
-    await callAI('你是助手。', [{role:'user',content:'回复"ok"'}], 10, key);
+    await callAI(HEARTOS_IDENTITY_PROMPT, [{role:'user',content:'回复"ok"'}], 10, key);
     bar.className='api-status ok'; txt.textContent='✅ 连接成功！';
   } catch(e){
     bar.className='api-status err'; txt.textContent='❌ ' + e.message;
@@ -9931,11 +9968,31 @@ document.addEventListener('keydown',function(e){
     var h = Number(data && data.imageH) || 0;
     var boxes = (data && data.boxes) || {};
     Object.keys(boxes).forEach(function(lead){
-      var b = boxes[lead] || {};
+      var b = normalizeLeadBox(boxes[lead]);
+      if(!b) return;
       w = Math.max(w, Number(b.x1)||0, Number(b.x2)||0);
       h = Math.max(h, Number(b.y1)||0, Number(b.y2)||0);
     });
     return { w: Math.max(1, Math.round(w || 1000)), h: Math.max(1, Math.round(h || 1200)) };
+  }
+
+  function normalizeLeadBox(box){
+    if(!box || typeof box !== 'object') return null;
+    var x1 = Number(box.x1);
+    var y1 = Number(box.y1);
+    var x2 = Number(box.x2);
+    var y2 = Number(box.y2);
+    if(Number.isFinite(x1) && Number.isFinite(y1) && Number.isFinite(x2) && Number.isFinite(y2)){
+      return { x1:x1, y1:y1, x2:x2, y2:y2 };
+    }
+    var x = Number(box.x);
+    var y = Number(box.y);
+    var w = Number(box.w);
+    var h = Number(box.h);
+    if(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h)){
+      return { x1:x, y1:y, x2:x + w, y2:y + h };
+    }
+    return null;
   }
 
   function buildOriginalOverlaySvg(parsed, data){
@@ -9947,7 +10004,8 @@ document.addEventListener('keydown',function(e){
     var palette = ['#5eead4','#5eead4','#86efac','#60a5fa','#818cf8','#f0abfc','#5eead4','#86efac','#60a5fa','#818cf8','#f0abfc','#5eead4'];
     var body = '';
     leads.forEach(function(lead, idx){
-      var raw = boxes[lead] || {};
+      var raw = normalizeLeadBox(boxes[lead]);
+      if(!raw) return;
       var x1 = Number(raw.x1) || 0, y1 = Number(raw.y1) || 0, x2 = Number(raw.x2) || 0, y2 = Number(raw.y2) || 0;
       var bx = Math.min(x1, x2), by = Math.min(y1, y2);
       var bw = Math.max(1, Math.abs(x2 - x1)), bh = Math.max(1, Math.abs(y2 - y1));
@@ -9982,7 +10040,7 @@ document.addEventListener('keydown',function(e){
   }
 
   function buildLeadCropCard(parsed, data, lead, idx, imageDataUrl){
-    var box = data && data.boxes && data.boxes[lead];
+    var box = normalizeLeadBox(data && data.boxes && data.boxes[lead]);
     var arr = finiteLeadValues((parsed.data || {})[lead]);
     if(!box || arr.length < 2 || !imageDataUrl) return '';
     var x1 = Number(box.x1) || 0, y1 = Number(box.y1) || 0, x2 = Number(box.x2) || 0, y2 = Number(box.y2) || 0;
