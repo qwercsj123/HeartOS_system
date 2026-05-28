@@ -109,6 +109,9 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .source-mini-item:hover,.source-mini-add:hover{transform:translateY(-1px);box-shadow:var(--sh1);}
 .source-mini-item.active{box-shadow:0 0 0 2px var(--accent);border-color:transparent;}
 .source-mini-item .src-ico{width:28px;height:28px;border-radius:8px;font-size:9px;}
+.msg-event{display:flex;justify-content:center;}
+.msg-event-pill{display:inline-flex;align-items:center;gap:8px;max-width:min(720px,92%);padding:8px 12px;border-radius:999px;background:#eef4ff;color:#3158b8;font-size:12px;font-weight:600;line-height:1.45;box-shadow:var(--sh0);}
+.msg-event-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
 .panel.collapsed .ph{justify-content:center;padding:12px 6px;}
 .panel.collapsed .ph-title,.panel.collapsed .add-src-btn,.panel.collapsed .srcs-list{display:none;}
 .panel.collapsed .source-mini-rail{display:flex;}
@@ -1109,6 +1112,7 @@ let notebooks = [
 let curNb = null;
 let sources = [];
 let msgs = [];
+let chatEvents = [];
 let busy = false;
 let chatAbortController = null;
 let activeToolAbortController = null;
@@ -1287,6 +1291,7 @@ function normalizeNotebookItem(it, detailsLoaded){
   const safeId = String((it && it.id) || Date.now());
   const safeSources = Array.isArray(it && it.sources) ? it.sources : [];
   const safeMsgs = Array.isArray(it && it.msgs) ? it.msgs : [];
+  const safeEvents = Array.isArray(it && it.events) ? it.events : [];
   return {
     id: safeId,
     title: (it && it.title) ? String(it.title) : 'New Conversation',
@@ -1296,6 +1301,7 @@ function normalizeNotebookItem(it, detailsLoaded){
     srcs: Array.isArray(it && it.sources) ? safeSources.length : Number((it && it.srcs) || 0),
     sources: hasDetails ? safeSources : [],
     msgs: hasDetails ? safeMsgs : [],
+    events: hasDetails ? safeEvents : [],
     msgCount: Array.isArray(it && it.msgs) ? safeMsgs.length : Number((it && it.msgCount) || 0),
     analysisFiles: hasDetails && Array.isArray(it && it.analysisFiles) ? it.analysisFiles : [],
     sumHtml: hasDetails && it && it.sumHtml ? String(it.sumHtml) : '',
@@ -1459,10 +1465,12 @@ function chatMenuRename(){
 function chatMenuClearMsgs(){
   closeChatMoreMenuOnce();
   if(!curNb){ showToast('请先打开一个对话'); return; }
-  if(!Array.isArray(msgs) || !msgs.length){ showToast('当前对话还没有消息'); return; }
+  if((!Array.isArray(msgs) || !msgs.length) && (!Array.isArray(chatEvents) || !chatEvents.length)){ showToast('当前对话还没有消息'); return; }
   if(!confirm('确认清空当前对话的所有消息？此操作不会删除已上传的来源。')) return;
   msgs = [];
+  chatEvents = [];
   if(curNb) curNb.msgs = [];
+  if(curNb) curNb.events = [];
   const ml = document.getElementById('msgsList');
   if(ml) ml.innerHTML = '';
   // 重新渲染聊天区，让空状态/摘要卡片回到初始
@@ -1500,7 +1508,7 @@ function chatMenuExport(){
     });
     lines.push('');
   }
-  const visibleRows = Array.from(document.querySelectorAll('#msgsList > .msg-u, #msgsList > .msg-ai'));
+  const visibleRows = Array.from(document.querySelectorAll('#msgsList > .msg-u, #msgsList > .msg-ai, #msgsList > .msg-event'));
   const importedCard = document.querySelector('#chatEmpty > .source-chat-card');
   const summaryCard = document.getElementById('sumCard');
   if(importedCard || summaryCard || visibleRows.length || (Array.isArray(msgs) && msgs.length)){
@@ -1520,17 +1528,19 @@ function chatMenuExport(){
     if(visibleRows.length){
       visibleRows.forEach(function(row){
         const isUser = row.classList.contains('msg-u');
-        const textNode = row.querySelector(isUser ? '.msg-u-b' : '.ai-body') || row;
+        const isEvent = row.classList.contains('msg-event');
+        const textNode = row.querySelector(isUser ? '.msg-u-b' : (isEvent ? '.msg-event-pill' : '.ai-body')) || row;
         const text = exportChatPlainText(textNode);
-        lines.push('### ' + (isUser ? '用户' : 'AI'));
+        lines.push('### ' + (isUser ? '用户' : (isEvent ? '工具记录' : 'AI')));
         if(text) lines.push(text);
         appendChatExportImages(lines, textNode);
         lines.push('');
       });
     }else{
-      msgs.forEach(m => {
-        const role = m.role === 'user' ? '用户' : 'AI';
-        const text = (m.content || m.text || '').toString().replace(/<[^>]+>/g, '').trim();
+      conversationTimelineItems().forEach(entry => {
+        const item = entry.item || {};
+        const role = entry.lane === 'event' ? '工具记录' : (item.role === 'user' ? '用户' : 'AI');
+        const text = (item.content || item.text || '').toString().replace(/<[^>]+>/g, '').trim();
         lines.push('### ' + role);
         lines.push(text);
         lines.push('');
@@ -1605,6 +1615,7 @@ function buildNotebookPayload(nb){
     date: nb.date || todayText(),
     sources: Array.isArray(nb.sources) ? nb.sources : [],
     msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
+    events: Array.isArray(nb.events) ? nb.events : [],
     analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
     sumHtml: nb.sumHtml || '',
     suggHtml: nb.suggHtml || '',
@@ -1652,6 +1663,7 @@ function syncCurrentNotebookState(){
   if(!curNb) return;
   curNb.sources = Array.isArray(sources) ? sources : [];
   curNb.msgs = Array.isArray(msgs) ? msgs : [];
+  curNb.events = Array.isArray(chatEvents) ? chatEvents : [];
   curNb.analysisFiles = Array.isArray(analysisFiles) ? analysisFiles : [];
   curNb.srcs = curNb.sources.length;
   window.sources = sources;
@@ -1667,7 +1679,7 @@ async function confirmNewNb(){
   const icons = ['📔','📗','📘','📙','📒','📓','🗂️'];
   const colors = ['#e8f0fe','#e6f4ea','#fce8ff','#fff8e1','#fde8e8','#f0f4f9','#fff3e0'];
   const idx = notebooks.length % icons.length;
-  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, msgCount:0, date:todayText(), sources:[], msgs:[], analysisFiles:[], updatedAt:0, _detailsLoaded:true};
+  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, msgCount:0, date:todayText(), sources:[], msgs:[], events:[], analysisFiles:[], updatedAt:0, _detailsLoaded:true};
   notebooks.unshift(nb);
   renderHome();
   try{ await saveNotebook(nb); }catch(_){}
@@ -1879,6 +1891,7 @@ function applyNotebookToWorkspace(nb){
   sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
   window.sources = sources;
   msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
+  chatEvents = Array.isArray(curNb && curNb.events) ? curNb.events : [];
   analysisFiles = Array.isArray(curNb && curNb.analysisFiles) ? curNb.analysisFiles : [];
   document.getElementById('nbPageTitle').textContent = (curNb && curNb.title) ? curNb.title : 'New Conversation';
 }
@@ -3270,11 +3283,11 @@ function renderChat(){
   }
 
   if(!sources.length){
-    if(msgs && msgs.length){
+    if((msgs && msgs.length) || (chatEvents && chatEvents.length)){
       // 无来源但有历史消息：恢复气泡，清空摘要区
       ce.innerHTML='';
       if(ml && !ml.children.length){
-        msgs.forEach(function(m){ replayMsgToDom(m); });
+        replayConversationTimeline();
       }
     }else{
       ce.innerHTML=`<div class="chat-empty">
@@ -3321,8 +3334,8 @@ function renderChat(){
       <div class="sugg-label">可用操作</div>
     </div>`;
     // 恢复该对话的历史聊天气泡
-    if(Array.isArray(msgs) && msgs.length){
-      msgs.forEach(function(m){ replayMsgToDom(m); });
+    if((Array.isArray(msgs) && msgs.length) || (Array.isArray(chatEvents) && chatEvents.length)){
+      replayConversationTimeline();
     }
     // 切换回来优先恢复缓存；旧的异常/未完成缓存会自动重新分析。
     if(window.__heartosJustSwitchedNotebook){
@@ -5044,7 +5057,7 @@ function conversationConfirmLabel(intent){
 async function resolveConversationToolResponse(resp, userText){
   const toolName = toolNameForConversationAction(resp);
   const startedText = String((resp && resp.message) || '已识别到工具任务，正在处理。');
-  finishDispatchToolChat(userText, startedText);
+  finishDispatchToolChat(userText, startedText, { asEvent:true, persist:true, tool:toolName || '', eventType:'tool_start' });
   if(toolName){
     window.__heartosLastConversationIntent = String(resp.intent || '');
     runDispatchedToolAsync(toolName, { skipDispatch: true });
@@ -5194,9 +5207,14 @@ function safeJsonExtract(text){
   return null;
 }
 
-function finishDispatchToolChat(userText, replyText){
+function finishDispatchToolChat(userText, replyText, opts){
+  const options = opts || {};
   removeTyping();
-  appendAI(replyText);
+  if(options.asEvent){
+    appendConversationEvent(replyText, { persist: options.persist, type: options.eventType || 'status', tool: options.tool || '' });
+  }else{
+    appendAI(replyText, options.persist === false);
+  }
   maybeAutoTitleNotebook(userText || replyText);
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
@@ -5327,14 +5345,14 @@ async function sendMsg(){
       ecgsmart: '已识别为自动数字化任务，正在处理所选心电图图片，完成后会生成波形 CSV。',
       ecg: '已识别为手动数字化任务，正在打开数字化工具。'
     }[requestedTool];
-    finishDispatchToolChat(q, startedText);
+    finishDispatchToolChat(q, startedText, { asEvent:true, persist:true, tool:requestedTool, eventType:'tool_start' });
     runDispatchedToolAsync(requestedTool, { skipDispatch: true });
     return;
   }
 
   if((/补全|重建|reconstruct/i.test(q)) && (/心电|ecg|导联|波形/i.test(q) || reconstructSignalCandidates().length)){
     var msgReconLocal = '已识别为 ECG 信号补全任务，正在标准化十二导联信号并执行补全，完成后会保存补全 CSV 并展示回传图像。';
-    finishDispatchToolChat(q, msgReconLocal);
+    finishDispatchToolChat(q, msgReconLocal, { asEvent:true, persist:true, tool:'ecgrecon', eventType:'tool_start' });
     runDispatchedToolAsync('ecgrecon', { skipDispatch: true });
     return;
   }
@@ -5406,25 +5424,34 @@ async function sendMsg(){
 
 function appendAI(text, _noRecord){
   const w = document.getElementById('msgsList');
+  if(!w) return;
   const d = document.createElement('div');
   d.className='msg-ai';
   const html = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').map(l=>l?`<p>${l}</p>`:'').join('');
   d.innerHTML=`<div class="ai-av">AI</div><div class="ai-body">${html}</div>`;
   w.appendChild(d); scrollChat();
   if(!_noRecord){
-    msgs.push({role:'assistant', type:'text', content:text});
+    msgs.push({role:'assistant', kind:'chat', type:'text', content:text, createdAt:Date.now()});
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
   }
 }
+
+function isTransientAssistantStatusMessage(text){
+  const s = String(text || '').trim();
+  if(!s) return false;
+  return /^(已识别为.+任务，正在.+|已调用手动数字化，并将当前图片发送过去。)$/.test(s);
+}
+
 function appendUser(text, _noRecord){
   const w = document.getElementById('msgsList');
+  if(!w) return;
   const d = document.createElement('div');
   d.className='msg-u';
   d.innerHTML=`<div class="msg-u-b">${esc(text)}</div>`;
   w.appendChild(d); scrollChat();
   if(!_noRecord){
-    msgs.push({role:'user', content:text});
+    msgs.push({role:'user', kind:'chat', content:text, createdAt:Date.now()});
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
   }
@@ -5442,9 +5469,41 @@ function pushRichMsg(msg){
   if(msg && !msg.content && msg._html){
     msg.content = htmlToPlainText(msg._html).slice(0, 2000);
   }
+  if(msg && !msg.kind) msg.kind = 'chat';
+  if(msg && !msg.createdAt) msg.createdAt = Date.now();
   msgs.push(msg);
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
+}
+
+function pushChatEvent(event){
+  if(!event) return;
+  const item = Object.assign({
+    kind: 'tool_event',
+    type: 'status',
+    content: '',
+    createdAt: Date.now()
+  }, event);
+  chatEvents.push(item);
+  syncCurrentNotebookState();
+  scheduleSaveCurrentNotebook(false);
+}
+
+function appendConversationEvent(text, opts){
+  const w = document.getElementById('msgsList');
+  if(!w) return;
+  const options = opts || {};
+  const d = document.createElement('div');
+  d.className = 'msg-event';
+  d.innerHTML = `<div class="msg-event-pill"><span class="msg-event-dot"></span><span>${esc(String(text || ''))}</span></div>`;
+  w.appendChild(d);
+  scrollChat();
+  if(options.persist === false) return;
+  pushChatEvent({
+    type: String(options.type || 'status'),
+    tool: String(options.tool || ''),
+    content: String(text || '')
+  });
 }
 
 // 从 msgs 条目重建 DOM 气泡（切换对话时调用）
@@ -5456,6 +5515,7 @@ function replayMsgToDom(m){
     return;
   }
   if(m.role === 'assistant' && (!m.type || m.type === 'text')){
+    if(isTransientAssistantStatusMessage(m.content)) return;
     appendAI(m.content || '', true);
     return;
   }
@@ -5470,6 +5530,45 @@ function replayMsgToDom(m){
   }
   // 降级：当作普通文本
   if(m.content) appendAI(m.content, true);
+}
+
+function replayEventToDom(evt){
+  if(!evt || !evt.content) return;
+  appendConversationEvent(evt.content, { persist:false, type:evt.type, tool:evt.tool });
+}
+
+function conversationTimelineItems(){
+  const timeline = [];
+  (Array.isArray(msgs) ? msgs : []).forEach(function(item, index){
+    timeline.push({
+      lane: 'msg',
+      order: index,
+      createdAt: Number(item && item.createdAt) || 0,
+      item: item
+    });
+  });
+  (Array.isArray(chatEvents) ? chatEvents : []).forEach(function(item, index){
+    timeline.push({
+      lane: 'event',
+      order: index,
+      createdAt: Number(item && item.createdAt) || 0,
+      item: item
+    });
+  });
+  timeline.sort(function(a, b){
+    if(a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    if(a.lane !== b.lane) return a.lane === 'msg' ? -1 : 1;
+    return a.order - b.order;
+  });
+  return timeline;
+}
+
+function replayConversationTimeline(){
+  const entries = conversationTimelineItems();
+  entries.forEach(function(entry){
+    if(entry.lane === 'event') replayEventToDom(entry.item);
+    else replayMsgToDom(entry.item);
+  });
 }
 function ensureChatImageZoomModal(){
   let m = document.getElementById('chatImgZoomModal');
