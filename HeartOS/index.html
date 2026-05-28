@@ -62,6 +62,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .nb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
 .nb-card{border-radius:14px;border:1px solid var(--border);background:var(--bg);cursor:pointer;transition:all .2s;position:relative;aspect-ratio:1/1;min-height:0;box-shadow:var(--sh0);overflow:visible;}
 .nb-card:hover{box-shadow:var(--sh3);border-color:transparent;transform:translateY(-2px);}
+.nb-card.loading{cursor:progress;pointer-events:none;opacity:.88;}
+.nb-card.loading:hover{transform:none;border-color:var(--border);box-shadow:var(--sh0);}
 .nb-inner{padding:18px 20px;display:flex;flex-direction:column;}
 .nb-new-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:1.5px dashed var(--border2);color:var(--text3);box-shadow:none;}
 .nb-new-card:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);transform:translateY(-2px);}
@@ -77,6 +79,9 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .nb-menu-pop button{display:flex;align-items:center;gap:8px;width:100%;border:none;background:#fff;text-align:left;padding:10px 12px;font-size:13px;color:var(--text2);cursor:pointer;}
 .nb-menu-pop button:hover{background:var(--bg2);color:var(--text);}
 .nb-menu-pop button.danger{color:#dc2626;}
+.nb-loading-pill{display:inline-flex;align-items:center;gap:6px;margin-top:auto;padding:5px 10px;border-radius:999px;background:#eef4ff;color:#3158b8;font-size:11px;font-weight:600;align-self:flex-start;}
+.nb-loading-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:nbPulse 1s ease-in-out infinite;}
+@keyframes nbPulse{0%,100%{opacity:.35;transform:scale(.85);}50%{opacity:1;transform:scale(1);}}
 
 /* NOTEBOOK LAYOUT */
 .nb-layout{--source-col:268px;--studio-col:380px;flex:1;display:grid;grid-template-columns:var(--source-col) 6px minmax(0,1fr) 6px var(--studio-col);overflow:hidden;height:calc(100vh - 56px);transition:grid-template-columns .18s ease;}
@@ -1116,13 +1121,18 @@ window.__heartosLastImageSource = null;
 let __nbLoaded = false;
 const __nbSaveTimers = new Map();
 const __nbSaveQueues = new Map();
+const __nbDetailInflight = new Map();
 let __nbOpenRequestSeq = 0;
+let __nbOpeningId = '';
+let __nbHydratingDetails = false;
+let __nbDetailLoadingId = '';
 let __initialUploadPromptShown = false;
 window.__heartosJustAddedSourceId = null;
 let summaryRequestSeq = 0;
 let summaryInFlight = false;
 let queuedSummaryRequest = null;
 let feedbackSubmitting = false;
+const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
 
 function updateChatSendButton(){
   const btn = document.getElementById('chatSendBtn');
@@ -1227,16 +1237,18 @@ function isAbortLikeError(e){
 // ======================== HOME ========================
 function renderHome(){
   const g = document.getElementById('nbGrid');
+  if(!g) return;
   let h = `<div class="nb-card nb-new-card nb-inner" onclick="startNewNotebook()">
     <div class="nb-new-icon">＋</div>
     <span style="font-size:14px;font-weight:500;">新建对话</span>
   </div>`;
   h += notebooks.map(nb => {
+    const isLoading = __nbOpeningId === String(nb.id);
     const fileCount = nb._detailsLoaded ? (Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0)) : Number(nb.srcs || 0);
     const msgCount = nb._detailsLoaded ? (Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0)) : Number(nb.msgCount || 0);
     const title = defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title;
     if(title && title !== nb.title) nb.title = title;
-    return `<div class="nb-card nb-inner" onclick="openNb('${escAttr(nb.id)}', false)">
+    return `<div class="nb-card nb-inner ${isLoading ? 'loading' : ''}" onclick="openNb('${escAttr(nb.id)}', false)">
       <button class="nb-menu" onclick="toggleNotebookMenu('${escAttr(nb.id)}', event)">⋮</button>
       <div class="nb-menu-pop" id="nbMenu-${escAttr(nb.id)}" onclick="event.stopPropagation()">
         <button onclick="renameNotebook('${escAttr(nb.id)}', event)">✎ 修改标题</button>
@@ -1245,13 +1257,17 @@ function renderHome(){
       <div class="nb-cover" style="background:${escAttr(nb.color || '#e8f0fe')}">${esc(nb.icon || '📔')}</div>
       <div class="nb-title" title="${escAttr(title || 'New Conversation')}">${esc(title || 'New Conversation')}</div>
       <div class="nb-meta">${esc(nb.date || todayText())} · ${fileCount} 来源 · ${msgCount} 条消息</div>
+      ${isLoading ? '<div class="nb-loading-pill"><span class="nb-loading-dot"></span>正在打开…</div>' : ''}
     </div>`;
   }).join('');
   g.innerHTML = h;
+  persistNotebookSummaryCache();
 }
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
 function goHome(){
   __nbOpenRequestSeq++;
+  setNotebookOpeningState('');
+  setNotebookDetailLoadingState('');
   if(busy || activeStudioTask) cancelActiveChatWork();
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
@@ -1303,6 +1319,7 @@ async function loadNotebooksFromServer(){
     history.replaceState({page:'home'}, '', '#conversations');
     __heartosHistoryReady = true;
   }
+  hydrateNotebookDetailsInBackground();
 }
 
 async function loadNotebookDetail(id){
@@ -1311,6 +1328,43 @@ async function loadNotebookDetail(id){
   const out = await resp.json().catch(function(){ return {}; });
   if(!out.item) throw new Error('对话不存在');
   return normalizeNotebookItem(out.item, true);
+}
+
+function ensureNotebookDetailLoaded(id){
+  const safeId = String(id || '');
+  if(!safeId) return Promise.reject(new Error('缺少对话 ID'));
+  const existing = notebooks.find(function(item){ return String(item.id) === safeId; });
+  if(existing && existing._detailsLoaded) return Promise.resolve(existing);
+  const inflight = __nbDetailInflight.get(safeId);
+  if(inflight) return inflight;
+  const request = loadNotebookDetail(safeId).then(function(full){
+    const idx = notebooks.findIndex(function(item){ return String(item.id) === safeId; });
+    if(idx >= 0) notebooks[idx] = full;
+    persistNotebookDetailCache(full);
+    refreshHomeIfVisible();
+    return full;
+  }).finally(function(){
+    if(__nbDetailInflight.get(safeId) === request) __nbDetailInflight.delete(safeId);
+  });
+  __nbDetailInflight.set(safeId, request);
+  return request;
+}
+
+async function hydrateNotebookDetailsInBackground(){
+  if(__nbHydratingDetails) return;
+  __nbHydratingDetails = true;
+  try{
+    const pendingIds = notebooks.filter(function(item){
+      return item && !item._detailsLoaded;
+    }).map(function(item){
+      return String(item.id);
+    });
+    for(let i = 0; i < pendingIds.length; i += 1){
+      try{ await ensureNotebookDetailLoaded(pendingIds[i]); }catch(_){ }
+    }
+  }finally{
+    __nbHydratingDetails = false;
+  }
 }
 
 function toggleNotebookMenu(id, evt){
@@ -1332,9 +1386,7 @@ async function renameNotebook(id, evt){
   let target = nb;
   if(!target._detailsLoaded){
     try{
-      target = await loadNotebookDetail(id);
-      const idx = notebooks.findIndex(function(item){ return item.id === id; });
-      if(idx >= 0) notebooks[idx] = target;
+      target = await ensureNotebookDetailLoaded(id);
     }catch(_){
       showToast('对话标题更新失败，请稍后重试');
       return;
@@ -1358,6 +1410,7 @@ async function deleteNotebook(id, evt){
   if(!nb) return;
   if(!confirm('确认删除历史对话：' + (defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title) + '？')) return;
   if(curNb && curNb.id === id && (busy || activeStudioTask)) cancelActiveChatWork();
+  try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
   notebooks = notebooks.filter(n => n.id !== id);
   if(curNb && curNb.id === id){
     curNb = null;
@@ -1557,6 +1610,8 @@ function buildNotebookPayload(nb){
     suggHtml: nb.suggHtml || '',
     updatedAt: nb.updatedAt
   };
+  persistNotebookSummaryCache();
+  writeLocalJson(notebookDetailCacheKey(payload.id), { savedAt: Date.now(), item: payload });
   return payload;
 }
 
@@ -1627,43 +1682,43 @@ async function openNb(id, autoUpload=false){
   let nextNb = notebooks.find(n=>n.id===id) || notebooks[0];
   if(!nextNb){ goHome(); return; }
   const requestSeq = ++__nbOpenRequestSeq;
-  if(!nextNb._detailsLoaded){
-    try{
-      nextNb = await loadNotebookDetail(nextNb.id);
-    }catch(_){
-      if(requestSeq === __nbOpenRequestSeq){
-        showToast('历史对话加载失败，请刷新后重试');
-        goHome();
-      }
-      return;
-    }
-    if(requestSeq !== __nbOpenRequestSeq) return;
-    const targetIndex = notebooks.findIndex(function(item){ return item.id === nextNb.id; });
-    if(targetIndex >= 0) notebooks[targetIndex] = nextNb;
+  const cacheCandidate = !nextNb._detailsLoaded ? loadNotebookDetailFromLocal(nextNb.id) : null;
+  const usedLocalDetail = !!cacheCandidate;
+  if(cacheCandidate){
+    nextNb = cacheCandidate;
+    const cachedIndex = notebooks.findIndex(function(item){ return item.id === nextNb.id; });
+    if(cachedIndex >= 0) notebooks[cachedIndex] = nextNb;
   }
-  curNb = nextNb;
-  sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
-  window.sources = sources;
-  msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
-  analysisFiles = Array.isArray(curNb && curNb.analysisFiles) ? curNb.analysisFiles : [];
-  document.getElementById('nbPageTitle').textContent = curNb.title;
-  document.getElementById('homePage').classList.remove('active');
-  document.getElementById('nbPage').classList.add('active');
-  // 切换对话时完全清空聊天区 DOM，防止不同对话的气泡/摘要卡串联显示
-  var _switchMl = document.getElementById('msgsList');
-  var _switchCe = document.getElementById('chatEmpty');
-  if(_switchMl) _switchMl.innerHTML = '';
-  if(_switchCe) _switchCe.innerHTML = '';
-  currentStudioCardType = '';
-  window.__heartosJustSwitchedNotebook = true;
-  renderSrcs();
-  renderChat();
-  renderStudio();
-  updateCiSrc();
+  setNotebookOpeningState(nextNb.id);
+  setNotebookDetailLoadingState(nextNb._detailsLoaded ? '' : nextNb.id);
+  applyNotebookToWorkspace(nextNb);
+  openNotebookShell();
+  setNotebookOpeningState('');
   if(__heartosHistoryReady && (!history.state || history.state.page !== 'notebook' || history.state.id !== curNb.id)){
     history.pushState({page:'notebook', id:curNb.id}, '', '#conversation-' + encodeURIComponent(curNb.id));
   }
   if(autoUpload) setTimeout(()=>openUploadModal(), 200);
+  if(nextNb._detailsLoaded && !usedLocalDetail){
+    setNotebookDetailLoadingState('');
+    return;
+  }
+  try{
+    const freshNb = await ensureNotebookDetailLoaded(nextNb.id);
+    if(requestSeq !== __nbOpenRequestSeq) return;
+    applyNotebookToWorkspace(freshNb);
+    setNotebookDetailLoadingState('');
+    renderSrcs();
+    renderChat();
+    renderStudio();
+    updateCiSrc();
+  }catch(_){
+    if(requestSeq !== __nbOpenRequestSeq) return;
+    setNotebookDetailLoadingState('');
+    renderSrcs();
+    renderChat();
+    renderStudio();
+    showToast('历史对话加载失败，请刷新后重试');
+  }
 }
 
 // ======================== SOURCES ========================
@@ -1710,6 +1765,137 @@ function getNotebookColumnWidths(){
     source: clampNumber(source, 210, 420),
     studio: clampNumber(studio, 280, 540)
   };
+}
+
+function notebookCacheUserKey(){
+  const u = getAuthUser && getAuthUser();
+  return String((u && (u.user_id || u.username)) || 'guest');
+}
+
+function notebookSummaryCacheKey(){
+  return 'heartos_nb_summary_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey();
+}
+
+function notebookDetailCacheKey(id){
+  return 'heartos_nb_detail_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':' + String(id || '');
+}
+
+function readLocalJson(key){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(_){
+    return null;
+  }
+}
+
+function writeLocalJson(key, value){
+  try{
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  }catch(_){
+    return false;
+  }
+}
+
+function notebookSummarySnapshot(nb){
+  if(!nb) return null;
+  const srcCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
+  const messageCount = Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0);
+  return {
+    id: String(nb.id || ''),
+    title: String(nb.title || 'New Conversation'),
+    icon: String(nb.icon || '📔'),
+    color: String(nb.color || '#e8f0fe'),
+    date: String(nb.date || todayText()),
+    srcs: srcCount,
+    msgCount: messageCount,
+    updatedAt: Number(nb.updatedAt || 0)
+  };
+}
+
+function persistNotebookSummaryCache(){
+  const items = (Array.isArray(notebooks) ? notebooks : [])
+    .map(notebookSummarySnapshot)
+    .filter(Boolean);
+  writeLocalJson(notebookSummaryCacheKey(), {
+    savedAt: Date.now(),
+    items: items
+  });
+}
+
+function loadNotebookSummariesFromLocal(){
+  const cached = readLocalJson(notebookSummaryCacheKey());
+  const items = Array.isArray(cached && cached.items) ? cached.items : [];
+  return items.map(function(item){ return normalizeNotebookItem(item, false); });
+}
+
+function persistNotebookDetailCache(nb){
+  const payload = buildNotebookPayload(nb);
+  if(!payload || !payload.id) return;
+  writeLocalJson(notebookDetailCacheKey(payload.id), {
+    savedAt: Date.now(),
+    item: payload
+  });
+}
+
+function loadNotebookDetailFromLocal(id){
+  const cached = readLocalJson(notebookDetailCacheKey(id));
+  if(!cached || !cached.item) return null;
+  return normalizeNotebookItem(cached.item, true);
+}
+
+function hydrateNotebookSummariesFromLocal(){
+  const cachedItems = loadNotebookSummariesFromLocal();
+  if(!cachedItems.length) return false;
+  notebooks = cachedItems;
+  __nbLoaded = true;
+  document.getElementById('homePage').classList.add('active');
+  document.getElementById('nbPage').classList.remove('active');
+  renderHome();
+  if(!__heartosHistoryReady){
+    history.replaceState({page:'home'}, '', '#conversations');
+    __heartosHistoryReady = true;
+  }
+  return true;
+}
+
+function refreshHomeIfVisible(){
+  const home = document.getElementById('homePage');
+  if(home && home.classList.contains('active')) renderHome();
+}
+
+function setNotebookOpeningState(id){
+  __nbOpeningId = id ? String(id) : '';
+  refreshHomeIfVisible();
+}
+
+function setNotebookDetailLoadingState(id){
+  __nbDetailLoadingId = id ? String(id) : '';
+}
+
+function applyNotebookToWorkspace(nb){
+  curNb = nb || null;
+  sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
+  window.sources = sources;
+  msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
+  analysisFiles = Array.isArray(curNb && curNb.analysisFiles) ? curNb.analysisFiles : [];
+  document.getElementById('nbPageTitle').textContent = (curNb && curNb.title) ? curNb.title : 'New Conversation';
+}
+
+function openNotebookShell(){
+  document.getElementById('homePage').classList.remove('active');
+  document.getElementById('nbPage').classList.add('active');
+  var _switchMl = document.getElementById('msgsList');
+  var _switchCe = document.getElementById('chatEmpty');
+  if(_switchMl) _switchMl.innerHTML = '';
+  if(_switchCe) _switchCe.innerHTML = '';
+  currentStudioCardType = '';
+  window.__heartosJustSwitchedNotebook = true;
+  renderSrcs();
+  renderChat();
+  renderStudio();
+  updateCiSrc();
 }
 
 function saveNotebookColumnWidths(widths){
@@ -1821,8 +2007,17 @@ function renderSourceMiniRail(){
 
 function renderSrcs(){
   const el = document.getElementById('srcsList');
+  if(!el) return;
   initNotebookResizers();
   syncPanelCollapseState();
+  if(curNb && __nbDetailLoadingId === String(curNb.id) && !sources.length){
+    el.innerHTML=`<div class="empty-srcs">
+      <div class="empty-srcs-icon">⏳</div>
+      <p>正在加载历史来源…</p>
+    </div>`;
+    renderSourceMiniRail();
+    return;
+  }
   if(!sources.length){
     el.innerHTML=`<div class="empty-srcs">
       <div class="empty-srcs-icon">📄</div>
@@ -3062,6 +3257,17 @@ async function buildBatchSourceOverview(batch){
 function renderChat(){
   const ce = document.getElementById('chatEmpty');
   const ml = document.getElementById('msgsList');
+  if(!ce || !ml) return;
+
+  if(curNb && __nbDetailLoadingId === String(curNb.id) && !sources.length && !msgs.length){
+    ce.innerHTML=`<div class="chat-empty">
+      <div class="chat-empty-icon">⏳</div>
+      <h3>正在加载历史内容</h3>
+      <p>已进入对话，消息和来源会在加载完成后显示。</p>
+    </div>`;
+    ml.innerHTML='';
+    return;
+  }
 
   if(!sources.length){
     if(msgs && msgs.length){
@@ -5989,6 +6195,8 @@ window.addEventListener('popstate', function(evt){
   }
   if(busy || activeStudioTask) cancelActiveChatWork();
   __nbOpenRequestSeq++;
+  setNotebookOpeningState('');
+  setNotebookDetailLoadingState('');
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
   renderHome();
@@ -6278,6 +6486,7 @@ function closeFutureLabFeatureModal(){
 
 function renderStudio(){
   const top = document.getElementById('studioTop');
+  if(!top) return;
   const cards = studioCards.map(c=>`
     <div class="sc ${c.cls}" id="sc-${c.id}" onclick="runStudio('${c.id}')">
       <div class="sc-icon" style="background:${c.iconBg}">${uiIcon(c.icon)}</div>
@@ -6308,6 +6517,7 @@ function renderStudio(){
   syncPanelCollapseState();
   updateStudioActive(currentStudioCardType);
   if(Array.isArray(analysisFiles) && analysisFiles.length) ensureResultContent('');
+  else if(curNb && __nbDetailLoadingId === String(curNb.id) && !sources.length) showResultPlaceholder('正在加载历史分析结果…');
   else if(!sources.length) showResultPlaceholder('添加来源后即可运行分析<br>生成文件会显示在这里');
 }
 
@@ -8480,10 +8690,11 @@ async function submitAuthLogin(){
     if(!resp.ok) throw new Error(out.detail || '认证失败');
     setAuthSession(out.token, { user_id: out.user_id, username: out.username, display_name: out.display_name });
     updateUserAvatarUI();
-    setAuthMsg('登录成功，正在加载对话历史…', false);
-    setAuthSubmitting(true, '加载中…');
-    await loadAuthedAppData();
     setAppAuthed(true);
+    setAuthMsg('');
+    setAuthSubmitting(false);
+    hydrateNotebookSummariesFromLocal();
+    loadAuthedAppData().catch(function(){});
     if(authReadyResolve){ authReadyResolve(true); authReadyResolve = null; authReadyPromise = null; }
   }catch(e){
     if(tm){ clearTimeout(tm); tm = null; }
@@ -8868,9 +9079,10 @@ async function initAuthBoot(){
   setAppAuthed(false);
   try{
     await ensureLogin();
-    setAuthMsg('正在加载对话历史…', false);
-    await loadAuthedAppData();
     setAppAuthed(true);
+    setAuthMsg('');
+    hydrateNotebookSummariesFromLocal();
+    loadAuthedAppData().catch(function(){});
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     updateUserAvatarUI();
