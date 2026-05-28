@@ -121,3 +121,66 @@ class AgentAutoRunResponse(BaseModel):
     target: str
     reply: str
     action: dict[str, Any] | None = None
+
+
+class ConversationSource(BaseModel):
+    source_id: str = ""
+    name: str = ""
+    type: str = ""
+    checked: bool = False
+    file_id: str = ""
+    image_url: str = ""
+    text: str = ""
+
+
+class ConversationContext(BaseModel):
+    conversation_id: str = ""
+    message_id: str = ""
+    sources: list[ConversationSource] = Field(default_factory=list)
+    has_image: bool = False
+    has_xml: bool = False
+    has_csv: bool = False
+    has_ecg_signal: bool = False
+    selected_source_ids: list[str] = Field(default_factory=list)
+    last_tool_intent: str = ""
+    last_tool_result_id: str = ""
+
+
+class ConversationClientHint(BaseModel):
+    intent: str = ""
+    source_type: str = ""
+
+
+class ConversationTurnRequest(BaseModel):
+    message: str = Field(min_length=1)
+    provider: ProviderName = "zhipu"
+    model: str = ""
+    api_key: str = ""
+    max_tokens: int = 1000
+    temperature: float = 0.2
+    context: ConversationContext = Field(default_factory=ConversationContext)
+    history: list[ChatMessage] = Field(default_factory=list)
+    client_hint: ConversationClientHint = Field(default_factory=ConversationClientHint)
+
+
+class ConversationConfirmRequest(BaseModel):
+    intent: str = Field(min_length=1)
+    args: dict[str, Any] = Field(default_factory=dict)
+    provider: ProviderName = "zhipu"
+    model: str = ""
+    api_key: str = ""
+    context: ConversationContext = Field(default_factory=ConversationContext)
+    history: list[ChatMessage] = Field(default_factory=list)
+
+
+class ConversationResponse(BaseModel):
+    type: Literal["tool_result", "need_confirm", "ask_missing", "chat", "plan_options"]
+    stage: str = ""
+    intent: str = ""
+    confidence: float = 0.0
+    message: str
+    description: str = ""
+    args: dict[str, Any] = Field(default_factory=dict)
+    missing_fields: list[str] = Field(default_factory=list)
+    action: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None

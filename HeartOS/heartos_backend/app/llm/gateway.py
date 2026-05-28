@@ -89,6 +89,9 @@ class LLMGateway:
         user: dict[str, Any] | None = None,
         override_api_key: str = "",
         thinking: dict[str, Any] | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        extra_body: dict[str, Any] | None = None,
         timeout_seconds: int = 45,
         retries: int = 1,
     ) -> dict[str, Any]:
@@ -116,6 +119,12 @@ class LLMGateway:
         }
         if thinking is not None:
             payload["thinking"] = thinking
+        if tools:
+            payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
+        if extra_body:
+            payload.update(extra_body)
         if user:
             payload["user"] = {"id": user.get("id"), "username": user.get("username")}
 
@@ -137,10 +146,12 @@ class LLMGateway:
                     raise HTTPException(status_code=resp.status_code, detail=detail)
                 data = resp.json()
                 reply = _extract_reply(data)
-                if not reply:
+                tool_calls = _extract_tool_calls(data)
+                if not reply and not tool_calls:
                     raise HTTPException(status_code=502, detail="Empty response from provider")
                 return {
                     "reply": reply,
+                    "tool_calls": tool_calls,
                     "provider": provider.key,
                     "model": payload["model"],
                     "request_id": resp.headers.get("x-request-id") or resp.headers.get("request-id"),
@@ -168,6 +179,13 @@ def _extract_reply(data: dict[str, Any]) -> str:
                 parts.append(str(item.get("text", "")))
         return "\n".join([p for p in parts if p]).strip()
     return ""
+
+
+def _extract_tool_calls(data: dict[str, Any]) -> list[dict[str, Any]]:
+    choice = (data.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    tool_calls = msg.get("tool_calls") or []
+    return tool_calls if isinstance(tool_calls, list) else []
 
 
 def _extract_error_message(resp: httpx.Response) -> str:

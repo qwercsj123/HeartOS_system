@@ -9,6 +9,7 @@
 - `GET /health：健康检查
 - POST /api/ecgomics/analyze：ECGOmics 分析代理
 - POST /api/ecg-reconstruct：CSV 心电重建代理
+- POST /api/chest-pain/predict：准心胸痛模型代理
 
 ---
 
@@ -175,6 +176,44 @@ curl.exe -X POST http://127.0.0.1:9000/api/ecg-reconstruct `
 ```
 
 如需修改地址，设置环境变量 APP_ECG_RECONSTRUCT_URL 后重启后端。
+
+## 准心胸痛模型接入
+
+后端已内置准心胸痛模型代理，默认上游地址：
+`http://110.157.241.3:18008/predict_text`
+
+如需修改地址，设置环境变量：
+```env
+APP_CHEST_PAIN_PREDICT_URL=http://110.157.241.3:18008/predict_text
+```
+
+调用方式：
+```bash
+curl -X POST http://127.0.0.1:9000/api/chest-pain/predict \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@/path/to/ecg.jpg" \
+  -F "use_optimized_rank=true" \
+  -F "show_score=true"
+```
+
+返回示例：
+```json
+{
+  "ok": true,
+  "raw_text": "不稳定性心绞痛: ...",
+  "scores": {
+    "0": 1.23,
+    "1": 0.56,
+    "2": 3.45
+  },
+  "high_risk": ["ST段抬高型心肌梗死"],
+  "low_risk": ["肺栓塞"],
+  "ranking": [
+    {"class_id": 2, "class_name": "ST段抬高型心肌梗死", "score": 3.45}
+  ],
+  "report": "###\n高风险：...\n低风险：...\n疾病可能性排序：...\n###"
+}
+```
 
 
 

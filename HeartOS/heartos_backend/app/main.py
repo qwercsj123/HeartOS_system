@@ -26,6 +26,7 @@ from .auth import (
     verify_token,
     verify_user,
 )
+from .chest_pain import predict_image_and_report
 from .config import settings
 
 from .llm import build_default_gateway
@@ -38,6 +39,9 @@ from .schemas import (
     AgentRunResponse,
     ChatRequest,
     ChatResponse,
+    ConversationConfirmRequest,
+    ConversationResponse,
+    ConversationTurnRequest,
     ECGOmicsAnalyzeRequest,
     FeedbackSubmitRequest,
     HandEcgSaveRequest,
@@ -62,8 +66,164 @@ PLATFORM_REPLY = "HeartOS 是一个面向心电数据处理与分析的平台，
 GUIDE_REPLY = "你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合特征提取与信号补全。"
 INPUT_REPLY = "HeartOS 目前支持心电图图片、PDF、ECG XML、CSV，以及部分 TSV、TXT、JSON 等波形数据文件。"
 DIFF_REPLY = "手动数字化适合精细框选和人工校正，自动数字化适合快速处理标准心电图图片；如果自动结果不理想，建议切换到手动数字化。"
-FEATURE_REPLY = "ECG 特征提取用于从波形中提取结构化指标，信号补全用于对缺失导联或不完整波形进行重建与补全。"
+FEATURE_REPLY = (
+    "可以把它们理解成两个不同阶段："
+    "ECG 信号补全是先补数据，适合导联缺失、波形不完整，或者当前波形还不满足分析条件的时候使用；"
+    "ECG 特征提取是再读结果，在已有波形上提取心率、节律、间期和形态学等结构化指标。"
+    "一般来说，波形已经比较完整时，优先做特征提取；如果数据不完整，先做信号补全会更合适。"
+)
 BOUNDARY_REPLY = "HeartOS 可以协助完成心电数据处理与分析，但不能替代医生作出临床诊断。"
+CONVERSATION_INTENT_DESCRIPTIONS: dict[str, str] = {
+    "ecg_auto_digitize": "将心电图图片或 PDF 自动数字化为波形数据。",
+    "ecg_manual_digitize": "打开手动数字化工具，人工校正和提取波形。",
+    "ecg_feature_extract": "对 ECG XML、CSV 或波形数据进行 ECG 特征提取。",
+    "ecg_reconstruct": "对缺失导联或不完整 ECG 波形进行信号补全与重建。",
+    "zhunxin_risk_assess": "基于心电图图片进行准心胸痛高风险评估，并生成风险报告。",
+    "result_interpretation": "解释已有分析结果、波形表现或 ECG 指标含义。",
+    "knowledge_qa": "回答 HeartOS 能力、流程、原理或一般性 ECG 相关问题。",
+    "chat": "普通对话或无法明确分类的问题。",
+}
+CONVERSATION_INTENT_TO_ACTION: dict[str, dict[str, Any]] = {
+    "ecg_auto_digitize": {"tool": "ecgsmart", "endpoint": "/api/ai-ecg-digitize", "method": "POST"},
+    "ecg_manual_digitize": {"tool": "ecg", "endpoint": "/tool/handecg/manual", "method": "OPEN"},
+    "ecg_feature_extract": {"tool": "ecgd", "endpoint": "/api/ecgomics/analyze", "method": "POST"},
+    "ecg_reconstruct": {"tool": "ecgrecon", "endpoint": "/api/ecg-reconstruct", "method": "POST"},
+    "zhunxin_risk_assess": {"tool": "zhunxin", "endpoint": "/api/chest-pain/predict", "method": "POST"},
+}
+CONVERSATION_ROUTER_TOOLS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "ecg_auto_digitize",
+            "description": "当用户明确要把心电图图片或 PDF 自动数字化为波形 CSV、提取图像中的心电波形时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number", "description": "0到1之间的置信度"},
+                    "reason": {"type": "string", "description": "简短说明为什么判断为该意图"},
+                    "source_ids": {"type": "array", "items": {"type": "string"}, "description": "与该任务相关的已选来源ID"},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "若缺少输入则列出，例如 selected_source 或 image_source"},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ecg_manual_digitize",
+            "description": "当用户明确要打开手动数字化工具、手工校正心电图波形时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "source_ids": {"type": "array", "items": {"type": "string"}},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ecg_feature_extract",
+            "description": "当用户要对 ECG XML、CSV、TXT、TSV、JSON 波形数据做 ECG 特征提取或 ECGOmics 分析时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "source_ids": {"type": "array", "items": {"type": "string"}},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ecg_reconstruct",
+            "description": "当用户要对缺失导联、不完整波形进行心电信号补全、重建、reconstruct时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "source_ids": {"type": "array", "items": {"type": "string"}},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "zhunxin_risk_assess",
+            "description": "当用户明确希望根据心电图图片评估高风险疾病、看看有没有病、有没有明显异常、做准心胸痛风险评估时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "source_ids": {"type": "array", "items": {"type": "string"}},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "result_interpretation",
+            "description": "当用户是在问已有结果怎么看、结果说明什么、波形意味着什么，而不是要求重新执行工具时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                    "source_ids": {"type": "array", "items": {"type": "string"}},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "knowledge_qa",
+            "description": "当用户是在问 HeartOS 能做什么、功能介绍、如何使用、概念原理或一般性说明时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "chat",
+            "description": "当以上都不明确匹配、只是普通闲聊或无法可靠判定时调用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confidence": {"type": "number"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["confidence"],
+            },
+        },
+    },
+]
 
 app = FastAPI(title=settings.name, version=APP_VERSION)
 app.add_middleware(
@@ -138,6 +298,119 @@ def _extract_json_object(text: str) -> dict[str, Any]:
     return {}
 
 
+def _fallback_chest_pain_summary(result: dict[str, Any]) -> dict[str, Any]:
+    high_risk = [str(item) for item in (result.get("high_risk") or []) if str(item).strip()]
+    low_risk = [str(item) for item in (result.get("low_risk") or []) if str(item).strip()]
+    ranking = result.get("ranking") if isinstance(result.get("ranking"), list) else []
+    focus_items = [
+        str(item.get("class_name") or "").strip()
+        for item in ranking[:2]
+        if isinstance(item, dict) and str(item.get("class_name") or "").strip()
+    ]
+    if high_risk:
+        headline = "发现需要尽快关注的高危提示"
+        plain_summary = "当前结果提示需要优先排查：" + "、".join(high_risk) + "。这不等同于临床诊断，但建议尽快结合症状就医。"
+        next_step = "如果你现在有持续胸痛、胸闷、呼吸困难、出汗或明显不适，请尽快前往医院进一步检查。"
+        risk_level = "high"
+    else:
+        headline = "当前未发现明显高危提示"
+        if focus_items:
+            plain_summary = "本次六分类筛查已经完成。当前没有出现明确的高危提示，但模型相对更关注：" + "、".join(focus_items) + "。"
+        else:
+            plain_summary = "本次六分类筛查已经完成。当前没有出现明确的高危提示。"
+        if low_risk:
+            plain_summary += " 当前模型未重点提示：" + "、".join(low_risk) + "。"
+        next_step = "如果你只是做常规筛查，可以继续结合症状和医生意见判断；如果目前有明显不适，即使这里没有高危提示，也建议尽快就医。"
+        risk_level = "low"
+    return {
+        "headline": headline,
+        "plain_summary": plain_summary,
+        "next_step": next_step,
+        "risk_level": risk_level,
+        "focus_items": focus_items,
+        "reassuring_items": low_risk,
+        "disclaimer": "这份结果用于辅助风险提示，不替代医生诊断或临床最终判断。",
+    }
+
+
+async def _summarize_chest_pain_result_with_llm(
+    *,
+    result: dict[str, Any],
+    user: dict[str, Any],
+) -> dict[str, Any]:
+    fallback = _fallback_chest_pain_summary(result)
+    if not (settings.llm_zhipu_api_key or "").strip():
+        fallback["summary_source"] = "fallback"
+        return fallback
+
+    ranking = result.get("ranking") if isinstance(result.get("ranking"), list) else []
+    compact_ranking: list[dict[str, Any]] = []
+    for item in ranking[:6]:
+        if isinstance(item, dict):
+            compact_ranking.append(
+                {
+                    "class_name": str(item.get("class_name") or ""),
+                    "score": item.get("score"),
+                }
+            )
+    payload = {
+        "high_risk": result.get("high_risk") or [],
+        "low_risk": result.get("low_risk") or [],
+        "ranking": compact_ranking,
+        "report": str(result.get("report") or ""),
+    }
+    system = (
+        "你是 HeartOS 的医学结果解释助手。"
+        "你的任务是把心电图胸痛风险六分类结果，翻译成普通用户能看懂的中文。"
+        "不能把它写成临床确诊，不能承诺没病，只能说风险提示、优先排查方向和下一步建议。"
+        "不要输出概率、分数、阈值、模型排序术语。"
+        "请只输出 JSON，不要输出任何额外说明。"
+        "JSON 字段固定为：headline, plain_summary, next_step, risk_level, focus_items, reassuring_items, disclaimer。"
+        "其中 risk_level 只能是 high、attention、low、uncertain。"
+        "headline 要非常短，适合做页面标题。"
+        "plain_summary 用 2 到 3 句中文说明这次结果是什么意思。"
+        "next_step 只给一段面向用户的下一步建议。"
+        "focus_items 和 reassuring_items 都是字符串数组，最多 3 项。"
+        "disclaimer 用一句简短提醒，强调不能替代医生诊断。"
+    )
+    try:
+        out = await LLM_GATEWAY.chat(
+            provider_key="zhipu",
+            model=settings.llm_default_model or "glm-4-flash",
+            system=system,
+            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+            max_tokens=420,
+            temperature=0.2,
+            user=user,
+            timeout_seconds=min(settings.http_timeout, 25),
+            retries=settings.http_retries,
+        )
+        parsed = _extract_json_object(out.get("reply", ""))
+        if not parsed:
+            fallback["summary_source"] = "fallback"
+            return fallback
+        summary = {
+            "headline": str(parsed.get("headline") or fallback["headline"]).strip() or fallback["headline"],
+            "plain_summary": str(parsed.get("plain_summary") or fallback["plain_summary"]).strip() or fallback["plain_summary"],
+            "next_step": str(parsed.get("next_step") or fallback["next_step"]).strip() or fallback["next_step"],
+            "risk_level": str(parsed.get("risk_level") or fallback["risk_level"]).strip().lower() or fallback["risk_level"],
+            "focus_items": [str(x).strip() for x in (parsed.get("focus_items") or []) if str(x).strip()][:3],
+            "reassuring_items": [str(x).strip() for x in (parsed.get("reassuring_items") or []) if str(x).strip()][:3],
+            "disclaimer": str(parsed.get("disclaimer") or fallback["disclaimer"]).strip() or fallback["disclaimer"],
+            "summary_source": "zhipu",
+        }
+        if summary["risk_level"] not in {"high", "attention", "low", "uncertain"}:
+            summary["risk_level"] = fallback["risk_level"]
+        if not summary["focus_items"]:
+            summary["focus_items"] = list(fallback.get("focus_items") or [])
+        if not summary["reassuring_items"]:
+            summary["reassuring_items"] = list(fallback.get("reassuring_items") or [])
+        return summary
+    except Exception:
+        fallback["summary_source"] = "fallback"
+        return fallback
+
+
 def _is_identity_question(message: str) -> bool:
     text = (message or "").strip().lower()
     if not text:
@@ -182,7 +455,7 @@ def _match_canned_reply(message: str) -> str:
     )
     feature_patterns = (
         "特征提取是做什么的", "信号补全是做什么的", "特征提取和信号补全分别是做什么的",
-        "特征提取和信号补全有什么区别", "ecg特征提取是做什么的",
+        "特征提取和信号补全有什么区别", "信号补全和特征提取有什么区别", "ecg特征提取是做什么的",
     )
     boundary_patterns = (
         "你是不是医生", "您是不是医生", "你能不能诊断", "能不能诊断", "能做诊断吗", "你是不是专家",
@@ -202,6 +475,556 @@ def _match_canned_reply(message: str) -> str:
     if any(p in normalized for p in boundary_patterns):
         return BOUNDARY_REPLY
     return ""
+
+
+def _normalize_route_intent(raw_intent: str) -> str:
+    intent = (raw_intent or "").strip().lower()
+    alias_map = {
+        "ecg_digitize": "ecg_auto_digitize",
+        "ecg_auto_digitize": "ecg_auto_digitize",
+        "ecg_manual_digitize": "ecg_manual_digitize",
+        "ecgomics_analyze": "ecg_feature_extract",
+        "ecg_feature_extract": "ecg_feature_extract",
+        "ecg_reconstruct": "ecg_reconstruct",
+        "zhunxin_risk_assess": "zhunxin_risk_assess",
+        "result_interpretation": "result_interpretation",
+        "knowledge_qa": "knowledge_qa",
+        "chat": "chat",
+        "smalltalk": "chat",
+    }
+    return alias_map.get(intent, "chat")
+
+
+def _context_source_stats(context: dict[str, Any]) -> dict[str, Any]:
+    ctx = context or {}
+    sources = ctx.get("sources") or []
+    selected = [src for src in sources if isinstance(src, dict) and src.get("checked")]
+    selected_ids = [str(src.get("source_id") or src.get("file_id") or "") for src in selected if (src.get("source_id") or src.get("file_id"))]
+    return {
+        "selected_count": len(selected),
+        "selected_source_ids": selected_ids,
+        "has_image": bool(ctx.get("has_image")),
+        "has_xml": bool(ctx.get("has_xml")),
+        "has_csv": bool(ctx.get("has_csv")),
+        "has_ecg_signal": bool(ctx.get("has_ecg_signal")),
+    }
+
+
+def _conversation_history_payload(history: list[Any]) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    for item in history[-8:]:
+        role = getattr(item, "role", None) or (item.get("role") if isinstance(item, dict) else "")
+        content = getattr(item, "content", None) if not isinstance(item, dict) else item.get("content")
+        text = ""
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict) and part.get("type") == "text")
+        if role in {"user", "assistant"} and text:
+            out.append({"role": str(role), "content": text[:1200]})
+    return out
+
+
+def _latest_assistant_text(history: list[Any]) -> str:
+    for item in reversed(history[-8:]):
+        role = getattr(item, "role", None) or (item.get("role") if isinstance(item, dict) else "")
+        content = getattr(item, "content", None) if not isinstance(item, dict) else item.get("content")
+        text = ""
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "\n".join(
+                str(part.get("text", ""))
+                for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+        if role == "assistant" and text:
+            return text[:3000]
+    return ""
+
+
+def _source_brief_payload(context: dict[str, Any]) -> list[dict[str, Any]]:
+    briefs: list[dict[str, Any]] = []
+    for src in (context or {}).get("sources") or []:
+        if not isinstance(src, dict):
+            continue
+        briefs.append(
+            {
+                "source_id": str(src.get("source_id") or src.get("file_id") or ""),
+                "name": str(src.get("name") or ""),
+                "type": str(src.get("type") or ""),
+                "checked": bool(src.get("checked")),
+                "text": str(src.get("text") or "")[:400],
+            }
+        )
+    return briefs[:12]
+
+
+def _missing_fields_for_intent(intent: str, context: dict[str, Any]) -> list[str]:
+    stats = _context_source_stats(context)
+    if intent in {"ecg_auto_digitize", "ecg_manual_digitize", "zhunxin_risk_assess"}:
+        if not stats["selected_count"]:
+            return ["selected_source"]
+        if not stats["has_image"]:
+            return ["image_source"]
+    if intent in {"ecg_feature_extract", "ecg_reconstruct", "result_interpretation"}:
+        if not stats["selected_count"]:
+            return ["selected_source"]
+        if not stats["has_ecg_signal"] and not stats["has_xml"] and not stats["has_csv"]:
+            return ["ecg_signal_source"]
+    return []
+
+
+def _message_for_missing_fields(intent: str, missing_fields: list[str]) -> str:
+    if "selected_source" in missing_fields:
+        return "请先选择来源文件，再告诉我要执行哪一步。图片或 PDF 适合数字化，XML/CSV 波形适合特征提取、补全和结果解读。"
+    if "image_source" in missing_fields:
+        if intent == "zhunxin_risk_assess":
+            return "准心风险评估需要心电图图片或 PDF。请选择单个心电图图片或 PDF 后再试。"
+        return "当前选中的来源不适合数字化。请选择单个心电图图片或 PDF 后再试。"
+    if "ecg_signal_source" in missing_fields:
+        return "当前选中的来源不适合 ECG 特征提取、补全或结果解读。请选择 XML、CSV、TXT、TSV 或 JSON 波形数据。"
+    return "还缺少执行该任务所需的信息，请补充后再试。"
+
+
+def _ask_missing_meta(intent: str, context: dict[str, Any], missing_fields: list[str]) -> dict[str, Any]:
+    stats = _context_source_stats(context)
+    has_selected = bool(stats["selected_count"])
+    if "selected_source" in missing_fields:
+        return {
+            "style": "guided",
+            "headline": "还差一步就能继续",
+            "body": "我可以帮你完成这项任务。先选择一个来源文件，我再继续处理。",
+            "tips": [
+                "心电图图片或 PDF 适合先做数字化。",
+                "XML、CSV、TXT、TSV、JSON 波形文件适合直接做特征提取、补全或结果解读。",
+            ],
+            "actions": [
+                {"label": "去上传文件", "kind": "primary", "action": "upload"},
+                {"label": "去选择文件", "kind": "secondary", "action": "toggle_sources"},
+            ],
+        }
+    if "image_source" in missing_fields:
+        if intent == "zhunxin_risk_assess":
+            return {
+                "style": "guided",
+                "headline": "准心风险评估需要心电图图片",
+                "body": "我可以帮你生成准心风险报告，但需要先选中一张心电图图片或一个 PDF。",
+                "tips": [
+                    "建议只选择 1 个来源进行本次评估。",
+                    "如果你已经有波形 CSV/XML，更适合走特征提取或结果解读流程。",
+                ],
+                "actions": [
+                    {"label": "去上传文件", "kind": "primary", "action": "upload"},
+                    {"label": "去选择文件", "kind": "secondary", "action": "toggle_sources"},
+                ],
+            }
+        return {
+            "style": "guided",
+            "headline": "这一步需要心电图图片或 PDF",
+            "body": "你当前选中的不是可直接数字化的来源。我可以在你换成图片或 PDF 后继续帮你处理。",
+            "tips": [
+                "自动数字化更适合标准心电图图片。",
+                "如果图片复杂或识别不准，也可以改用手动数字化。",
+            ],
+            "actions": [
+                {"label": "去上传文件", "kind": "primary", "action": "upload"},
+                {"label": "去选择文件", "kind": "secondary", "action": "toggle_sources"},
+            ],
+        }
+    if "ecg_signal_source" in missing_fields:
+        if stats["has_image"]:
+            return {
+                "style": "guided",
+                "headline": "我理解你想分析这张心电图",
+                "body": "当前选中的是图片或 PDF，还不能直接做特征分析。我可以先帮你数字化成波形数据，再继续分析。",
+                "tips": [
+                    "数字化后会生成 CSV 波形数据。",
+                    "生成的波形文件加入来源后，就可以继续做特征提取、补全或结果解读。",
+                ],
+                "actions": [
+                    {"label": "先自动数字化", "kind": "primary", "action": "run:ecgsmart"},
+                    {"label": "改用手动数字化", "kind": "secondary", "action": "run:ecg"},
+                ],
+            }
+        return {
+            "style": "guided",
+            "headline": "这一步需要波形数据文件",
+            "body": "我可以继续帮你分析，但需要先选中可读取的 ECG 波形数据。",
+            "tips": [
+                "支持 XML、CSV、TXT、TSV、JSON 波形文件。",
+                "如果你手上只有图片或 PDF，可以先做数字化再回来继续。",
+            ],
+            "actions": [
+                {"label": "去上传文件", "kind": "primary", "action": "upload"},
+                {"label": "先自动数字化", "kind": "secondary", "action": "run:ecgsmart"},
+            ],
+        }
+    return {
+        "style": "guided",
+        "headline": "还需要补充一点信息",
+        "body": _message_for_missing_fields(intent, missing_fields),
+        "tips": [],
+        "actions": [{"label": "去上传文件", "kind": "primary", "action": "upload"}],
+    }
+
+
+def _looks_like_disease_check_goal(message: str) -> bool:
+    text = re.sub(r"\s+", "", (message or "").strip().lower())
+    if not text:
+        return False
+    if "准心" in text or "风险评估" in text:
+        return False
+    check_patterns = (
+        "有没有病",
+        "有没有问题",
+        "有没有异常",
+        "是否异常",
+        "有没有风险",
+        "严不严重",
+        "看有没有病",
+        "帮我看看",
+        "帮我看看心电图",
+        "帮我看看我的心电图",
+        "风险评估",
+    )
+    ecg_patterns = ("心电", "心电图", "ecg")
+    return any(p in text for p in check_patterns) and any(p in text for p in ecg_patterns)
+
+
+def _build_diagnostic_plan_response(context: dict[str, Any]) -> ConversationResponse:
+    selected_ids = _context_source_stats(context).get("selected_source_ids", [])
+    return _build_conversation_response(
+        response_type="plan_options",
+        stage="planned",
+        intent="zhunxin_risk_assess",
+        confidence=0.9,
+        message="我理解你想看看这张心电图是否存在明显异常。我可以先给你几个处理方案，你选一个我再开始。",
+        description="目标识别：判断心电图是否存在明显风险或异常。",
+        args={"source_ids": selected_ids},
+        meta={
+            "headline": "我建议这样处理",
+            "body": "这类问题通常不是单一步骤。我可以先做风险评估，也可以先把波形提出来再继续深入分析。",
+            "options": [
+                {
+                    "id": "zhunxin",
+                    "title": "先做准心风险评估",
+                    "description": "直接基于当前心电图图片生成高风险/低风险排序和报告，最快得到初步判断。",
+                    "action": "run:zhunxin",
+                    "kind": "primary",
+                },
+                {
+                    "id": "ecgsmart",
+                    "title": "先自动数字化再分析",
+                    "description": "先把图片转成波形 CSV，后续可以继续做特征提取、补全和更细致的解读。",
+                    "action": "run:ecgsmart",
+                    "kind": "secondary",
+                },
+                {
+                    "id": "ecg",
+                    "title": "手动精细处理",
+                    "description": "适合图片复杂、自动识别可能不稳时，先手动校正再继续分析。",
+                    "action": "run:ecg",
+                    "kind": "secondary",
+                },
+            ],
+        },
+    )
+
+
+def _parse_tool_call_arguments(raw_args: Any) -> dict[str, Any]:
+    if isinstance(raw_args, dict):
+        return raw_args
+    if isinstance(raw_args, str):
+        return _extract_json_object(raw_args)
+    return {}
+
+
+def _tool_started_message(intent: str) -> str:
+    return {
+        "ecg_auto_digitize": "已识别为自动数字化任务，正在处理所选心电图图片，完成后会生成波形 CSV。",
+        "ecg_manual_digitize": "已识别为手动数字化任务，正在打开数字化工具。",
+        "ecg_feature_extract": "已识别为 ECG 特征提取任务，正在读取所选波形来源并执行提取。",
+        "ecg_reconstruct": "已识别为 ECG 信号补全任务，正在标准化导联波形并执行补全，完成后会保存补全 CSV。",
+        "zhunxin_risk_assess": "已识别为准心风险评估任务，正在处理所选心电图图片，稍后会生成风险报告。",
+    }.get(intent, "已识别到工具任务，正在处理。")
+
+
+def _build_conversation_response(
+    *,
+    response_type: str,
+    stage: str,
+    intent: str,
+    confidence: float,
+    message: str,
+    description: str = "",
+    args: dict[str, Any] | None = None,
+    missing_fields: list[str] | None = None,
+    action: dict[str, Any] | None = None,
+    meta: dict[str, Any] | None = None,
+) -> ConversationResponse:
+    return ConversationResponse(
+        type=response_type,
+        stage=stage,
+        intent=intent,
+        confidence=max(0.0, min(float(confidence), 1.0)),
+        message=message,
+        description=description,
+        args=args or {},
+        missing_fields=missing_fields or [],
+        action=action,
+        meta=meta,
+    )
+
+
+async def _route_conversation_turn(
+    *,
+    message: str,
+    context: dict[str, Any],
+    history: list[Any],
+    provider: str,
+    model: str,
+    api_key: str,
+    max_tokens: int,
+    temperature: float,
+    user: dict[str, Any],
+    forced_intent: str = "",
+) -> ConversationResponse:
+    normalized_forced = _normalize_route_intent(forced_intent)
+    if normalized_forced != "chat":
+        missing_fields = _missing_fields_for_intent(normalized_forced, context)
+        if missing_fields:
+            missing_meta = _ask_missing_meta(normalized_forced, context, missing_fields)
+            return _build_conversation_response(
+                response_type="ask_missing",
+                stage="validated",
+                intent=normalized_forced,
+                confidence=1.0,
+                message=_message_for_missing_fields(normalized_forced, missing_fields),
+                description=CONVERSATION_INTENT_DESCRIPTIONS.get(normalized_forced, ""),
+                args={"source_ids": _context_source_stats(context).get("selected_source_ids", [])},
+                missing_fields=missing_fields,
+                action=CONVERSATION_INTENT_TO_ACTION.get(normalized_forced),
+                meta=missing_meta,
+            )
+        return _build_conversation_response(
+            response_type="tool_result",
+            stage="dispatched",
+            intent=normalized_forced,
+            confidence=1.0,
+            message=_tool_started_message(normalized_forced),
+            description=CONVERSATION_INTENT_DESCRIPTIONS.get(normalized_forced, ""),
+            args={"source_ids": _context_source_stats(context).get("selected_source_ids", [])},
+            action=CONVERSATION_INTENT_TO_ACTION.get(normalized_forced),
+        )
+
+    canned_reply = _match_canned_reply(message)
+    if canned_reply:
+        return _build_conversation_response(
+            response_type="chat",
+            stage="guarded",
+            intent="knowledge_qa",
+            confidence=1.0,
+            message=canned_reply,
+            description=CONVERSATION_INTENT_DESCRIPTIONS["knowledge_qa"],
+        )
+
+    stats = _context_source_stats(context)
+    if stats["has_image"] and _looks_like_disease_check_goal(message):
+        return _build_diagnostic_plan_response(context)
+
+    route_plan = await _classify_conversation_intent(
+        message=message,
+        context=context,
+        history=history,
+        user=user,
+        provider=provider,
+        model=model,
+        api_key=api_key,
+    )
+    intent = _normalize_route_intent(str(route_plan.get("intent") or "chat"))
+    confidence = float(route_plan.get("confidence") or 0.0)
+    args = route_plan.get("args") if isinstance(route_plan.get("args"), dict) else {}
+    if not args.get("source_ids") and stats["selected_source_ids"]:
+        args["source_ids"] = stats["selected_source_ids"]
+    missing_fields = route_plan.get("missing_fields") if isinstance(route_plan.get("missing_fields"), list) else []
+    if not missing_fields:
+        missing_fields = _missing_fields_for_intent(intent, context)
+
+    if intent in CONVERSATION_INTENT_TO_ACTION:
+        if missing_fields:
+            missing_meta = _ask_missing_meta(intent, context, missing_fields)
+            return _build_conversation_response(
+                response_type="ask_missing",
+                stage="validated",
+                intent=intent,
+                confidence=max(confidence, 0.65),
+                message=_message_for_missing_fields(intent, missing_fields),
+                description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, ""),
+                args=args,
+                missing_fields=missing_fields,
+                action=CONVERSATION_INTENT_TO_ACTION.get(intent),
+                meta={"reason": route_plan.get("reason", ""), **missing_meta},
+            )
+        if confidence >= 0.85 or intent == "ecg_manual_digitize":
+            return _build_conversation_response(
+                response_type="tool_result",
+                stage="dispatched",
+                intent=intent,
+                confidence=confidence or 0.9,
+                message=_tool_started_message(intent),
+                description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, ""),
+                args=args,
+                action=CONVERSATION_INTENT_TO_ACTION.get(intent),
+                meta={"reason": route_plan.get("reason", "")},
+            )
+        return _build_conversation_response(
+            response_type="need_confirm",
+            stage="classified",
+            intent=intent,
+            confidence=max(confidence, 0.6),
+            message=f"我理解你想执行“{CONVERSATION_INTENT_DESCRIPTIONS.get(intent, intent)}”，是否继续？",
+            description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, ""),
+            args=args,
+            action=CONVERSATION_INTENT_TO_ACTION.get(intent),
+            meta={"reason": route_plan.get("reason", "")},
+        )
+
+    latest_assistant_result = _latest_assistant_text(history)
+    system_prompt = (
+        DEFAULT_CHAT_SYSTEM
+        + (
+            "\n\n你同时也是 HeartOS 的结果解释助手。若用户是在问“这个结果什么意思”“这个说明什么”，"
+            "优先解释上一条 assistant 结果在表达什么、意味着什么、下一步建议是什么；"
+            "不要泛泛讲心电图基础知识，也不要脱离上一条结果另起话题。"
+            if intent == "result_interpretation"
+            else "\n\n你同时也是 HeartOS 的对话编排助手。若用户是在追问已有分析结果，请结合来源摘要给出专业解释；"
+        )
+        + "若资料不足，要明确说明依据有限，不要臆造结论。"
+    )
+    source_briefs = _source_brief_payload(context)
+    chat_messages = _conversation_history_payload(history)
+    chat_messages.append(
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "question": message,
+                    "source_briefs": source_briefs,
+                    "latest_assistant_result": latest_assistant_result if intent == "result_interpretation" else "",
+                },
+                ensure_ascii=False,
+            ),
+        }
+    )
+    result = await LLM_GATEWAY.chat(
+        provider_key=(provider or settings.llm_default_provider).strip().lower(),
+        model=(model or settings.llm_default_model).strip(),
+        system=system_prompt,
+        messages=chat_messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        user=user,
+        override_api_key=api_key or "",
+        timeout_seconds=settings.http_timeout,
+        retries=settings.http_retries,
+    )
+    return _build_conversation_response(
+        response_type="chat",
+        stage="answered",
+        intent=intent if intent != "chat" else "knowledge_qa",
+        confidence=confidence or 0.7,
+        message=result["reply"],
+        description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, CONVERSATION_INTENT_DESCRIPTIONS["knowledge_qa"]),
+        meta={"provider": result["provider"], "model": result["model"]},
+    )
+
+
+async def _classify_conversation_intent(
+    *,
+    message: str,
+    context: dict[str, Any],
+    history: list[Any],
+    user: dict[str, Any],
+    provider: str,
+    model: str,
+    api_key: str,
+) -> dict[str, Any]:
+    provider_key = (provider or "zhipu").strip().lower()
+    model_name = (model or settings.llm_default_model or "glm-4-flash").strip()
+    system = (
+        "你是 HeartOS 后端的对话路由器。"
+        "你必须从提供的函数中选择一个最合适的函数调用，不要输出自然语言解释。"
+        "如果用户是在询问工具是什么、结果怎么看、如何使用、平台能做什么，优先使用 knowledge_qa 或 result_interpretation。"
+        "只有用户明确想执行操作时，才选择 ECG 工具意图。"
+        "若用户意图不明确，不要勉强调用专业工具，优先选 chat 或 knowledge_qa。"
+    )
+    payload = {
+        "message": message,
+        "history": _conversation_history_payload(history),
+        "context": {
+            "conversation_id": str((context or {}).get("conversation_id") or ""),
+            "has_image": bool((context or {}).get("has_image")),
+            "has_xml": bool((context or {}).get("has_xml")),
+            "has_csv": bool((context or {}).get("has_csv")),
+            "has_ecg_signal": bool((context or {}).get("has_ecg_signal")),
+            "sources": _source_brief_payload(context),
+        },
+    }
+    try:
+        out = await LLM_GATEWAY.chat(
+            provider_key=provider_key,
+            model=model_name,
+            system=system,
+            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+            max_tokens=360,
+            temperature=0.0,
+            user=user,
+            override_api_key=api_key or "",
+            tools=CONVERSATION_ROUTER_TOOLS,
+            tool_choice="required",
+            timeout_seconds=min(settings.http_timeout, 20),
+            retries=settings.http_retries,
+        )
+        tool_calls = out.get("tool_calls") if isinstance(out.get("tool_calls"), list) else []
+        if tool_calls:
+            fn = tool_calls[0].get("function") if isinstance(tool_calls[0], dict) else {}
+            name = str((fn or {}).get("name") or "chat")
+            args = _parse_tool_call_arguments((fn or {}).get("arguments"))
+            parsed = {
+                "intent": _normalize_route_intent(name),
+                "confidence": args.get("confidence", 0.0),
+                "reason": args.get("reason", ""),
+                "args": {"source_ids": args.get("source_ids") or []},
+                "missing_fields": args.get("missing_fields") or [],
+            }
+            return parsed
+        parsed = _extract_json_object(out.get("reply", ""))
+        if parsed:
+            parsed["intent"] = _normalize_route_intent(str(parsed.get("intent") or "chat"))
+            return parsed
+    except Exception:
+        pass
+
+    msg_text = (message or "").strip().lower()
+    asks_about_tool = any(k in msg_text for k in ("什么是", "是什么", "介绍", "说明", "解释", "原理", "怎么用", "如何用", "支持什么", "区别", "差别", "不同", "用途"))
+    asks_result = any(k in msg_text for k in ("结果", "怎么看", "说明什么", "意味着什么", "靠谱吗", "解读", "什么意思"))
+    wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "运行", "处理", "生成", "提取", "补全", "重建", "数字化"))
+    if asks_result:
+        return {"intent": "result_interpretation", "confidence": 0.78, "reason": "result_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("result_interpretation", context)}
+    if asks_about_tool:
+        return {"intent": "knowledge_qa", "confidence": 0.88, "reason": "knowledge_keywords", "args": {}, "missing_fields": []}
+    if "手动" in msg_text and "数字化" in msg_text and wants_action:
+        return {"intent": "ecg_manual_digitize", "confidence": 0.95, "reason": "manual_digitize_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("ecg_manual_digitize", context)}
+    if (("准心" in msg_text or "风险评估" in msg_text or "胸痛" in msg_text) and bool((context or {}).get("has_image"))) or ("有没有病" in msg_text and bool((context or {}).get("has_image"))):
+        return {"intent": "zhunxin_risk_assess", "confidence": 0.92, "reason": "zhunxin_risk_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("zhunxin_risk_assess", context)}
+    if ("补全" in msg_text or "重建" in msg_text) and ("心电" in msg_text or "ecg" in msg_text or "导联" in msg_text or "波形" in msg_text or bool((context or {}).get("has_ecg_signal"))):
+        return {"intent": "ecg_reconstruct", "confidence": 0.9, "reason": "reconstruct_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("ecg_reconstruct", context)}
+    if ("特征提取" in msg_text or "提取特征" in msg_text or "ecgomics" in msg_text) and wants_action:
+        return {"intent": "ecg_feature_extract", "confidence": 0.9, "reason": "feature_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("ecg_feature_extract", context)}
+    if ("自动" in msg_text and "数字化" in msg_text and wants_action) or ("数字化" in msg_text and bool((context or {}).get("has_image")) and wants_action):
+        return {"intent": "ecg_auto_digitize", "confidence": 0.88, "reason": "auto_digitize_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("ecg_auto_digitize", context)}
+    return {"intent": "chat", "confidence": 0.55, "reason": "fallback_chat", "args": {}, "missing_fields": []}
 
 
 async def _classify_intent_with_zhipu(
@@ -956,6 +1779,69 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
     return {"ok": True, "deleted": before - len(items)}
 
 
+@app.post("/api/conversation/turn", response_model=ConversationResponse)
+async def conversation_turn(
+    req: ConversationTurnRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ConversationResponse:
+    return await _route_conversation_turn(
+        message=req.message,
+        context=req.context.model_dump(),
+        history=req.history,
+        provider=req.provider,
+        model=req.model,
+        api_key=req.api_key,
+        max_tokens=req.max_tokens,
+        temperature=req.temperature,
+        user=user,
+        forced_intent=req.client_hint.intent,
+    )
+
+
+@app.post("/api/conversation/confirm", response_model=ConversationResponse)
+async def conversation_confirm(
+    req: ConversationConfirmRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ConversationResponse:
+    intent = _normalize_route_intent(req.intent)
+    if intent not in CONVERSATION_INTENT_TO_ACTION:
+        return _build_conversation_response(
+            response_type="chat",
+            stage="fallback",
+            intent="chat",
+            confidence=0.0,
+            message="当前确认的任务类型暂不支持执行，请重新描述你的需求。",
+        )
+    missing_fields = _missing_fields_for_intent(intent, req.context.model_dump())
+    if missing_fields:
+        missing_meta = _ask_missing_meta(intent, req.context.model_dump(), missing_fields)
+        return _build_conversation_response(
+            response_type="ask_missing",
+            stage="validated",
+            intent=intent,
+            confidence=1.0,
+            message=_message_for_missing_fields(intent, missing_fields),
+            description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, ""),
+            args=req.args,
+            missing_fields=missing_fields,
+            action=CONVERSATION_INTENT_TO_ACTION.get(intent),
+            meta=missing_meta,
+        )
+    args = dict(req.args or {})
+    if not args.get("source_ids"):
+        args["source_ids"] = _context_source_stats(req.context.model_dump()).get("selected_source_ids", [])
+    return _build_conversation_response(
+        response_type="tool_result",
+        stage="confirmed",
+        intent=intent,
+        confidence=1.0,
+        message=_tool_started_message(intent),
+        description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, ""),
+        args=args,
+        action=CONVERSATION_INTENT_TO_ACTION.get(intent),
+    )
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest, user: dict[str, Any] = Depends(get_current_user)) -> ChatResponse:
     provider = (req.provider or settings.llm_default_provider).strip().lower()
@@ -1025,137 +1911,42 @@ async def run_agent(agent_id: str, req: AgentRunRequest, user: dict[str, Any] = 
 
 @app.post("/api/agent/auto-run", response_model=AgentAutoRunResponse)
 async def auto_run_agent(req: AgentAutoRunRequest, user: dict[str, Any] = Depends(get_current_user)) -> AgentAutoRunResponse:
-    msg_text = (req.message or "").strip().lower()
-    canned_reply = _match_canned_reply(req.message or "")
-    if canned_reply:
-        return AgentAutoRunResponse(
-            intent="chat",
-            route="model",
-            target="heartos_identity",
-            reply=canned_reply,
-            action={"provider": "heartos", "model": "identity"},
-        )
-    has_image = bool((req.context or {}).get("has_image"))
-    has_xml = bool((req.context or {}).get("has_xml"))
-    has_csv = bool((req.context or {}).get("has_csv"))
-    has_ecg_signal = bool((req.context or {}).get("has_ecg_signal")) or has_csv
-
-    wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "处理", "生成", "提取", "分析", "补全", "重建", "跑一下", "run", "do"))
-    asks_concept = any(k in msg_text for k in ("什么是", "是什么", "解释", "介绍", "原理", "概念", "why", "what is", "how"))
-    wants_ecg_features = (
-        ("特征提取" in msg_text or "提取特征" in msg_text or "特征分析" in msg_text)
-        and ("心电" in msg_text or "ecg" in msg_text)
-    )
-    wants_ecg_reconstruct = (
-        ("补全" in msg_text or "重建" in msg_text or "reconstruct" in msg_text)
-        and ("心电" in msg_text or "ecg" in msg_text or "导联" in msg_text or "波形" in msg_text or has_ecg_signal)
-    )
-
-    if "手动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
-        route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
-    elif wants_ecg_reconstruct and wants_action and not asks_concept:
-        route_plan = {"intent": "ecg_reconstruct", "route": "api", "target": "/api/ecg-reconstruct"}
-    elif "自动" in msg_text and "数字化" in msg_text and wants_action and not asks_concept:
-        route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
-    elif ("ecgomics" in msg_text or has_xml or wants_ecg_features) and wants_action and not asks_concept:
-        route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
-    else:
-        # Route B: perform LLM intent extraction for chat input, then fall back
-        # to deterministic routing only if the LLM router itself is unavailable.
-        try:
-            route_plan = await _classify_intent_with_zhipu(
-                message=req.message,
-                context=req.context,
-                user=user,
-                api_key=req.api_key,
-            )
-        except Exception:
-            if "手动" in msg_text and "数字化" in msg_text:
-                route_plan = {"intent": "ecg_manual_digitize", "route": "api", "target": "/tool/handecg/manual"}
-            elif wants_ecg_reconstruct:
-                route_plan = {"intent": "ecg_reconstruct", "route": "api", "target": "/api/ecg-reconstruct"}
-            elif "自动" in msg_text and "数字化" in msg_text:
-                route_plan = {"intent": "ecg_digitize", "route": "api", "target": "/api/ai-ecg-digitize"}
-            elif "ecgomics" in msg_text or has_xml:
-                route_plan = {"intent": "ecgomics_analyze", "route": "api", "target": "/api/ecgomics/analyze"}
-            else:
-                route_plan = {"intent": "chat", "route": "model", "target": "heartos_chat"}
-
-    intent = str(route_plan.get("intent") or "chat")
-    route = str(route_plan.get("route") or "model")
-    target = str(route_plan.get("target") or "heartos_chat")
-
-    if intent == "ecg_manual_digitize" or target == "/tool/handecg/manual":
-        return AgentAutoRunResponse(
-            intent="ecg_manual_digitize",
-            route="api",
-            target="/tool/handecg/manual",
-            reply="已识别为手动数字化任务，准备打开 HandECG 手动数字化工具。",
-            action={"endpoint": "/tool/handecg/manual", "method": "OPEN"},
-        )
-
-    if intent == "ecg_digitize" or target == "/api/ai-ecg-digitize":
-        return AgentAutoRunResponse(
-            intent="ecg_digitize",
-            route="api",
-            target="/api/ai-ecg-digitize",
-            reply="已识别为自动数字化任务，请调用 /api/ai-ecg-digitize 并提交图像文件或 image_base64。",
-            action={"endpoint": "/api/ai-ecg-digitize", "method": "POST", "required": ["file 或 image_base64"]},
-        )
-
-    if intent == "ecg_reconstruct" or target == "/api/ecg-reconstruct":
-        return AgentAutoRunResponse(
-            intent="ecg_reconstruct",
-            route="api",
-            target="/api/ecg-reconstruct",
-            reply="已识别为心电图补全任务，请提交心电信号文件；系统会去除索引与描述信息，生成十二导联纯数值矩阵并以 0 标记缺失波形。",
-            action={"endpoint": "/api/ecg-reconstruct", "method": "POST", "required": ["ECG signal file (CSV/XML/JSON/TSV/TXT)"]},
-        )
-
-    if intent == "ecgomics_analyze" or target == "/api/ecgomics/analyze":
-        return AgentAutoRunResponse(
-            intent="ecgomics_analyze",
-            route="api",
-            target="/api/ecgomics/analyze",
-            reply="已识别为 ECGOmics 分析任务，请调用 /api/ecgomics/analyze 并提交 raw/xml 数据。",
-            action={"endpoint": "/api/ecgomics/analyze", "method": "POST", "required": ["inputType + 数据体"]},
-        )
-
-    if route == "agent" or intent == "agent_run":
-        agent_id = target if target in AGENT_SYSTEM_PROMPTS else "ecg"
-        agent_req = AgentRunRequest(
-            agent_id=agent_id,
-            api_key=req.api_key,
-            provider=req.provider,
-            model=req.model,
-            messages=[{"role": "user", "content": req.message}],
-            max_tokens=req.max_tokens,
-        )
-        ran = await run_agent(agent_id, agent_req, user)
-        return AgentAutoRunResponse(
-            intent="agent_run",
-            route="agent",
-            target=agent_id,
-            reply=ran.reply,
-            action={"agent_id": agent_id, "provider": ran.provider, "model": ran.model},
-        )
-
-    chat_req = ChatRequest(
+    routed = await _route_conversation_turn(
+        message=req.message,
+        context=req.context,
+        history=[],
         provider=req.provider,
         model=req.model,
         api_key=req.api_key,
-        system=DEFAULT_CHAT_SYSTEM,
-        messages=[{"role": "user", "content": req.message}],
         max_tokens=req.max_tokens,
         temperature=req.temperature,
+        user=user,
     )
-    chat_resp = await chat(chat_req, user)
+    action = dict(routed.action or {})
+    if routed.type == "chat":
+        return AgentAutoRunResponse(
+            intent="chat",
+            route="model",
+            target=str((routed.meta or {}).get("provider") or "heartos_chat"),
+            reply=routed.message,
+            action=action or {"provider": (routed.meta or {}).get("provider"), "model": (routed.meta or {}).get("model")},
+        )
+
+    route = "api"
+    target = str(action.get("endpoint") or "")
+    if routed.type == "need_confirm":
+        action["needs_confirmation"] = True
+        route = "confirm"
+    elif routed.type == "plan_options":
+        route = "plan"
+    elif routed.type == "ask_missing":
+        route = "missing"
     return AgentAutoRunResponse(
-        intent="chat",
-        route="model",
-        target=chat_resp.provider,
-        reply=chat_resp.reply,
-        action={"provider": chat_resp.provider, "model": chat_resp.model},
+        intent=routed.intent,
+        route=route,
+        target=target or "heartos_chat",
+        reply=routed.message,
+        action=action or None,
     )
 
 
@@ -1568,6 +2359,41 @@ async def ai_ecg_digitize(
         out["_meta"]["user_id"] = user.get("id")
         out["_meta"]["username"] = user.get("username")
     return {"ok": True, "upstream": out}
+
+
+@app.post("/api/chest-pain/predict")
+@app.post("/api/zhunxin/predict")
+async def chest_pain_predict(
+    file: UploadFile = File(...),
+    use_optimized_rank: bool = Form(default=True),
+    show_score: bool = Form(default=True),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    filename = str(file.filename or "ecg_image.jpg")
+    content_type = str(file.content_type or "application/octet-stream")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="uploaded file is empty")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large, max {settings.max_upload_mb}MB")
+
+    result = await predict_image_and_report(
+        file_bytes=content,
+        filename=filename,
+        content_type=content_type,
+        url=(settings.chest_pain_predict_url or "").strip(),
+        timeout_seconds=settings.http_timeout,
+        use_optimized_rank=use_optimized_rank,
+        show_score=show_score,
+    )
+    result["summary"] = await _summarize_chest_pain_result_with_llm(result=result, user=user)
+    result["_meta"] = {
+        "user_id": user.get("id"),
+        "username": user.get("username"),
+        "source_file": filename,
+        "upstream_url": settings.chest_pain_predict_url,
+    }
+    return {"ok": True, **result}
 
 
 @app.post("/api/files/upload")
