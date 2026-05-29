@@ -4884,6 +4884,7 @@ function buildConversationPayload(userInput, clientHint){
       has_xml: hasXml,
       has_csv: hasCsv,
       has_ecg_signal: hasEcgSignal,
+      last_result_kind: detectLastConversationResultKind(),
       last_tool_intent: String((window.__heartosLastConversationIntent || '')),
       last_tool_result_id: String((window.__heartosLastConversationResultId || ''))
     }
@@ -4937,6 +4938,18 @@ function toolNameForConversationAction(resp){
     ecg_feature_extract: 'ecgd',
     ecg_reconstruct: 'ecgrecon'
   })[String((resp && resp.intent) || '')] || '';
+}
+
+function detectLastConversationResultKind(){
+  for(let i = (Array.isArray(msgs) ? msgs.length : 0) - 1; i >= 0; i -= 1){
+    const item = msgs[i] || {};
+    if(item.role !== 'assistant') continue;
+    if(item.type === 'zhunxin_risk') return 'zhunxin_risk';
+    if(item.type === 'recon_compare' || item.type === 'recon_image') return 'ecg_reconstruct';
+    if(item.type === 'auto_digitize_preview' || item.type === 'wave_preview') return 'digitize_result';
+    if(item.type === 'rich' && /风险分层|准心|高风险|中风险|低风险/.test(String(item.content || ''))) return 'zhunxin_risk';
+  }
+  return '';
 }
 
 function finishChatTurn(userText, replyText){

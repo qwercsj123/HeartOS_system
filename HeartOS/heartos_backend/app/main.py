@@ -510,6 +510,65 @@ def _context_source_stats(context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _normalized_message_text(message: str) -> str:
+    return (message or "").strip().lower()
+
+
+def _is_explicit_zhunxin_action(message: str) -> bool:
+    msg_text = _normalized_message_text(message)
+    if not msg_text:
+        return False
+    explicit_patterns = (
+        "开始准心评估",
+        "开始风险评估",
+        "做准心评估",
+        "做风险评估",
+        "重新评估",
+        "再评估一次",
+        "再做一次评估",
+        "生成风险报告",
+        "做胸痛风险评估",
+        "准心评估一下",
+        "帮我评估",
+        "请评估",
+        "筛查一下",
+        "重新筛查",
+        "看看有没有病",
+        "看有没有病",
+        "检查有没有病",
+    )
+    return any(pattern in msg_text for pattern in explicit_patterns)
+
+
+def _looks_like_result_followup_question(message: str) -> bool:
+    msg_text = _normalized_message_text(message)
+    if not msg_text:
+        return False
+    followup_patterns = (
+        "结果",
+        "怎么看",
+        "说明什么",
+        "意味着什么",
+        "靠谱吗",
+        "解读",
+        "什么意思",
+        "危险吗",
+        "严重吗",
+        "要紧吗",
+        "高吗",
+        "低吗",
+        "中风险",
+        "高风险",
+        "低风险",
+        "风险高吗",
+        "风险大吗",
+        "需不需要去医院",
+        "要不要去医院",
+        "要不要紧",
+    )
+    return any(pattern in msg_text for pattern in followup_patterns)
+
+
 def _conversation_history_payload(history: list[Any]) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for item in history[-8:]:
@@ -541,6 +600,10 @@ def _latest_assistant_text(history: list[Any]) -> str:
         if role == "assistant" and text:
             return text[:3000]
     return ""
+
+
+def _last_result_kind(context: dict[str, Any]) -> str:
+    return str((context or {}).get("last_result_kind") or "").strip().lower()
 
 
 def _source_brief_payload(context: dict[str, Any]) -> list[dict[str, Any]]:
@@ -845,6 +908,15 @@ async def _route_conversation_turn(
     intent = _normalize_route_intent(str(route_plan.get("intent") or "chat"))
     confidence = float(route_plan.get("confidence") or 0.0)
     args = route_plan.get("args") if isinstance(route_plan.get("args"), dict) else {}
+    if (
+        intent == "zhunxin_risk_assess"
+        and _last_result_kind(context) == "zhunxin_risk"
+        and _looks_like_result_followup_question(message)
+        and not _is_explicit_zhunxin_action(message)
+    ):
+        intent = "result_interpretation"
+        confidence = max(confidence, 0.9)
+        route_plan["reason"] = "zhunxin_result_followup_guard"
     if not args.get("source_ids") and stats["selected_source_ids"]:
         args["source_ids"] = stats["selected_source_ids"]
     missing_fields = route_plan.get("missing_fields") if isinstance(route_plan.get("missing_fields"), list) else []
@@ -958,6 +1030,7 @@ async def _classify_conversation_intent(
         "如果用户是在询问工具是什么、结果怎么看、如何使用、平台能做什么，优先使用 knowledge_qa 或 result_interpretation。"
         "只有用户明确想执行操作时，才选择 ECG 工具意图。"
         "若用户意图不明确，不要勉强调用专业工具，优先选 chat 或 knowledge_qa。"
+        "如果 context.last_result_kind 表示上一条已经是某个工具结果，而用户是在追问风险高不高、危不危险、意味着什么、要不要去医院，优先选择 result_interpretation，不要重新调用工具。"
     )
     payload = {
         "message": message,
@@ -968,6 +1041,7 @@ async def _classify_conversation_intent(
             "has_xml": bool((context or {}).get("has_xml")),
             "has_csv": bool((context or {}).get("has_csv")),
             "has_ecg_signal": bool((context or {}).get("has_ecg_signal")),
+            "last_result_kind": _last_result_kind(context),
             "sources": _source_brief_payload(context),
         },
     }
@@ -1006,17 +1080,20 @@ async def _classify_conversation_intent(
     except Exception:
         pass
 
-    msg_text = (message or "").strip().lower()
+    msg_text = _normalized_message_text(message)
+    last_result_kind = _last_result_kind(context)
     asks_about_tool = any(k in msg_text for k in ("什么是", "是什么", "介绍", "说明", "解释", "原理", "怎么用", "如何用", "支持什么", "区别", "差别", "不同", "用途"))
-    asks_result = any(k in msg_text for k in ("结果", "怎么看", "说明什么", "意味着什么", "靠谱吗", "解读", "什么意思"))
+    asks_result = _looks_like_result_followup_question(message)
     wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "运行", "处理", "生成", "提取", "补全", "重建", "数字化"))
     if asks_result:
         return {"intent": "result_interpretation", "confidence": 0.78, "reason": "result_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("result_interpretation", context)}
     if asks_about_tool:
         return {"intent": "knowledge_qa", "confidence": 0.88, "reason": "knowledge_keywords", "args": {}, "missing_fields": []}
+    if last_result_kind == "zhunxin_risk" and _looks_like_result_followup_question(message) and not _is_explicit_zhunxin_action(message):
+        return {"intent": "result_interpretation", "confidence": 0.9, "reason": "zhunxin_result_followup", "args": {}, "missing_fields": _missing_fields_for_intent("result_interpretation", context)}
     if "手动" in msg_text and "数字化" in msg_text and wants_action:
         return {"intent": "ecg_manual_digitize", "confidence": 0.95, "reason": "manual_digitize_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("ecg_manual_digitize", context)}
-    if (("准心" in msg_text or "风险评估" in msg_text or "胸痛" in msg_text) and bool((context or {}).get("has_image"))) or ("有没有病" in msg_text and bool((context or {}).get("has_image"))):
+    if _is_explicit_zhunxin_action(message) and bool((context or {}).get("has_image")):
         return {"intent": "zhunxin_risk_assess", "confidence": 0.92, "reason": "zhunxin_risk_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("zhunxin_risk_assess", context)}
     if ("补全" in msg_text or "重建" in msg_text) and ("心电" in msg_text or "ecg" in msg_text or "导联" in msg_text or "波形" in msg_text or bool((context or {}).get("has_ecg_signal"))):
         return {"intent": "ecg_reconstruct", "confidence": 0.9, "reason": "reconstruct_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("ecg_reconstruct", context)}

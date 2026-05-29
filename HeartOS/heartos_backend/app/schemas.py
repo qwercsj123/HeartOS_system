@@ -144,6 +144,7 @@ class ConversationContext(BaseModel):
     selected_source_ids: list[str] = Field(default_factory=list)
     last_tool_intent: str = ""
     last_tool_result_id: str = ""
+    last_result_kind: str = ""
 
 
 class ConversationClientHint(BaseModel):
