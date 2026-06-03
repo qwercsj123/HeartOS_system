@@ -59,13 +59,23 @@ class ECGOmicsAnalyzeRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username: str = Field(min_length=1)
+    username: str = ""
+    phone: str = ""
     password: str = Field(min_length=1)
 
 
 class RegisterRequest(BaseModel):
-    username: str = Field(min_length=1)
+    phone: str = Field(min_length=1)
+    code: str = Field(min_length=4, max_length=10)
+    verification_token: str | None = None
+    name: str = Field(min_length=1)
+    organization: str = Field(min_length=1)
+    user_type: str = Field(min_length=1)
+    use_case: str = Field(min_length=1)
     password: str = Field(min_length=1)
+    department: str | None = None
+    title: str | None = None
+    email: str | None = None
     display_name: str | None = None
 
 
@@ -74,7 +84,16 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
     user_id: str
     username: str
+    phone: str = ""
     display_name: str
+    name: str = ""
+    organization: str = ""
+    department: str = ""
+    title: str = ""
+    user_type: str = ""
+    use_case: str = ""
+    email: str = ""
+    is_admin: bool = False
     expires_in: int
 
 
@@ -82,6 +101,86 @@ class MeResponse(BaseModel):
     user_id: str
     username: str
     display_name: str
+    phone: str = ""
+    name: str = ""
+    organization: str = ""
+    department: str = ""
+    title: str = ""
+    user_type: str = ""
+    use_case: str = ""
+    email: str = ""
+    is_admin: bool = False
+
+
+class SendCodeRequest(BaseModel):
+    phone: str = Field(min_length=1)
+    purpose: Literal["register", "reset_password"] = "register"
+
+
+class SendCodeResponse(BaseModel):
+    ok: bool = True
+    expires_in: int
+    retry_after: int
+    debug_code: str = ""
+
+
+class PasswordResetSendCodeRequest(BaseModel):
+    phone: str = Field(min_length=1)
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    phone: str = Field(min_length=1)
+    code: str = Field(min_length=4, max_length=10)
+    verification_token: str | None = None
+    new_password: str = Field(min_length=1)
+
+
+class PasswordResetVerifyRequest(BaseModel):
+    phone: str = Field(min_length=1)
+    code: str = Field(min_length=4, max_length=10)
+
+
+class RegisterVerifyRequest(BaseModel):
+    phone: str = Field(min_length=1)
+    code: str = Field(min_length=4, max_length=10)
+
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=1)
+
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: str | None = None
+    name: str | None = None
+    organization: str | None = None
+    department: str | None = None
+    title: str | None = None
+    user_type: str | None = None
+    use_case: str | None = None
+    email: str | None = None
+
+
+class UserAdminItem(BaseModel):
+    user_id: str
+    username: str
+    phone: str = ""
+    display_name: str
+    name: str = ""
+    organization: str = ""
+    department: str = ""
+    title: str = ""
+    user_type: str = ""
+    use_case: str = ""
+    email: str = ""
+    is_admin: bool = False
+    active: bool = True
+    created_at: int = 0
+    last_login_at: int = 0
+
+
+class UserAdminListResponse(BaseModel):
+    items: list[UserAdminItem] = Field(default_factory=list)
 
 
 class FeedbackSubmitRequest(BaseModel):

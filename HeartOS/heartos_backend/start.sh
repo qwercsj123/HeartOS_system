@@ -94,7 +94,7 @@ env_value() {
 }
 
 APP_HOST_VALUE="$(env_value APP_HOST 0.0.0.0)"
-APP_PORT_VALUE="$(env_value APP_PORT 9000)"
+APP_PORT_VALUE="$(env_value APP_PORT 9010)"
 RELOAD_ARGS=()
 if [ "${HEARTOS_RELOAD:-1}" = "1" ]; then
     RELOAD_ARGS=(--reload)

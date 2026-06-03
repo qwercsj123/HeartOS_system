@@ -13,12 +13,12 @@ class Settings(BaseSettings):
     name: str = Field(default="HeartOS Backend")
     env: str = Field(default="prod")
     host: str = Field(default="0.0.0.0")
-    port: int = Field(default=9000)
+    port: int = Field(default=9010)
     cors_origins: str = Field(default="*")
     http_timeout: int = Field(default=45)
     http_retries: int = Field(default=2)
     upload_dir: str = Field(default="./data/uploads")
-    public_base_url: str = Field(default="http://127.0.0.1:9000")
+    public_base_url: str = Field(default="http://127.0.0.1:9010")
     max_upload_mb: int = Field(default=20)
     ecgomics_url: str = Field(default="http://110.157.241.24:18023/ECGOmics")
     ai_ecg_digitize_url: str = Field(default="http://110.157.241.24:18022/digitize")
@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     users_file: str = Field(default="./data/users.json")
     default_username: str = Field(default="admin")
     default_password: str = Field(default="admin123")
+    default_admin_phone: str = Field(default="13800000000")
 
     # local: 使用本地 users.json
     # upstream: 转发到外部账号服务（auth_upstream_base）
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
     auth_upstream_base: str = Field(default="https://www.heartvoice.com.cn/dcs")
     auth_upstream_login_path: str = Field(default="/api/heartos/login")
     auth_upstream_register_path: str = Field(default="/api/heartos/register")
+    phone_send_code_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/phone/sendCode")
+    phone_login_by_code_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/phone/loginByCode")
 
     # HandECG 数字化结果上传转发地址
     handecg_save_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/heartos/saveHandECG")

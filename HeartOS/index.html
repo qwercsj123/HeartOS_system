@@ -698,7 +698,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 @keyframes pulse-ring{0%{transform:scale(.85);opacity:.6}100%{transform:scale(1.8);opacity:0}}
 @keyframes float-particle{0%,100%{transform:translateY(0) scale(1);opacity:.4}50%{transform:translateY(-18px) scale(1.15);opacity:.8}}
 @keyframes blink-dot{0%,100%{opacity:1}50%{opacity:.3}}
-.auth-gate{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:28px;background:linear-gradient(135deg,#070d18 0%,#0b1322 52%,#07111e 100%);overflow:hidden;}
+.auth-gate{position:fixed;inset:0;z-index:20000;display:flex;align-items:flex-start;justify-content:center;padding:18px 28px 64px;background:linear-gradient(135deg,#070d18 0%,#0b1322 52%,#07111e 100%);overflow-x:hidden;overflow-y:auto;}
 .auth-gate::before{content:'';position:absolute;inset:0;background:
   radial-gradient(ellipse 820px 520px at 25% 38%,rgba(220,38,38,.12) 0%,transparent 70%),
   radial-gradient(ellipse 680px 460px at 72% 58%,rgba(14,165,233,.055) 0%,transparent 72%),
@@ -708,7 +708,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
   linear-gradient(90deg,rgba(148,163,184,.035) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(circle at 50% 50%,rgba(0,0,0,.70) 0%,rgba(0,0,0,.35) 42%,transparent 78%);pointer-events:none;}
 .auth-ecg-bg{display:none;}
 .auth-ecg-line svg{display:none;}
-.auth-card{position:relative;z-index:1;width:min(1000px,94vw);min-height:560px;background:rgba(10,18,32,.88);border:1px solid rgba(220,38,38,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.34),0 8px 24px rgba(220,38,38,.08);display:grid;grid-template-columns:minmax(0,1.08fr) 420px;overflow:hidden;backdrop-filter:blur(18px);pointer-events:auto;}
+.auth-card{position:relative;z-index:1;width:min(1000px,94vw);min-height:560px;height:min(760px,calc(100vh - 82px));background:rgba(10,18,32,.88);border:1px solid rgba(220,38,38,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.34),0 8px 24px rgba(220,38,38,.08);display:grid;grid-template-columns:minmax(0,1.08fr) 420px;overflow:hidden;backdrop-filter:blur(18px);pointer-events:auto;}
 .auth-visual{position:relative;padding:40px 42px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(8,15,28,.94));color:#e5e7eb;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;border-right:1px solid rgba(148,163,184,.14);}
 .auth-visual::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 48%,rgba(220,38,38,.12) 0%,transparent 58%);pointer-events:none;}
 .auth-heart-container{position:relative;width:220px;height:220px;display:flex;align-items:center;justify-content:center;margin-bottom:36px;}
@@ -734,14 +734,29 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .auth-particle:nth-child(4){left:25%;top:70%;animation-delay:1.5s;background:rgba(14,165,233,.16);}
 .auth-particle:nth-child(5){left:45%;top:15%;animation-delay:.7s;width:2px;height:2px;}
 .auth-particle:nth-child(6){left:75%;top:55%;animation-delay:2.5s;width:2px;height:2px;background:rgba(14,165,233,.14);}
-.auth-form{position:relative;z-index:2;padding:48px 42px;display:flex;flex-direction:column;justify-content:center;background:rgba(7,13,24,.54);}
+.auth-form{position:relative;z-index:2;padding:40px 42px 56px;display:flex;flex-direction:column;justify-content:flex-start;background:rgba(7,13,24,.54);overflow-y:auto;min-height:0;}
 .auth-title{font-size:27px;font-weight:750;color:#f8fafc;margin-bottom:6px;letter-spacing:-.45px;}
 .auth-sub{font-size:13px;color:#94a3b8;margin-bottom:30px;line-height:1.65;}
+.auth-steps{display:flex;align-items:center;gap:10px;margin:-2px 0 22px;}
+.auth-step{display:flex;align-items:center;gap:8px;color:#64748b;font-size:12px;font-weight:700;}
+.auth-step-dot{width:24px;height:24px;border-radius:999px;border:1px solid rgba(148,163,184,.28);display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.35);color:#94a3b8;flex-shrink:0;}
+.auth-step.active{color:#f8fafc;}
+.auth-step.active .auth-step-dot{background:#dc2626;border-color:#ef4444;color:#fff;box-shadow:0 8px 18px rgba(220,38,38,.22);}
+.auth-step.done{color:#fecaca;}
+.auth-step.done .auth-step-dot{background:rgba(220,38,38,.14);border-color:rgba(239,68,68,.4);color:#fecaca;}
+.auth-step-line{flex:1;height:1px;background:rgba(148,163,184,.22);}
+.auth-step-pane{display:none;}
+.auth-step-pane.active{display:block;}
+.auth-pane-tip{font-size:12px;color:#94a3b8;line-height:1.6;margin:-2px 0 16px;}
 .auth-row{margin-bottom:16px;}
 .auth-row label{display:block;font-size:12px;color:#cbd5e1;margin-bottom:8px;font-weight:650;letter-spacing:.02em;}
-.auth-row input{width:100%;height:46px;border:1px solid rgba(203,213,225,.28);border-radius:12px;padding:0 15px;font-size:14px;background:#eaf2ff;color:#020617;outline:none;transition:border-color .18s,box-shadow .18s,background .18s;font-family:inherit;}
+.auth-row input,.auth-row select{width:100%;height:46px;border:1px solid rgba(203,213,225,.28);border-radius:12px;padding:0 15px;font-size:14px;background:#eaf2ff;color:#020617;outline:none;transition:border-color .18s,box-shadow .18s,background .18s;font-family:inherit;}
 .auth-row input::placeholder{color:#64748b;}
-.auth-row input:focus{background:#f8fbff;border-color:#ef4444;box-shadow:0 0 0 4px rgba(220,38,38,.12);}
+.auth-row input:focus,.auth-row select:focus{background:#f8fbff;border-color:#ef4444;box-shadow:0 0 0 4px rgba(220,38,38,.12);}
+.auth-inline{display:grid;grid-template-columns:minmax(0,1fr) 116px;gap:10px;}
+.auth-inline button{height:46px;border-radius:12px;border:1px solid rgba(239,68,68,.36);background:rgba(220,38,38,.12);color:#fecaca;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.auth-inline button:hover{background:rgba(220,38,38,.18);}
+.auth-inline button:disabled{opacity:.65;cursor:not-allowed;}
 .auth-password-field{position:relative;}
 .auth-password-field input{padding-right:64px;}
 .auth-password-toggle{position:absolute;top:50%;right:10px;transform:translateY(-50%);width:32px;height:32px;padding:0;border:0;background:transparent;color:#64748b;cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center;}
@@ -753,11 +768,15 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .auth-actions button:hover{background:rgba(30,41,59,.82);border-color:rgba(148,163,184,.42);box-shadow:0 8px 18px rgba(0,0,0,.18);}
 .auth-actions .pri{background:#dc2626;border-color:#ef4444;color:#fff;box-shadow:0 10px 20px rgba(220,38,38,.28);letter-spacing:.02em;}
 .auth-actions .pri:hover{background:#b91c1c;box-shadow:0 12px 24px rgba(220,38,38,.32);}
+.auth-actions .link{background:transparent;border-color:transparent;color:#94a3b8;padding:0 8px;}
+.auth-actions .link:hover{background:transparent;border-color:transparent;color:#e2e8f0;box-shadow:none;}
+.auth-actions .ghost{background:rgba(15,23,42,.28);}
 .auth-msg{min-height:22px;font-size:12px;color:#fca5a5;margin-top:14px;font-weight:550;}
 .auth-help{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5;}
 .auth-hidden{display:none !important;}
 .auth-footer{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-size:11px;color:#94a3b8;letter-spacing:.06em;z-index:1;pointer-events:none;}
-@media (max-width: 860px){.auth-card{grid-template-columns:1fr;min-height:0;width:min(460px,94vw)}.auth-visual{display:none}.auth-form{padding:36px 28px}.auth-title{font-size:24px}}
+@media (max-width: 860px){.auth-gate{padding:12px 12px 56px}.auth-card{grid-template-columns:1fr;min-height:0;height:auto;min-height:min(560px,calc(100vh - 32px));width:min(460px,100%)}.auth-visual{display:none}.auth-form{padding:28px 20px 44px;overflow-y:visible}.auth-title{font-size:24px}}
+@media (max-height: 820px){.auth-card{height:auto;min-height:560px}.auth-form{overflow-y:visible}}
 
 .system-modal{position:fixed;inset:0;z-index:26200;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.42);backdrop-filter:blur(4px);}
 .system-modal.open{display:flex;}
@@ -773,11 +792,63 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .feedback-field label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;}
 .feedback-field textarea{width:100%;min-height:160px;resize:vertical;line-height:1.6;border:1px solid var(--border2);border-radius:12px;padding:12px 13px;font:inherit;font-size:14px;color:var(--text);background:#fff;outline:none;}
 .feedback-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,99,217,.12);}
+.feedback-upload-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.feedback-upload-btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:12px;border:1px dashed var(--accent);background:#f8fbff;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;}
+.feedback-upload-btn:hover{background:#eef5ff;}
+.feedback-upload-meta{font-size:12px;color:var(--text3);}
+.feedback-image-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;}
+.feedback-image-card{position:relative;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff;}
+.feedback-image-card img{display:block;width:100%;height:94px;object-fit:cover;background:#f8fafc;}
+.feedback-image-card-info{padding:8px 10px 10px;}
+.feedback-image-card-name{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.feedback-image-card-size{margin-top:4px;font-size:11px;color:var(--text3);}
+.feedback-image-remove{position:absolute;top:8px;right:8px;width:24px;height:24px;border:none;border-radius:999px;background:rgba(15,23,42,.72);color:#fff;font-size:14px;line-height:1;cursor:pointer;}
+.feedback-image-empty{display:flex;align-items:center;justify-content:center;min-height:88px;padding:14px 16px;border:1px dashed #d5deec;border-radius:16px;background:#fafcff;font-size:12px;color:#8592a8;line-height:1.7;text-align:center;}
 .feedback-note{font-size:12px;color:var(--text3);line-height:1.6;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid var(--border);}
 .feedback-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
+.feedback-actions.sticky{position:sticky;bottom:-22px;padding:14px 0 0;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 24px);}
 .feedback-actions button{height:38px;padding:0 14px;border-radius:12px;border:1px solid var(--border2);background:#fff;color:var(--text2);font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 .feedback-actions .primary{background:var(--accent);border-color:var(--accent);color:#fff;}
 .feedback-actions button:disabled{opacity:.6;cursor:not-allowed;}
+.feedback-panel{display:flex;flex-direction:column;gap:14px;}
+.feedback-compose{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:18px;border:1px solid #e6ecf5;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.04);}
+.feedback-compose textarea{min-height:136px;background:linear-gradient(180deg,#fff,#fbfdff);}
+.feedback-upload-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-radius:16px;border:1px dashed #bfd3ff;background:#fbfdff;}
+.feedback-upload-copy{display:flex;flex-direction:column;gap:4px;flex:1;}
+.feedback-upload-title{font-size:13px;font-weight:800;color:#14233c;}
+.feedback-upload-desc{font-size:12px;line-height:1.6;color:#6b778c;}
+.feedback-upload-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.feedback-upload-meta{font-size:12px;color:#7e8ba3;}
+.feedback-upload-empty{display:flex;align-items:center;justify-content:center;min-height:72px;padding:12px 14px;border:1px dashed #d5deec;border-radius:16px;background:#fafcff;font-size:12px;color:#8a96ab;text-align:center;}
+.feedback-image-list.compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr));}
+.feedback-image-card{border-color:#dde6f4;border-radius:16px;box-shadow:0 10px 24px rgba(15,23,42,.05);}
+.feedback-image-card img{height:104px;}
+.feedback-image-card-info{padding:10px 12px 12px;}
+.account-shell{display:flex;flex-direction:column;gap:18px;}
+.account-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:18px 20px;border-radius:20px;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#111827 100%);color:#fff;box-shadow:0 20px 50px rgba(15,23,42,.18);}
+.account-hero-copy{display:flex;flex-direction:column;gap:8px;min-width:0;}
+.account-eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(226,232,240,.74);}
+.account-name{font-size:26px;font-weight:800;line-height:1.15;color:#fff;}
+.account-meta{font-size:13px;line-height:1.7;color:rgba(226,232,240,.86);}
+.account-hero-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+.account-chip-btn{height:38px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;backdrop-filter:blur(10px);}
+.account-chip-btn:hover{background:rgba(255,255,255,.14);}
+.account-chip-btn.danger{background:rgba(239,68,68,.16);border-color:rgba(248,113,113,.44);}
+.account-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+.account-card{padding:16px;border-radius:18px;border:1px solid #e6ecf5;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.05);}
+.account-card.full{grid-column:1 / -1;}
+.account-card-title{font-size:14px;font-weight:800;color:#1f2a44;margin-bottom:12px;}
+.account-card-subtitle{font-size:12px;color:#72819a;line-height:1.6;margin-bottom:12px;}
+.account-field input,.account-field select{width:100%;height:44px;border:1px solid #d7deeb;border-radius:14px;padding:0 14px;font:inherit;background:#fbfcff;}
+.account-field input:focus,.account-field select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,99,217,.12);background:#fff;}
+.account-field label{display:block;font-size:12px;font-weight:800;color:#55637b;margin-bottom:8px;}
+.account-savebar{display:flex;justify-content:flex-end;padding-top:4px;}
+.account-savebar .primary{min-width:132px;height:42px;border-radius:14px;font-size:14px;font-weight:800;box-shadow:0 12px 30px rgba(47,99,217,.22);}
+@media (max-width: 720px){
+  .feedback-upload-card,.account-hero{flex-direction:column;}
+  .account-grid{grid-template-columns:1fr;}
+  .account-hero-actions{justify-content:flex-start;}
+}
 </style>
 </head>
 <body>
@@ -818,27 +889,86 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       </div>
     </div>
     <div class="auth-form">
-      <div class="auth-title">欢迎回到 HeartOS</div>
-      <div class="auth-sub">登录后进入你的心电研究空间</div>
-      <div class="auth-row">
-        <label>用户名</label>
-        <input id="authUsername" placeholder="请输入用户名" autocomplete="username" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
+      <div class="auth-title" id="authTitle">欢迎回到 HeartOS</div>
+      <div class="auth-sub" id="authSub">登录后进入你的心电研究空间。</div>
+      <div class="auth-steps auth-hidden" id="authSteps">
+        <div class="auth-step active" id="authStepItem1"><span class="auth-step-dot">1</span><span>手机验证</span></div>
+        <div class="auth-step-line"></div>
+        <div class="auth-step" id="authStepItem2"><span class="auth-step-dot">2</span><span>完善资料</span></div>
       </div>
-      <div class="auth-row">
-        <label>密码</label>
-        <div class="auth-password-field">
-          <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
-          <button class="auth-password-toggle" id="authPasswordToggle" type="button" aria-label="显示密码" aria-pressed="false" onclick="toggleAuthPasswordVisibility()"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <div class="auth-step-pane" id="authStepPane1">
+        <div class="auth-row">
+          <label>手机号</label>
+          <input id="authPhone" placeholder="请输入手机号" autocomplete="username" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
         </div>
-        <div class="auth-help auth-hidden" id="authPasswordHelp">注册密码需至少 6 位，并同时包含字母和数字。</div>
+        <div class="auth-row auth-hidden" id="authCodeWrap">
+          <label>短信验证码</label>
+          <div class="auth-inline">
+            <input id="authCode" placeholder="请输入验证码" inputmode="numeric" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()">
+            <button id="authSendCodeBtn" type="button" onclick="sendAuthCode('register')">获取验证码</button>
+          </div>
+        </div>
+        <div class="auth-row">
+          <label>密码</label>
+          <div class="auth-password-field">
+            <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
+            <button class="auth-password-toggle" id="authPasswordToggle" type="button" aria-label="显示密码" aria-pressed="false" onclick="toggleAuthPasswordVisibility()"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+          <div class="auth-help auth-hidden" id="authPasswordHelp">注册密码需至少 6 位，并同时包含字母和数字。</div>
+        </div>
       </div>
-      <div class="auth-row auth-hidden" id="authDisplayWrap">
-        <label>显示名称（注册可选）</label>
-        <input id="authDisplayName" placeholder="例如：张三" />
+      <div class="auth-step-pane" id="authStepPane2">
+        <div class="auth-pane-tip">告诉我们你是谁、来自哪里以及主要使用场景，方便后续提供更合适的支持。</div>
+        <div class="auth-row auth-hidden" id="authNameWrap">
+          <label>姓名</label>
+          <input id="authName" placeholder="请输入姓名" onkeydown="if(event.key==='Enter')submitAuthLogin()">
+        </div>
+        <div class="auth-row auth-hidden" id="authOrgWrap">
+          <label>工作单位</label>
+          <input id="authOrganization" placeholder="请输入医院 / 学校 / 公司 / 机构名称" onkeydown="if(event.key==='Enter')submitAuthLogin()">
+        </div>
+        <div class="auth-row auth-hidden" id="authUserTypeWrap">
+          <label>用户类型</label>
+          <select id="authUserType">
+            <option value="">请选择用户类型</option>
+            <option value="医生">医生</option>
+            <option value="技师">技师</option>
+            <option value="科研人员">科研人员</option>
+            <option value="学生">学生</option>
+            <option value="企业用户">企业用户</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="auth-row auth-hidden" id="authUseCaseWrap">
+          <label>使用目的</label>
+          <select id="authUseCase">
+            <option value="">请选择使用目的</option>
+            <option value="临床辅助">临床辅助</option>
+            <option value="科研分析">科研分析</option>
+            <option value="教学演示">教学演示</option>
+            <option value="产品测试">产品测试</option>
+            <option value="学习体验">学习体验</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="auth-row auth-hidden" id="authDepartmentWrap">
+          <label>科室 / 部门（选填）</label>
+          <input id="authDepartment" placeholder="例如：心内科 / 数据科学部" />
+        </div>
+        <div class="auth-row auth-hidden" id="authTitleWrap">
+          <label>职称 / 岗位（选填）</label>
+          <input id="authTitle" placeholder="例如：主治医师 / 研究助理" />
+        </div>
+        <div class="auth-row auth-hidden" id="authEmailWrap">
+          <label>邮箱（选填）</label>
+          <input id="authEmail" placeholder="例如：name@example.com" autocomplete="email" />
+        </div>
       </div>
       <div class="auth-actions">
         <button class="pri" id="authLoginBtn" onclick="submitAuthLogin()">登录</button>
         <button id="authRegisterBtn" onclick="toggleAuthMode()">注册</button>
+        <button class="ghost auth-hidden" id="authBackBtn" type="button" onclick="goAuthRegisterStep(1)">上一步</button>
+        <button class="link" id="authForgotBtn" type="button" onclick="openForgotPasswordModal()">忘记密码</button>
       </div>
       <div class="auth-msg" id="authMsg"></div>
     </div>
@@ -1136,6 +1266,8 @@ let summaryRequestSeq = 0;
 let summaryInFlight = false;
 let queuedSummaryRequest = null;
 let feedbackSubmitting = false;
+let feedbackAttachments = [];
+const FEEDBACK_MAX_IMAGES = 4;
 const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
 
 function updateChatSendButton(){
@@ -2323,15 +2455,15 @@ async function buildSourceInitialSummary(src){
       if(profile.matchedLeads.length) chips.push(profile.matchedLeads.length + ' 个 ECG 导联');
       body = profile.overview || '已完成表格结构解析，可基于实际列名和数值质量进一步解读。';
       actions = `<button class="sq" onclick="runStudio('ecgrecon')">ECG 信号补全</button>
-        <button class="sq" onclick="runStudio('ecgd')">ECG 特征提取</button>`;
+        <button class="sq" onclick="runStudio('ecgd')">ECG 心电组学</button>`;
     }else if(sourceExt(src) === 'xml'){
       const root = String(text || '').match(/<([A-Za-z_][\w:.-]*)[\s>]/);
       if(root) chips.push('根节点 ' + root[1]);
-      body = '已完成 XML 文本初步解析。若其中包含导联波形，可直接运行 ECG 信号补全或 ECG 特征提取。';
+      body = '已完成 XML 文本初步解析。若其中包含导联波形，可直接运行 ECG 信号补全或 ECG 心电组学。';
       actions = `<button class="sq" onclick="runStudio('ecgrecon')">ECG 信号补全</button>
-        <button class="sq" onclick="runStudio('ecgd')">ECG 特征提取</button>`;
+        <button class="sq" onclick="runStudio('ecgd')">ECG 心电组学</button>`;
     }else{
-      body = '已完成文本初步解析。当前来源不直接匹配已有心电图工具工作流，因此不自动推荐数字化、补全或特征提取。';
+      body = '已完成文本初步解析。当前来源不直接匹配已有心电图工具工作流，因此不自动推荐数字化、补全或心电组学分析。';
     }
   }else{
     if(size) chips.push('大小 ' + size);
@@ -2406,18 +2538,18 @@ function buildSummaryWorkflowActions(latestSrc, imgCount){
   if(isEcgSignalSource(src) || hasEcgSignalSource()){
     return [
       { label:'ECG 信号补全', action:"runStudio('ecgrecon')" },
-      { label:'ECG 特征提取', action:"runStudio('ecgd')" }
+      { label:'ECG 心电组学', action:"runStudio('ecgd')" }
     ];
   }
   if(isXml){
     return [
-      { label:'ECG 特征提取', action:"runStudio('ecgd')" }
+      { label:'ECG 心电组学', action:"runStudio('ecgd')" }
     ];
   }
   if(isCsv){
     return [
       { label:'ECG 信号补全', action:"runStudio('ecgrecon')" },
-      { label:'ECG 特征提取', action:"runStudio('ecgd')" }
+      { label:'ECG 心电组学', action:"runStudio('ecgd')" }
     ];
   }
   if(imgCount > 0){
@@ -2468,7 +2600,7 @@ async function buildSourceInterpretationContext(){
       const dims = await getImageSourceSize(src);
       if(dims && dims.width && dims.height) lines.push('图像尺寸：' + dims.width + ' x ' + dims.height);
       lines.push(hasSignal
-        ? '图像解读方向：当前会话已包含 ECG 信号数据；该图像仅作为参考，不要建议再次数字化。可结合现有信号做补全或特征提取。'
+        ? '图像解读方向：当前会话已包含 ECG 信号数据；该图像仅作为参考，不要建议再次数字化。可结合现有信号做补全或心电组学分析。'
         : '图像解读方向：这是心电图图像来源。摘要阶段应指导用户进入参数化分析流程，重点关注导联布局、纸速、增益、心率、节律、PR 间期、QRS 时限、QT/QTc、ST-T 改变、R 波进展、异常 Q 波、噪声/基线漂移和数字化质量控制。具体数值需要通过手动数字化或自动数字化提取后确认。');
     }
     if(isTextLikeSource(src)){
@@ -3601,7 +3733,7 @@ function sourceListForToolFeedback(list){
 function waveformToolInputGuidance(toolName, picked){
   const inputList = Array.isArray(picked) ? picked.filter(Boolean) : [];
   const hasImageInput = inputList.some(canUseAsImageToolSource);
-  const expected = toolName === 'ECG 特征提取'
+  const expected = toolName === 'ECG 心电组学'
     ? '支持输入：原始 ECG XML，或至少包含 10 秒连续导联波形的 CSV。'
     : '支持输入：包含导联波形的 CSV、TSV、TXT、XML 或 JSON。';
   const reason = hasImageInput
@@ -3631,7 +3763,7 @@ function canUseAsImageToolSource(src){
 
 function imageToolInputErrorMessage(toolName){
   const action = toolName === '手动数字化' ? '打开手动数字化' : '执行自动数字化';
-  return action + '仅支持心电图图片或 PDF（PDF 将转换第 1 页）。CSV、XML、JSON 和文本信号不能执行数字化；如果来源已经是波形数据，请直接选择“ECG 特征提取”或“ECG 信号补全”。';
+  return action + '仅支持心电图图片或 PDF（PDF 将转换第 1 页）。CSV、XML、JSON 和文本信号不能执行数字化；如果来源已经是波形数据，请直接选择“ECG 心电组学”或“ECG 信号补全”。';
 }
 
 function renderToolErrorSteps(steps){
@@ -3662,7 +3794,7 @@ function buildFeatureExtractGuidanceMessage(message){
   const issue = parseEcgFeatureDurationIssue(message);
   if(!issue) return '';
   const durationText = issue.durationSecText ? ('当前有效波形约 ' + issue.durationSecText + ' 秒，') : '';
-  return '当前文件暂时不能做 ECG 特征提取。\n原因：' + durationText + '少于所需的 10 秒连续波形。\n你可以先尝试 ECG 信号补全，再继续提取；也可以换一份更长的波形文件。';
+  return '当前文件暂时不能做 ECG 心电组学。\n原因：' + durationText + '少于所需的 10 秒连续波形。\n你可以先尝试 ECG 信号补全，再继续分析；也可以换一份更长的波形文件。';
 }
 
 function toolActionNameByToolName(toolName){
@@ -3672,7 +3804,7 @@ function toolActionNameByToolName(toolName){
     '准心风险评估':'zhunxin',
     '准心评估智能体':'zhunxin',
     'ECG 信号补全':'ecgrecon',
-    'ECG 特征提取':'ecgd'
+    'ECG 心电组学':'ecgd'
   })[toolName] || '';
 }
 
@@ -3693,7 +3825,7 @@ function promptUncheckedSourceForTool(toolName, candidates){
 function buildToolErrorPlan(toolName, sourcesToList, message){
   const picked = Array.isArray(sourcesToList) ? sourcesToList.filter(Boolean) : [];
   const hasImage = picked.some(canUseAsImageToolSource);
-  const isWaveTool = toolName === 'ECG 特征提取' || toolName === 'ECG 信号补全';
+  const isWaveTool = toolName === 'ECG 心电组学' || toolName === 'ECG 信号补全';
   if(message === '__single_unchecked_candidate__' && picked.length === 1){
     const src = picked[0];
     const actionTool = toolActionNameByToolName(toolName);
@@ -3721,18 +3853,18 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
       ]
     };
   }
-  if(toolName === 'ECG 特征提取'){
+  if(toolName === 'ECG 心电组学'){
     const durationIssue = parseEcgFeatureDurationIssue(message);
     const hasWaveSource = picked.some(function(src){ return !!src && (isCsvSource(src) || isXmlSource(src)); });
     if(durationIssue){
       const durationHint = durationIssue.durationSecText ? ('当前有效波形约 ' + durationIssue.durationSecText + ' 秒；') : '';
       return {
         title: '当前文件暂时不能做特征提取',
-        intro: '这份波形时长不足 10 秒，所以这次还不能直接开始 ECG 特征提取。',
-        supportText: durationHint + '特征提取通常需要至少 10 秒连续波形。若先做信号补全，补全后的信号仅用于辅助分析，不等同于原始采集波形。',
+        intro: '这份波形时长不足 10 秒，所以这次还不能直接开始 ECG 心电组学。',
+        supportText: durationHint + '心电组学分析通常需要至少 10 秒连续波形。若先做信号补全，补全后的信号仅用于辅助分析，不等同于原始采集波形。',
         steps: [
-          { title:'先看失败原因', desc:'当前文件的有效波形时长不足，因此还不满足特征提取要求。' },
-          { title:'优先尝试信号补全', desc:'如果这是可继续处理的导联波形，可以先做 ECG 信号补全，再继续特征提取。' },
+          { title:'先看失败原因', desc:'当前文件的有效波形时长不足，因此还不满足心电组学分析要求。' },
+          { title:'优先尝试信号补全', desc:'如果这是可继续处理的导联波形，可以先做 ECG 信号补全，再继续心电组学分析。' },
           { title:'或改用更长波形', desc:'如果你手里有更长的原始波形文件，也可以直接换一份至少 10 秒的文件。' }
         ],
         actions: [
@@ -3743,7 +3875,7 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
     }
   }
   if(isWaveTool){
-    const supportText = toolName === 'ECG 特征提取'
+    const supportText = toolName === 'ECG 心电组学'
       ? '支持输入：原始 ECG XML，或至少包含 10 秒连续导联波形的 CSV。'
       : '支持输入：包含导联波形的 CSV、TSV、TXT、XML 或 JSON。';
     return {
@@ -5062,7 +5194,7 @@ function conversationConfirmLabel(intent){
     zhunxin_risk_assess: '开始准心评估',
     ecg_auto_digitize: '开始自动数字化',
     ecg_manual_digitize: '打开手动数字化',
-    ecg_feature_extract: '开始特征提取',
+    ecg_feature_extract: '开始心电组学分析',
     ecg_reconstruct: '开始信号补全'
   })[String(intent || '')] || '确认执行';
 }
@@ -5294,7 +5426,7 @@ function chatToolInputGuidance(type){
   const selected = checkedSources();
   const scoped = selected.length ? selected : (Array.isArray(sources) ? sources.filter(Boolean) : []);
   if(!scoped.length){
-    return '请先添加并选择来源文件。心电图图片或 PDF 可先进行数字化；原始 ECG XML 或波形 CSV 可直接进行特征提取或信号补全。';
+    return '请先添加并选择来源文件。心电图图片或 PDF 可先进行数字化；原始 ECG XML 或波形 CSV 可直接进行心电组学分析或信号补全。';
   }
   let compatible = [];
   let incompatible = [];
@@ -5302,7 +5434,7 @@ function chatToolInputGuidance(type){
     compatible = scoped.filter(function(src){ return !src.__fromEcgomics && (isXmlSource(src) || isCsvSource(src)); });
     incompatible = scoped.filter(function(src){ return compatible.indexOf(src) < 0; });
     if((selected.length && incompatible.length) || !compatible.length){
-      return waveformToolInputGuidance('ECG 特征提取', incompatible.length ? incompatible : scoped);
+      return waveformToolInputGuidance('ECG 心电组学', incompatible.length ? incompatible : scoped);
     }
   }else if(type === 'ecgrecon'){
     compatible = scoped.filter(function(src){
@@ -5353,7 +5485,7 @@ async function sendMsg(){
     }
     const startedText = {
       zhunxin: '已识别为准心风险评估任务，正在处理所选心电图图片，稍后会生成风险报告。',
-      ecgd: '已识别为 ECG 特征提取任务，正在读取所选波形来源并执行提取。',
+      ecgd: '已识别为 ECG 心电组学任务，正在读取所选波形来源并执行分析。',
       ecgrecon: '已识别为 ECG 信号补全任务，正在标准化导联波形并执行补全，完成后会保存补全 CSV。',
       ecgsmart: '已识别为自动数字化任务，正在处理所选心电图图片，完成后会生成波形 CSV。',
       ecg: '已识别为手动数字化任务，正在打开数字化工具。'
@@ -5839,7 +5971,7 @@ function uiIcon(name, cls){
 
 let studioCards = [
   {id:'zhunxin',cls:'agent-card',icon:'target', iconBg:'rgba(94,110,177,.12)', name:'准心评估智能体', desc:'基于心电图进行胸痛风险分层，并给出用户可理解的结果说明'},
-  {id:'ecgd', cls:'ecgd-card', icon:'chart',  iconBg:'rgba(65,144,170,.12)',   name:'ECG 特征提取', desc:'ECGOmics XML/波形 CSV 特征提取'},
+  {id:'ecgd', cls:'ecgd-card', icon:'chart',  iconBg:'rgba(65,144,170,.12)',   name:'ECG 心电组学', desc:'ECGOmics XML/波形 CSV 心电组学分析'},
   {id:'ecgsmart',cls:'ml-card',icon:'spark',  iconBg:'rgba(67,111,204,.12)',  name:'自动数字化',desc:'自动识别导联并生成 CSV（快速）'},
   {id:'ecgrecon',cls:'dl-card',icon:'wave',   iconBg:'rgba(87,151,113,.12)',  name:'ECG 信号补全',desc:'标准化十二导联并补全缺失波形'},
   {id:'ecg',  cls:'ecg-card',  icon:'heart',  iconBg:'rgba(185,101,129,.12)',   name:'手动数字化',  desc:'手动校正波形并导出高质量 CSV（精确）'},
@@ -6951,7 +7083,7 @@ function requestCsvSampleRate(defaultFs, sourceEntries){
       modal.id = 'csvXmlModal';
       modal.className = 'csv-xml-modal';
       modal.innerHTML = `<div class="csv-xml-dialog" onclick="event.stopPropagation()">
-        <div class="csv-xml-title">波形 CSV 特征提取</div>
+        <div class="csv-xml-title">波形 CSV 心电组学</div>
         <div class="csv-xml-sub" id="csvXmlSub"></div>
         <div class="csv-xml-source-list" id="csvXmlSources"></div>
         <div class="csv-xml-hint" id="csvXmlHint"></div>
@@ -6961,7 +7093,7 @@ function requestCsvSampleRate(defaultFs, sourceEntries){
         </div>
         <div class="csv-xml-actions">
           <button type="button" id="csvXmlCancel">取消</button>
-          <button type="button" class="primary" id="csvXmlOk">继续提取</button>
+          <button type="button" class="primary" id="csvXmlOk">继续分析</button>
         </div>
       </div>`;
       document.body.appendChild(modal);
@@ -6985,11 +7117,11 @@ function requestCsvSampleRate(defaultFs, sourceEntries){
       resolve(value);
     }
     modal.__finishCsvXml = finish;
-    if(title) title.textContent = batchMode ? '波形 CSV 批量特征提取' : '波形 CSV 特征提取';
+    if(title) title.textContent = batchMode ? '波形 CSV 批量心电组学' : '波形 CSV 心电组学';
     if(sub){
       sub.textContent = batchMode
         ? ('已选择 ' + names.length + ' 个波形 CSV。本次设置将应用于全部 CSV；文件采样率不一致时需分批处理。')
-        : ('当前选择的是波形 CSV：' + (names[0] || '未命名') + '。请确认采样率后，系统将选取连续导联波形进行 ECGOmics 特征提取。');
+        : ('当前选择的是波形 CSV：' + (names[0] || '未命名') + '。请确认采样率后，系统将选取连续导联波形进行 ECGOmics 心电组学分析。');
     }
     if(sourceList){
       sourceList.innerHTML = entries.map(function(entry){
@@ -7001,7 +7133,7 @@ function requestCsvSampleRate(defaultFs, sourceEntries){
     if(hint){
       hint.className = 'csv-xml-hint' + (conflicts ? ' conflict' : '');
       hint.textContent = conflicts
-        ? '检测到所选文件存在不同采样率，不能在同一批次提取特征。请取消后按采样率分批选择。'
+        ? '检测到所选文件存在不同采样率，不能在同一批次做心电组学分析。请取消后按采样率分批选择。'
         : (hasPlatform
           ? '当前批次同时包含平台生成与外部导入信号，请核对采样率一致后继续。'
           : '外部导入的信号需要人工确认采样率；确认后系统会为后续处理记住该设置。');
@@ -7084,7 +7216,7 @@ function stripCsvIndexColumnText(csvText){
 function csvTextToEcgomicsRaw(csvText, fs, sourceName){
   const sourceLabel = String(sourceName || 'CSV');
   const rows = parseDelimitedRows(csvText, ',', 200000).filter(r => r.some(c => String(c).trim() !== ''));
-  if(rows.length < 101) throw new Error('文件“' + sourceLabel + '”数据行不足，特征提取至少需要连续波形数据。');
+  if(rows.length < 101) throw new Error('文件“' + sourceLabel + '”数据行不足，心电组学分析至少需要连续波形数据。');
   const first = rows[0] || [];
   const numericFirst = first.filter(cell => Number.isFinite(Number(String(cell).trim()))).length;
   const hasHeader = numericFirst < Math.max(1, Math.floor(first.length * 0.8));
@@ -7116,7 +7248,7 @@ function csvTextToEcgomicsRaw(csvText, fs, sourceName){
   const minSamples = Math.floor(Number(fs) * 10);
   if(!picked || picked.values.length < minSamples){
     const available = picked ? (picked.values.length + ' 点，约 ' + (picked.values.length / Number(fs)).toFixed(3) + ' 秒') : '没有可用导联';
-    throw new Error('文件“' + sourceLabel + '”不足以进行 ECGOmics 特征提取：最长导联' + available + '；需要至少 10 秒连续波形（当前采样率需 ' + minSamples + ' 点）。');
+    throw new Error('文件“' + sourceLabel + '”不足以进行 ECGOmics 心电组学分析：最长导联' + available + '；需要至少 10 秒连续波形（当前采样率需 ' + minSamples + ' 点）。');
   }
   return {
     payload: {
@@ -7161,7 +7293,7 @@ async function buildEcgomicsInputs(){
   }
   if(waveformCsv.length){
     const fs = await requestCsvSampleRate(500, waveformCsv.map(function(entry){ return entry.source; }));
-    if(!fs) throw new Error('已取消波形 CSV 特征提取');
+    if(!fs) throw new Error('已取消波形 CSV 心电组学');
     for(let i=0;i<waveformCsv.length;i++){
       const selected = waveformCsv[i];
       const src = selected.source;
@@ -7174,7 +7306,7 @@ async function buildEcgomicsInputs(){
       try{
         raw = csvTextToEcgomicsRaw(selected.text, fs, src.name || 'CSV');
       }catch(e){
-        failures.push(newBatchItem(src, 'failed', e && e.message ? e.message : '波形 CSV 无法用于特征提取'));
+        failures.push(newBatchItem(src, 'failed', e && e.message ? e.message : '波形 CSV 无法用于心电组学分析'));
         continue;
       }
       jobs.push({ source:src, payload:raw.payload, mode:raw.mode, usedLead:raw.usedLead, item:newBatchItem(src, 'queued', '') });
@@ -7184,7 +7316,7 @@ async function buildEcgomicsInputs(){
   }
   if(!jobs.length && !failures.length){
     throw new Error(unsupportedCheckedFormatMessage(
-      'ECG 特征提取',
+      'ECG 心电组学',
       '原始 ECG XML，或至少包含 10 秒连续导联波形的 CSV',
       scoped
     ));
@@ -7198,15 +7330,15 @@ function validateSelectedSourcesForEcgomics(){
     const available = (sources || []).filter(function(src){
       return !!src && !src.__fromEcgomics && (isXmlSource(src) || isCsvSource(src));
     });
-    return promptUncheckedSourceForTool('ECG 特征提取', available);
+    return promptUncheckedSourceForTool('ECG 心电组学', available);
   }
   const incompatible = checked.filter(function(src){
     return src.__fromEcgomics || !(isXmlSource(src) || isCsvSource(src));
   });
   if(!incompatible.length) return true;
   showToolSelectionError(
-    'ECG 特征提取',
-    waveformToolInputGuidance('ECG 特征提取', incompatible),
+    'ECG 心电组学',
+    waveformToolInputGuidance('ECG 心电组学', incompatible),
     incompatible
   );
   return false;
@@ -7378,7 +7510,7 @@ function renderEcgomicsXmlResult(src, out, options){
   if(!options.silent){
     ensureResultContent('');
     try{
-      appendAI('ECGOmics 特征提取完成，结果已转换为 CSV 并保存到右下角分析结果。');
+      appendAI('ECGOmics 心电组学分析完成，结果已转换为 CSV 并保存到右下角分析结果。');
     }catch(_){ }
   }
   return currentResultFileName;
@@ -7867,25 +7999,25 @@ async function runStudio(type, opts){
   let task = null;
   if(type==='ecgd'){
     if(!validateSelectedSourcesForEcgomics()) return;
-    task = beginStudioTask(type, 'ECG 特征提取');
+    task = beginStudioTask(type, 'ECG 心电组学');
     if(!task) return;
     showResultTaskProgress('正在准备 ECG 特征...', '正在读取并校验所选波形来源', '');
     try{
       ecgomicsInputs = await buildEcgomicsInputs();
     }catch(e){
       if(studioTaskWasStopped(task)) return;
-      if(e && e.message === '已取消波形 CSV 特征提取'){
+      if(e && e.message === '已取消波形 CSV 心电组学'){
         finishStudioTask(task);
         showResultTaskStopped(task.label);
         return;
       }
-      const message = e && e.message ? e.message : '当前来源不能用于 ECG 特征提取。';
+      const message = e && e.message ? e.message : '当前来源不能用于 ECG 心电组学。';
       showToolSelectionError(
-        'ECG 特征提取',
+        'ECG 心电组学',
         message,
         (e && e.failingSources) || checkedSources()
       );
-      showResultTaskFailed('ECG 特征提取', message);
+      showResultTaskFailed('ECG 心电组学', message);
       const guidanceMessage = buildFeatureExtractGuidanceMessage(message);
       if(guidanceMessage) appendAI(guidanceMessage);
       finishStudioTask(task);
@@ -7895,13 +8027,13 @@ async function runStudio(type, opts){
     task.batchItems = (ecgomicsInputs.failures || []).concat((ecgomicsInputs.jobs || []).map(function(job){ return job.item; }));
     if(!(ecgomicsInputs.jobs || []).length){
       const counts = batchCounts(task.batchItems);
-      showResultBatchTask(task, 'ECG 特征提取未能开始', '共 ' + counts.total + ' 个文件，失败 ' + counts.failed + ' 个', '', false);
+      showResultBatchTask(task, 'ECG 心电组学未能开始', '共 ' + counts.total + ' 个文件，失败 ' + counts.failed + ' 个', '', false);
       const firstFailed = (task.batchItems || []).find(function(item){ return item && item.status === 'failed' && item.message; }) || null;
       const guidanceMessage = buildFeatureExtractGuidanceMessage(firstFailed && firstFailed.message);
       if(firstFailed){
-        showToolSelectionError('ECG 特征提取', firstFailed.message, firstFailed.source ? [firstFailed.source] : checkedSources());
+        showToolSelectionError('ECG 心电组学', firstFailed.message, firstFailed.source ? [firstFailed.source] : checkedSources());
       }
-      appendAI(guidanceMessage || ('ECG 特征提取未能开始：没有通过校验的文件。\n' +
+      appendAI(guidanceMessage || ('ECG 心电组学未能开始：没有通过校验的文件。\n' +
         task.batchItems.map(function(item){ return item.name + '：FAIL · ' + item.message; }).join('\n')));
       finishStudioTask(task);
       return;
@@ -7935,7 +8067,7 @@ async function runStudio(type, opts){
         const input = inputs[i];
         const src = input.source;
         input.item.status = 'running';
-        showResultBatchTask(task, '正在生成 ECG 特征... (' + (i + 1) + '/' + inputs.length + ')', src.name || '当前波形来源', '', true);
+        showResultBatchTask(task, '正在生成 ECG 心电组学... (' + (i + 1) + '/' + inputs.length + ')', src.name || '当前波形来源', '', true);
         let payload = input.payload;
         if(input.mode === 'xml'){
           const xmlText = await readXmlTextFromSource(src);
@@ -7977,15 +8109,15 @@ async function runStudio(type, opts){
       }
       if(studioTaskWasStopped(task)) return;
       const counts = batchCounts(task.batchItems);
-      showResultBatchTask(task, 'ECG 特征提取批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', '', false);
+      showResultBatchTask(task, 'ECG 心电组学批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', '', false);
       const firstDurationFailure = (task.batchItems || []).find(function(item){
         return item && item.status === 'failed' && parseEcgFeatureDurationIssue(item.message);
       }) || null;
       if(firstDurationFailure){
-        showToolSelectionError('ECG 特征提取', firstDurationFailure.message, firstDurationFailure.source ? [firstDurationFailure.source] : checkedSources());
+        showToolSelectionError('ECG 心电组学', firstDurationFailure.message, firstDurationFailure.source ? [firstDurationFailure.source] : checkedSources());
       }
       appendAI(firstDurationFailure
-        ? ('ECGOmics 处理已完成，但有文件还不能直接做特征提取。\n' + buildFeatureExtractGuidanceMessage(firstDurationFailure.message))
+        ? ('ECGOmics 处理已完成，但有文件还不能直接做心电组学分析。\n' + buildFeatureExtractGuidanceMessage(firstDurationFailure.message))
         : ('ECGOmics 批量处理完成：共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个。\n' +
           task.batchItems.map(function(item){ return item.name + '：' + (item.status === 'success' ? ('SUCCESS · CSV：' + item.outputName) : ('FAIL · ' + item.message)); }).join('\n')));
     }catch(e){
@@ -8532,8 +8664,16 @@ if(!aiConfig.provider) aiConfig.provider = 'zhipu';
 if(!aiConfig.model) aiConfig.model = 'glm-4-flash';
 aiConfig.key = '';
 let aiServerKeyState = {};
-const HEARTOS_BACKEND_BASE_URL =
-  (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9000').replace(/\/+$/,'');
+function resolveBackendBaseUrl(){
+  var raw = window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9010';
+  var normalized = String(raw || '').replace(/\/+$/,'');
+  if(normalized === 'http://127.0.0.1:9000' || normalized === 'http://localhost:9000'){
+    normalized = normalized.replace(':9000', ':9010');
+    try{ localStorage.setItem('heartos_backend_base', normalized); }catch(_){}
+  }
+  return normalized;
+}
+const HEARTOS_BACKEND_BASE_URL = resolveBackendBaseUrl();
 
 function apiUrl(path){
   return HEARTOS_BACKEND_BASE_URL + path;
@@ -8563,9 +8703,9 @@ function updateUserAvatarUI(){
   var txt = 'U';
   var tip = '未登录';
   if(u){
-    var base = String(u.display_name || u.username || u.user_id || 'U');
+    var base = String(u.name || u.display_name || u.username || u.user_id || 'U');
     txt = base.slice(0,1).toUpperCase();
-    tip = (u.display_name || u.username || 'User') + '（点击切换账号）';
+    tip = (u.name || u.display_name || u.phone || u.username || 'User') + '（点击查看账号）';
   }
   ['homeUserAvatar','nbUserAvatar'].forEach(function(id){
     var el = document.getElementById(id);
@@ -8610,23 +8750,141 @@ function openSystemModal(id){
   if(modal) modal.classList.add('open');
 }
 
+function formatFeedbackFileSize(size){
+  var num = Number(size || 0);
+  if(!isFinite(num) || num <= 0) return '';
+  if(num < 1024) return num + ' B';
+  if(num < 1024 * 1024) return (num / 1024).toFixed(1).replace(/\.0$/, '') + ' KB';
+  return (num / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + ' MB';
+}
+
+function resetFeedbackDraft(){
+  feedbackAttachments.forEach(function(item){
+    if(item && item.previewUrl){
+      try{ URL.revokeObjectURL(item.previewUrl); }catch(_){}
+    }
+  });
+  feedbackAttachments = [];
+}
+
+function renderFeedbackImageList(){
+  var host = document.getElementById('feedbackImageList');
+  if(!host) return;
+  if(!feedbackAttachments.length){
+    host.innerHTML = '';
+    return;
+  }
+  host.innerHTML = feedbackAttachments.map(function(item){
+    return '<div class="feedback-image-card">'
+      + '<img src="' + escapeHtml(item.previewUrl) + '" alt="' + escapeHtml(item.file.name || '反馈图片') + '">'
+      + '<button class="feedback-image-remove" type="button" onclick="removeFeedbackImage(\'' + escapeHtml(item.id) + '\')" title="移除">×</button>'
+      + '<div class="feedback-image-card-info"><div class="feedback-image-card-name">' + escapeHtml(item.file.name || '未命名图片') + '</div>'
+      + '<div class="feedback-image-card-size">' + escapeHtml(formatFeedbackFileSize(item.file.size)) + '</div></div></div>';
+  }).join('');
+}
+
+function removeFeedbackImage(id){
+  var next = [];
+  feedbackAttachments.forEach(function(item){
+    if(item && item.id === id){
+      if(item.previewUrl){
+        try{ URL.revokeObjectURL(item.previewUrl); }catch(_){}
+      }
+      return;
+    }
+    next.push(item);
+  });
+  feedbackAttachments = next;
+  renderFeedbackImageList();
+}
+
+function handleFeedbackImageSelect(input){
+  var files = Array.prototype.slice.call((input && input.files) || []);
+  if(!files.length) return;
+  var remain = FEEDBACK_MAX_IMAGES - feedbackAttachments.length;
+  if(remain <= 0){
+    showToast('反馈图片最多上传 ' + FEEDBACK_MAX_IMAGES + ' 张');
+    if(input) input.value = '';
+    return;
+  }
+  files.slice(0, remain).forEach(function(file){
+    if(!file || !/^image\//i.test(String(file.type || ''))){
+      return;
+    }
+    feedbackAttachments.push({
+      id: 'fbimg_' + Date.now() + '_' + Math.random().toString(16).slice(2),
+      file: file,
+      previewUrl: URL.createObjectURL(file)
+    });
+  });
+  if(files.length > remain) showToast('最多上传 ' + FEEDBACK_MAX_IMAGES + ' 张反馈图片');
+  if(input) input.value = '';
+  renderFeedbackImageList();
+}
+
+function addFeedbackFiles(files){
+  var picked = Array.prototype.slice.call(files || []).filter(function(file){
+    return !!file && /^image\//i.test(String(file.type || ''));
+  });
+  if(!picked.length) return false;
+  var remain = FEEDBACK_MAX_IMAGES - feedbackAttachments.length;
+  if(remain <= 0){
+    showToast('反馈图片最多上传 ' + FEEDBACK_MAX_IMAGES + ' 张');
+    return true;
+  }
+  picked.slice(0, remain).forEach(function(file){
+    feedbackAttachments.push({
+      id: 'fbimg_' + Date.now() + '_' + Math.random().toString(16).slice(2),
+      file: file,
+      previewUrl: URL.createObjectURL(file)
+    });
+  });
+  if(picked.length > remain) showToast('最多上传 ' + FEEDBACK_MAX_IMAGES + ' 张反馈图片');
+  renderFeedbackImageList();
+  return true;
+}
+
+function handleFeedbackPaste(evt){
+  if(evt && evt.__heartosFeedbackPasteHandled) return;
+  var items = evt && evt.clipboardData ? Array.prototype.slice.call(evt.clipboardData.items || []) : [];
+  if(!items.length) return;
+  var files = items.map(function(item){
+    return item && item.kind === 'file' ? item.getAsFile() : null;
+  }).filter(Boolean);
+  if(!files.length) return;
+  if(evt) evt.__heartosFeedbackPasteHandled = true;
+  evt.preventDefault();
+  var imageFiles = files.filter(function(file){
+    return /^image\//i.test(String(file && file.type || ''));
+  });
+  if(imageFiles.length){
+    addFeedbackFiles(imageFiles);
+    showToast(files.length === imageFiles.length ? '已从剪贴板添加图片' : '已粘贴图片，其他文件请通过添加图片上传');
+    return;
+  }
+  showToast('当前反馈仅支持粘贴截图或图片');
+}
+
 function buildFeedbackFormHtml(){
-  return '<form class="feedback-form" onsubmit="submitFeedback(event)">'
-    + '<div class="feedback-note">请简单描述你遇到的问题，或告诉我们你希望怎么改。我们会结合当前页面与会话上下文一起排查。</div>'
-    + '<div class="feedback-field"><label for="feedbackMessage">反馈内容</label><textarea id="feedbackMessage" maxlength="5000" placeholder="例如：上传 PDF 后没有反应，希望至少提示失败原因。"></textarea></div>'
-    + '<div class="feedback-actions"><button type="button" onclick="closeSystemModal(\'feedbackModal\')">取消</button><button id="feedbackSubmitBtn" class="primary" type="submit">提交反馈</button></div>'
+  return '<form class="feedback-panel" onsubmit="submitFeedback(event)" onpaste="handleFeedbackPaste(event)">'
+    + '<div class="feedback-compose"><div class="feedback-field"><label for="feedbackMessage">反馈内容</label><textarea id="feedbackMessage" maxlength="5000" placeholder="简单描述一下问题，支持直接粘贴截图。"></textarea></div></div>'
+    + '<div class="feedback-upload-card"><div class="feedback-upload-copy"><div class="feedback-upload-title">图片附件</div><div class="feedback-upload-desc">可粘贴截图，或手动添加图片</div></div><div class="feedback-upload-actions"><label class="feedback-upload-btn" for="feedbackImages">添加图片</label><input id="feedbackImages" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple onchange="handleFeedbackImageSelect(this)" style="display:none"><div class="feedback-upload-meta">最多 ' + FEEDBACK_MAX_IMAGES + ' 张</div></div></div>'
+    + '<div id="feedbackImageList" class="feedback-image-list compact"></div>'
+    + '<div class="feedback-actions sticky"><button type="button" onclick="closeSystemModal(\'feedbackModal\')">取消</button><button id="feedbackSubmitBtn" class="primary" type="submit">提交反馈</button></div>'
     + '</form>';
 }
 
 function openFeedbackModal(){
+  resetFeedbackDraft();
   ensureSystemModal(
     'feedbackModal',
     '问题反馈',
     '遇到问题时可以直接在这里告诉我们。',
     buildFeedbackFormHtml(),
-    true
+    false
   );
   openSystemModal('feedbackModal');
+  renderFeedbackImageList();
 }
 
 async function submitFeedback(evt){
@@ -8635,8 +8893,8 @@ async function submitFeedback(evt){
   var messageEl = document.getElementById('feedbackMessage');
   var submitBtn = document.getElementById('feedbackSubmitBtn');
   var message = (messageEl && messageEl.value || '').trim();
-  if(message.length < 5){
-    showToast('请至少填写 5 个字符的反馈内容');
+  if(message.length < 5 && !feedbackAttachments.length){
+    showToast('请至少填写 5 个字符的反馈内容，或上传反馈图片');
     if(messageEl) messageEl.focus();
     return;
   }
@@ -8646,24 +8904,27 @@ async function submitFeedback(evt){
     submitBtn.textContent = '提交中…';
   }
   try{
+    var fd = new FormData();
+    fd.append('message', message);
+    fd.append('context', JSON.stringify({
+      page: document.getElementById('nbPage') && document.getElementById('nbPage').classList.contains('active') ? 'notebook' : 'home',
+      notebookId: curNb && curNb.id ? curNb.id : '',
+      sourceCount: Array.isArray(sources) ? sources.length : 0,
+      messageCount: Array.isArray(msgs) ? msgs.length : 0
+    }));
+    feedbackAttachments.forEach(function(item){
+      if(item && item.file) fd.append('images', item.file, item.file.name || 'feedback-image.png');
+    });
     var resp = await apiFetch('/api/feedback', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: message,
-        context: {
-          page: document.getElementById('nbPage') && document.getElementById('nbPage').classList.contains('active') ? 'notebook' : 'home',
-          notebookId: curNb && curNb.id ? curNb.id : '',
-          sourceCount: Array.isArray(sources) ? sources.length : 0,
-          messageCount: Array.isArray(msgs) ? msgs.length : 0
-        }
-      })
+      body: fd
     });
     if(!resp.ok){
       var err = await resp.json().catch(function(){ return {}; });
       throw new Error(err.detail || ('HTTP ' + resp.status));
     }
     closeSystemModal('feedbackModal');
+    resetFeedbackDraft();
     showToast('反馈已提交，感谢你的帮助');
   }catch(e){
     showToast('反馈提交失败：' + (e && e.message ? e.message : '请稍后重试'));
@@ -8682,7 +8943,21 @@ let authReadyPromise = null;
 let __authMeCheckedAt = 0;
 let __authMeInflight = null;
 let __authSubmitting = false;
+let __authCodeSending = false;
+let __authCodeCooldownTimer = null;
+let __authCodeCooldownUntil = 0;
+let __forgotCodeCooldownTimer = null;
+let __forgotCodeCooldownUntil = 0;
+let __forgotPasswordVerified = false;
+let __forgotPasswordVerificationToken = '';
+let __authRegisterVerified = false;
+let __authRegisterVerifiedPhone = '';
+let __authRegisterVerifiedCode = '';
+let __authRegisterVerificationToken = '';
+let authRegisterStep = 1;
 const AUTH_ME_TTL_MS = 120000;
+const AUTH_USER_TYPE_OPTIONS = ['医生','技师','科研人员','学生','企业用户','其他'];
+const AUTH_USE_CASE_OPTIONS = ['临床辅助','科研分析','教学演示','产品测试','学习体验','其他'];
 
 function setAppAuthed(authed){
   var hp = document.getElementById('homePage');
@@ -8700,10 +8975,50 @@ function setAuthMsg(msg, isErr){
   el.style.color = isErr ? '#f87171' : '#34d399';
 }
 
+function normalizeAuthErrorMessage(msg, fallback){
+  var text = String(msg || '').trim();
+  if(!text) return fallback || '操作失败，请稍后重试';
+  var lower = text.toLowerCase();
+  if(lower === 'fail' || lower === 'error'){
+    return fallback || '验证码错误，请重新输入';
+  }
+  if(text.indexOf('已注册') >= 0 || text.indexOf('找回密码') >= 0){
+    return text;
+  }
+  if(text.indexOf('验证码') >= 0){
+    return text;
+  }
+  if(lower === 'not found' || lower === '404' || lower.indexOf('http 404') >= 0){
+    return '服务暂未更新完成，请稍后刷新页面或重启服务后重试';
+  }
+  if(lower.indexOf('failed to fetch') >= 0 || lower.indexOf('networkerror') >= 0){
+    return '暂时无法连接服务，请检查后端是否已启动';
+  }
+  if(lower.indexOf('timeout') >= 0 || lower.indexOf('aborted') >= 0){
+    return '请求超时，请稍后重试';
+  }
+  if(lower.indexOf('501') >= 0 || text.indexOf('暂未启用') >= 0){
+    return '当前功能暂未完成部署，请稍后重试';
+  }
+  return text;
+}
+
+function setAuthError(msg, inputId){
+  var friendly = normalizeAuthErrorMessage(msg, '操作失败，请稍后重试');
+  setAuthMsg(friendly, true);
+  try{ if(typeof showToast === 'function') showToast(friendly); }catch(_){}
+  if(inputId){
+    var el = document.getElementById(inputId);
+    if(el && typeof el.focus === 'function') el.focus();
+  }
+}
+
 function setAuthSubmitting(next, label){
   __authSubmitting = !!next;
   var pri = document.getElementById('authLoginBtn');
   var alt = document.getElementById('authRegisterBtn');
+  var forgot = document.getElementById('authForgotBtn');
+  var codeBtn = document.getElementById('authSendCodeBtn');
   if(pri){
     pri.disabled = __authSubmitting;
     pri.textContent = label || (authMode === 'login' ? '登录' : '注册');
@@ -8715,6 +9030,8 @@ function setAuthSubmitting(next, label){
     alt.style.opacity = __authSubmitting ? '.6' : '';
     alt.style.cursor = __authSubmitting ? 'wait' : '';
   }
+  if(forgot) forgot.disabled = __authSubmitting;
+  if(codeBtn) codeBtn.disabled = __authSubmitting || __authCodeSending;
 }
 
 var _SVG_EYE = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -8735,19 +9052,183 @@ function toggleAuthPasswordVisibility(){
   setAuthPasswordVisibility(!!input && input.type === 'password');
 }
 
+function validateAuthPhone(phone){
+  var digits = String(phone || '').replace(/\D/g, '');
+  return /^1\d{10}$/.test(digits) ? digits : '';
+}
+
+function setAuthCodeSending(next, label){
+  __authCodeSending = !!next;
+  var btn = document.getElementById('authSendCodeBtn');
+  if(!btn) return;
+  var now = Date.now();
+  btn.disabled = __authCodeSending || __authSubmitting || __authCodeCooldownUntil > now;
+  btn.textContent = label || '获取验证码';
+}
+
+function clearAuthCodeCooldown(){
+  __authCodeCooldownUntil = 0;
+  if(__authCodeCooldownTimer){
+    clearInterval(__authCodeCooldownTimer);
+    __authCodeCooldownTimer = null;
+  }
+  if(!__authCodeSending) setAuthCodeSending(false, '获取验证码');
+}
+
+function startAuthCodeCooldown(seconds){
+  var btn = document.getElementById('authSendCodeBtn');
+  if(!btn) return;
+  __authCodeCooldownUntil = Date.now() + Math.max(1, Number(seconds || 60)) * 1000;
+  if(__authCodeCooldownTimer) clearInterval(__authCodeCooldownTimer);
+  __authCodeCooldownTimer = setInterval(function(){
+    var remain = Math.ceil((__authCodeCooldownUntil - Date.now()) / 1000);
+    if(remain <= 0){
+      clearAuthCodeCooldown();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = remain + 's 后重试';
+  }, 250);
+}
+
+function setForgotCodeSending(next, label){
+  var btn = document.getElementById('forgotSendCodeBtn');
+  if(!btn) return;
+  var now = Date.now();
+  btn.disabled = !!next || __forgotCodeCooldownUntil > now;
+  btn.textContent = label || '获取验证码';
+}
+
+function clearForgotCodeCooldown(){
+  __forgotCodeCooldownUntil = 0;
+  if(__forgotCodeCooldownTimer){
+    clearInterval(__forgotCodeCooldownTimer);
+    __forgotCodeCooldownTimer = null;
+  }
+  setForgotCodeSending(false, '获取验证码');
+}
+
+function startForgotCodeCooldown(seconds){
+  var btn = document.getElementById('forgotSendCodeBtn');
+  if(!btn) return;
+  __forgotCodeCooldownUntil = Date.now() + Math.max(1, Number(seconds || 60)) * 1000;
+  if(__forgotCodeCooldownTimer) clearInterval(__forgotCodeCooldownTimer);
+  __forgotCodeCooldownTimer = setInterval(function(){
+    var remain = Math.ceil((__forgotCodeCooldownUntil - Date.now()) / 1000);
+    if(remain <= 0){
+      clearForgotCodeCooldown();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = remain + 's 后重试';
+  }, 250);
+}
+
+function updateAuthRegisterSteps(){
+  var stepsWrap = document.getElementById('authSteps');
+  var pane1 = document.getElementById('authStepPane1');
+  var pane2 = document.getElementById('authStepPane2');
+  var step1 = document.getElementById('authStepItem1');
+  var step2 = document.getElementById('authStepItem2');
+  var backBtn = document.getElementById('authBackBtn');
+  var primaryBtn = document.getElementById('authLoginBtn');
+  if(stepsWrap) stepsWrap.classList.toggle('auth-hidden', authMode !== 'register');
+  if(pane1) pane1.classList.toggle('active', authMode !== 'register' || authRegisterStep === 1);
+  if(pane2) pane2.classList.toggle('active', authMode === 'register' && authRegisterStep === 2);
+  if(step1){
+    step1.classList.toggle('active', authRegisterStep === 1);
+    step1.classList.toggle('done', authRegisterStep > 1);
+  }
+  if(step2) step2.classList.toggle('active', authRegisterStep === 2);
+  if(backBtn) backBtn.classList.toggle('auth-hidden', !(authMode === 'register' && authRegisterStep === 2));
+  if(primaryBtn && authMode === 'register'){
+    primaryBtn.textContent = authRegisterStep === 1 ? '验证并继续' : '完成注册';
+  }
+}
+
+function resetAuthRegisterVerification(){
+  __authRegisterVerified = false;
+  __authRegisterVerifiedPhone = '';
+  __authRegisterVerifiedCode = '';
+  __authRegisterVerificationToken = '';
+}
+
+function canProceedRegisterStepOne(){
+  var phone = validateAuthPhone(document.getElementById('authPhone') && document.getElementById('authPhone').value);
+  var code = (document.getElementById('authCode').value || '').trim();
+  var password = (document.getElementById('authPassword').value || '').trim();
+  if(!phone){ setAuthError('请输入有效的 11 位手机号', 'authPhone'); return false; }
+  if(!code){ setAuthError('请输入短信验证码', 'authCode'); return false; }
+  var weakReason = getWeakPasswordReason(password, phone);
+  if(weakReason){ setAuthError(weakReason, 'authPassword'); return false; }
+  return true;
+}
+
+async function verifyRegisterStepOne(){
+  var phone = validateAuthPhone(document.getElementById('authPhone') && document.getElementById('authPhone').value);
+  var code = (document.getElementById('authCode').value || '').trim();
+  if(!phone){ setAuthError('请输入有效的 11 位手机号', 'authPhone'); return false; }
+  if(!code){ setAuthError('请输入短信验证码', 'authCode'); return false; }
+  if(__authRegisterVerified && __authRegisterVerifiedPhone === phone && __authRegisterVerifiedCode === code){
+    return true;
+  }
+  setAuthSubmitting(true, '验证中…');
+  try{
+    var resp = await fetch(apiUrl('/api/auth/register/verify'), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone: phone, code: code })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '验证码校验失败');
+    __authRegisterVerified = true;
+    __authRegisterVerifiedPhone = phone;
+    __authRegisterVerifiedCode = code;
+    __authRegisterVerificationToken = String(out.verification_token || '');
+    setAuthMsg('验证码已通过', false);
+    return true;
+  }catch(e){
+    resetAuthRegisterVerification();
+    var msg = normalizeAuthErrorMessage(e && e.message ? e.message : '', '验证码错误，请重新输入');
+    setAuthError(msg, msg.indexOf('手机号') >= 0 ? 'authPhone' : 'authCode');
+    return false;
+  }finally{
+    setAuthSubmitting(false);
+  }
+}
+
+function goAuthRegisterStep(step){
+  authRegisterStep = step === 2 ? 2 : 1;
+  updateAuthRegisterSteps();
+  setAuthMsg('');
+}
+
 function setAuthModeAndShow(mode){
   authMode = mode || 'login';
-  var w = document.getElementById('authDisplayWrap');
+  var rows = ['authCodeWrap','authNameWrap','authOrgWrap','authUserTypeWrap','authUseCaseWrap','authDepartmentWrap','authTitleWrap','authEmailWrap'];
   var btn = document.getElementById('authRegisterBtn');
   var pri = document.getElementById('authLoginBtn');
   var help = document.getElementById('authPasswordHelp');
   var gate = document.getElementById('authGate');
-  if(w) w.classList.toggle('auth-hidden', authMode !== 'register');
+  var phoneInput = document.getElementById('authPhone');
+  var phoneLabel = phoneInput && phoneInput.parentNode ? phoneInput.parentNode.querySelector('label') : null;
+  authRegisterStep = 1;
+  rows.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.classList.toggle('auth-hidden', authMode !== 'register');
+  });
   if(help) help.classList.toggle('auth-hidden', authMode !== 'register');
-  if(btn) btn.textContent = authMode === 'login' ? '注册' : '登录';
+  if(btn) btn.textContent = authMode === 'login' ? '注册' : '返回登录';
   if(pri) pri.textContent = authMode === 'login' ? '登录' : '注册';
+  if(phoneLabel) phoneLabel.textContent = authMode === 'login' ? '手机号 / 账号' : '手机号';
+  if(phoneInput) phoneInput.placeholder = authMode === 'login' ? '请输入手机号或管理员账号' : '请输入手机号';
+  var forgot = document.getElementById('authForgotBtn');
+  if(forgot) forgot.classList.toggle('auth-hidden', authMode !== 'login');
+  resetAuthRegisterVerification();
   setAuthPasswordVisibility(false);
+  setAuthCodeSending(false);
   setAuthSubmitting(false);
+  updateAuthRegisterSteps();
   if(gate) gate.classList.remove('auth-hidden');
   setAuthMsg('');
 }
@@ -8773,21 +9254,75 @@ function getWeakPasswordReason(password, username){
   return '';
 }
 
+async function sendAuthCode(purpose){
+  if(__authCodeSending || __authSubmitting) return;
+  var phone = validateAuthPhone(document.getElementById('authPhone') && document.getElementById('authPhone').value);
+  if(!phone){ setAuthMsg('请输入有效的 11 位手机号', true); return; }
+  resetAuthRegisterVerification();
+  setAuthCodeSending(true, '发送中…');
+  try{
+    var url = purpose === 'reset_password' ? '/api/auth/password/reset/send-code' : '/api/auth/send-code';
+    var body = purpose === 'reset_password' ? { phone: phone } : { phone: phone, purpose: 'register' };
+    var resp = await fetch(apiUrl(url), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '验证码发送失败');
+    startAuthCodeCooldown(60);
+    setAuthMsg(out.debug_code ? ('验证码已发送，开发验证码：' + out.debug_code) : '验证码已发送', false);
+  }catch(e){
+    setAuthMsg(normalizeAuthErrorMessage(e && e.message ? e.message : '', '验证码发送失败'), true);
+  }finally{
+    setAuthCodeSending(false);
+  }
+}
+
 async function submitAuthLogin(){
   if(__authSubmitting) return;
+  if(authMode === 'register' && authRegisterStep === 1){
+    if(!canProceedRegisterStepOne()) return;
+    if(!(await verifyRegisterStepOne())) return;
+    goAuthRegisterStep(2);
+    return;
+  }
   var ctl = null;
   var tm = null;
   try{
-    var u = (document.getElementById('authUsername').value || '').trim();
+    var rawIdentity = (document.getElementById('authPhone') && document.getElementById('authPhone').value || '').trim();
+    var validPhone = validateAuthPhone(rawIdentity);
+    var u = authMode === 'register' ? validPhone : (validPhone || rawIdentity);
     var p = (document.getElementById('authPassword').value || '').trim();
-    if(!u || !p){ setAuthMsg('请输入用户名和密码', true); return; }
+    if(!u || !p){ setAuthError(authMode === 'login' ? '请输入手机号/账号和密码' : '请输入手机号和密码', !u ? 'authPhone' : 'authPassword'); return; }
     if(authMode === 'register'){
-      var weakReason = getWeakPasswordReason(p, u);
-      if(weakReason){ setAuthMsg(weakReason, true); return; }
+      var code = (document.getElementById('authCode').value || '').trim();
+      var name = (document.getElementById('authName').value || '').trim();
+      var organization = (document.getElementById('authOrganization').value || '').trim();
+      var userType = (document.getElementById('authUserType').value || '').trim();
+      var useCase = (document.getElementById('authUseCase').value || '').trim();
+      if(!code){ setAuthError('请先完成短信验证码填写', 'authCode'); return; }
+      if(!name){ setAuthError('请填写姓名', 'authName'); return; }
+      if(!organization){ setAuthError('请填写工作单位', 'authOrganization'); return; }
+      if(!userType){ setAuthError('请选择用户类型', 'authUserType'); return; }
+      if(!useCase){ setAuthError('请选择使用目的', 'authUseCase'); return; }
     }
     var url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    var body = { username: u, password: p };
-    if(authMode === 'register') body.display_name = (document.getElementById('authDisplayName').value || '').trim();
+    var body = authMode === 'login'
+      ? { phone: validPhone, username: validPhone ? '' : rawIdentity, password: p }
+      : { phone: u, password: p };
+    if(authMode === 'register'){
+      body.code = (document.getElementById('authCode').value || '').trim();
+      body.verification_token = __authRegisterVerificationToken || '';
+      body.name = (document.getElementById('authName').value || '').trim();
+      body.organization = (document.getElementById('authOrganization').value || '').trim();
+      body.user_type = (document.getElementById('authUserType').value || '').trim();
+      body.use_case = (document.getElementById('authUseCase').value || '').trim();
+      body.department = (document.getElementById('authDepartment').value || '').trim();
+      body.title = (document.getElementById('authTitle').value || '').trim();
+      body.email = (document.getElementById('authEmail').value || '').trim();
+      body.display_name = body.name;
+    }
     setAuthSubmitting(true, authMode === 'login' ? '登录中…' : '注册中…');
     ctl = new AbortController();
     tm = setTimeout(function(){ try{ ctl.abort('auth-timeout'); }catch(_){} }, 12000);
@@ -8800,7 +9335,20 @@ async function submitAuthLogin(){
     clearTimeout(tm); tm = null;
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '认证失败');
-    setAuthSession(out.token, { user_id: out.user_id, username: out.username, display_name: out.display_name });
+    setAuthSession(out.token, {
+      user_id: out.user_id,
+      username: out.username,
+      phone: out.phone,
+      display_name: out.display_name,
+      name: out.name,
+      organization: out.organization,
+      department: out.department,
+      title: out.title,
+      user_type: out.user_type,
+      use_case: out.use_case,
+      email: out.email,
+      is_admin: !!out.is_admin
+    });
     updateUserAvatarUI();
     setAppAuthed(true);
     setAuthMsg('');
@@ -8814,13 +9362,115 @@ async function submitAuthLogin(){
     if(e && (e.name === 'AbortError' || String(e.message||'').indexOf('aborted') >= 0)){
       msg = '登录超时，请检查后端服务或认证模式（建议本地开发使用 APP_AUTH_MODE=local）';
     }else if(e && e.message){
-      msg = e.message;
+      msg = normalizeAuthErrorMessage(e.message, '认证失败');
     }
     setAuthMsg(msg, true);
   }finally{
     if(!getAuthToken() || document.getElementById('authGate')?.classList.contains('auth-hidden') === false){
       setAuthSubmitting(false);
     }
+  }
+}
+
+function buildForgotPasswordHtml(){
+  return '<form class="feedback-form" onsubmit="submitForgotPassword(event)">'
+    + '<div class="feedback-note">先完成手机号和验证码校验，验证通过后再设置新密码。</div>'
+    + '<div class="feedback-field"><label for="forgotPhone">手机号</label><input id="forgotPhone" type="tel" placeholder="请输入注册手机号" oninput="__forgotPasswordVerified=false;__forgotPasswordVerificationToken=\'\';" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '<div class="feedback-field"><label for="forgotCode">短信验证码</label><div class="auth-inline"><input id="forgotCode" placeholder="请输入验证码" oninput="__forgotPasswordVerified=false;__forgotPasswordVerificationToken=\'\';"><button type="button" id="forgotSendCodeBtn" onclick="sendForgotPasswordCode()">获取验证码</button></div></div>'
+    + '<div id="forgotPasswordFields" class="auth-hidden">'
+    + '<div class="feedback-note">验证码已通过，请设置新密码。</div>'
+    + '<div class="feedback-field"><label for="forgotPassword">新密码</label><input id="forgotPassword" type="password" placeholder="至少 6 位，且包含字母和数字" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '<div class="feedback-field"><label for="forgotPassword2">确认新密码</label><input id="forgotPassword2" type="password" placeholder="请再次输入新密码" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '</div>'
+    + '<div class="feedback-actions sticky"><button type="button" onclick="closeSystemModal(\'forgotPasswordModal\')">取消</button><button type="button" id="forgotVerifyBtn" class="primary" onclick="verifyForgotPasswordCode()">验证验证码</button><button class="primary auth-hidden" id="forgotResetBtn" type="submit">重置密码</button></div>'
+    + '</form>';
+}
+
+function openForgotPasswordModal(){
+  __forgotPasswordVerified = false;
+  __forgotPasswordVerificationToken = '';
+  ensureSystemModal('forgotPasswordModal', '找回密码', '通过手机号验证码重置当前账号密码。', buildForgotPasswordHtml(), true);
+  openSystemModal('forgotPasswordModal');
+}
+
+async function sendForgotPasswordCode(){
+  var phone = validateAuthPhone(document.getElementById('forgotPhone') && document.getElementById('forgotPhone').value);
+  if(!phone){ showToast('请输入有效的注册手机号'); return; }
+  setForgotCodeSending(true, '发送中…');
+  try{
+    var resp = await fetch(apiUrl('/api/auth/password/reset/send-code'), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone: phone })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '验证码发送失败');
+    startForgotCodeCooldown(60);
+    showToast(out.debug_code ? ('验证码已发送，开发验证码：' + out.debug_code) : '验证码已发送');
+  }catch(e){
+    showToast('发送失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }finally{
+    setForgotCodeSending(false);
+  }
+}
+
+async function verifyForgotPasswordCode(){
+  var phone = validateAuthPhone(document.getElementById('forgotPhone') && document.getElementById('forgotPhone').value);
+  var code = (document.getElementById('forgotCode').value || '').trim();
+  var verifyBtn = document.getElementById('forgotVerifyBtn');
+  if(!phone || !code){ showToast('请先填写手机号和验证码'); return; }
+  if(verifyBtn) verifyBtn.disabled = true;
+  try{
+    var resp = await fetch(apiUrl('/api/auth/password/reset/verify'), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone: phone, code: code })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(resp.ok){
+      __forgotPasswordVerified = true;
+      __forgotPasswordVerificationToken = String(out.verification_token || '');
+      var fields = document.getElementById('forgotPasswordFields');
+      var passwordInput = document.getElementById('forgotPassword');
+      var resetBtn = document.getElementById('forgotResetBtn');
+      if(fields) fields.classList.remove('auth-hidden');
+      if(resetBtn) resetBtn.classList.remove('auth-hidden');
+      if(verifyBtn) verifyBtn.classList.add('auth-hidden');
+      showToast('验证码已通过，请设置新密码');
+      if(passwordInput) passwordInput.focus();
+      return;
+    }
+    throw new Error(out.detail || '验证码校验失败');
+  }catch(e){
+    showToast('验证失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }finally{
+    if(verifyBtn) verifyBtn.disabled = false;
+  }
+}
+
+async function submitForgotPassword(evt){
+  if(evt) evt.preventDefault();
+  if(!__forgotPasswordVerified){ showToast('请先验证手机号和验证码'); return; }
+  var phone = validateAuthPhone(document.getElementById('forgotPhone') && document.getElementById('forgotPhone').value);
+  var code = (document.getElementById('forgotCode').value || '').trim();
+  var p1 = (document.getElementById('forgotPassword').value || '').trim();
+  var p2 = (document.getElementById('forgotPassword2').value || '').trim();
+  if(!phone || !code || !p1 || !p2){ showToast('请完整填写手机号、验证码和新密码'); return; }
+  if(p1 !== p2){ showToast('两次输入的新密码不一致'); return; }
+  var weak = getWeakPasswordReason(p1, phone);
+  if(weak){ showToast(weak); return; }
+  try{
+    var resp = await fetch(apiUrl('/api/auth/password/reset/confirm'), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone: phone, code: code, verification_token: __forgotPasswordVerificationToken || '', new_password: p1 })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '重置失败');
+    closeSystemModal('forgotPasswordModal');
+    showToast('密码已重置，请使用新密码登录');
+  }catch(e){
+    showToast('重置失败：' + (e && e.message ? e.message : '请稍后重试'));
   }
 }
 
@@ -8848,7 +9498,20 @@ async function ensureLogin(){
       var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
       if(r.ok){
         var me = await r.json();
-        setAuthSession(token, { user_id: me.user_id, username: me.username, display_name: me.display_name });
+        setAuthSession(token, {
+          user_id: me.user_id,
+          username: me.username,
+          phone: me.phone,
+          display_name: me.display_name,
+          name: me.name,
+          organization: me.organization,
+          department: me.department,
+          title: me.title,
+          user_type: me.user_type,
+          use_case: me.use_case,
+          email: me.email,
+          is_admin: !!me.is_admin
+        });
         __authMeCheckedAt = Date.now();
         return true;
       }
@@ -8863,12 +9526,139 @@ async function ensureLogin(){
   }
 }
 
+function buildAccountProfileHtml(user){
+  var u = user || {};
+  return '<form class="account-shell" onsubmit="submitAccountProfile(event)">'
+    + '<div class="account-hero"><div class="account-hero-copy"><div class="account-eyebrow">Account Center</div><div class="account-name">' + escapeHtml(u.display_name || u.name || u.phone || 'HeartOS 用户') + '</div><div class="account-meta">手机号 ' + escapeHtml(u.phone || '') + ' · ' + escapeHtml(u.organization || '未填写工作单位') + '<br>在这里维护账号资料、密码和使用画像。</div></div><div class="account-hero-actions"><button class="account-chip-btn" type="button" onclick="openChangePasswordModal()">修改密码</button>' + (u.is_admin ? '<button class="account-chip-btn" type="button" onclick="openAdminUsersModal()">用户列表</button>' : '') + '<button class="account-chip-btn danger" type="button" onclick="logoutCurrentUser()">退出登录</button></div></div>'
+    + '<div class="account-grid">'
+    + '<div class="account-card"><div class="account-card-title">基础身份</div><div class="account-field"><label for="profileName">姓名</label><input id="profileName" value="' + escapeHtml(u.name || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileDisplayName">显示名称</label><input id="profileDisplayName" value="' + escapeHtml(u.display_name || u.name || '') + '"></div></div>'
+    + '<div class="account-card"><div class="account-card-title">机构信息</div><div class="account-field"><label for="profileOrganization">工作单位</label><input id="profileOrganization" value="' + escapeHtml(u.organization || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileEmail">邮箱</label><input id="profileEmail" value="' + escapeHtml(u.email || '') + '"></div></div>'
+    + '<div class="account-card"><div class="account-card-title">岗位信息</div><div class="account-field"><label for="profileDepartment">科室 / 部门</label><input id="profileDepartment" value="' + escapeHtml(u.department || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileTitle">职称 / 岗位</label><input id="profileTitle" value="' + escapeHtml(u.title || '') + '"></div></div>'
+    + '<div class="account-card"><div class="account-card-title">使用画像</div><div class="account-field"><label for="profileUserType">用户类型</label><select id="profileUserType">' + AUTH_USER_TYPE_OPTIONS.map(function(v){ return '<option value="' + escapeHtml(v) + '"' + ((u.user_type || '') === v ? ' selected' : '') + '>' + escapeHtml(v) + '</option>'; }).join('') + '</select></div><div class="account-field" style="margin-top:12px"><label for="profileUseCase">使用目的</label><select id="profileUseCase">' + AUTH_USE_CASE_OPTIONS.map(function(v){ return '<option value="' + escapeHtml(v) + '"' + ((u.use_case || '') === v ? ' selected' : '') + '>' + escapeHtml(v) + '</option>'; }).join('') + '</select></div></div>'
+    + '<div class="account-card full"><div class="account-card-title">说明</div><div class="account-card-subtitle">这些信息只用于识别使用者、统计主要场景和便于后续联系，不会影响你当前的分析流程。</div><div class="account-savebar"><button class="primary" type="submit">保存资料</button></div></div>'
+    + '</div>'
+    + '</form>';
+}
+
+function openAccountModal(){
+  var u = getAuthUser();
+  if(!u){ setAuthModeAndShow('login'); return; }
+  ensureSystemModal('accountModal', '账号中心', '维护个人资料、密码和管理员视图。', buildAccountProfileHtml(u), false);
+  openSystemModal('accountModal');
+}
+
+async function submitAccountProfile(evt){
+  if(evt) evt.preventDefault();
+  try{
+    var resp = await apiFetch('/api/auth/profile', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name: (document.getElementById('profileName').value || '').trim(),
+        display_name: (document.getElementById('profileDisplayName').value || '').trim(),
+        organization: (document.getElementById('profileOrganization').value || '').trim(),
+        department: (document.getElementById('profileDepartment').value || '').trim(),
+        title: (document.getElementById('profileTitle').value || '').trim(),
+        user_type: (document.getElementById('profileUserType').value || '').trim(),
+        use_case: (document.getElementById('profileUseCase').value || '').trim(),
+        email: (document.getElementById('profileEmail').value || '').trim()
+      })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '保存失败');
+    var current = getAuthUser() || {};
+    setAuthSession(getAuthToken(), Object.assign({}, current, {
+      username: out.username,
+      phone: out.phone,
+      display_name: out.display_name,
+      name: out.name,
+      organization: out.organization,
+      department: out.department,
+      title: out.title,
+      user_type: out.user_type,
+      use_case: out.use_case,
+      email: out.email,
+      is_admin: !!out.is_admin
+    }));
+    openAccountModal();
+    showToast('资料已更新');
+  }catch(e){
+    showToast('保存失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }
+}
+
+function buildChangePasswordHtml(){
+  return '<form class="feedback-form" onsubmit="submitChangePassword(event)">'
+    + '<div class="feedback-note">修改当前账号密码，修改后请继续使用新密码登录。</div>'
+    + '<div class="feedback-field"><label for="changeOldPassword">原密码</label><input id="changeOldPassword" type="password" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '<div class="feedback-field"><label for="changeNewPassword">新密码</label><input id="changeNewPassword" type="password" placeholder="至少 6 位，且包含字母和数字" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '<div class="feedback-field"><label for="changeNewPassword2">确认新密码</label><input id="changeNewPassword2" type="password" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '<div class="feedback-actions"><button type="button" onclick="closeSystemModal(\'changePasswordModal\')">取消</button><button class="primary" type="submit">确认修改</button></div>'
+    + '</form>';
+}
+
+function openChangePasswordModal(){
+  ensureSystemModal('changePasswordModal', '修改密码', '当前登录用户可在这里主动修改密码。', buildChangePasswordHtml(), true);
+  openSystemModal('changePasswordModal');
+}
+
+async function submitChangePassword(evt){
+  if(evt) evt.preventDefault();
+  var oldPassword = (document.getElementById('changeOldPassword').value || '').trim();
+  var newPassword = (document.getElementById('changeNewPassword').value || '').trim();
+  var newPassword2 = (document.getElementById('changeNewPassword2').value || '').trim();
+  if(!oldPassword || !newPassword || !newPassword2){ showToast('请完整填写原密码和新密码'); return; }
+  if(newPassword !== newPassword2){ showToast('两次输入的新密码不一致'); return; }
+  var weak = getWeakPasswordReason(newPassword, '');
+  if(weak){ showToast(weak); return; }
+  try{
+    var resp = await apiFetch('/api/auth/password/change', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '修改失败');
+    closeSystemModal('changePasswordModal');
+    showToast('密码已修改');
+  }catch(e){
+    showToast('修改失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }
+}
+
+async function openAdminUsersModal(){
+  try{
+    var resp = await apiFetch('/api/admin/users', { method:'GET' });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '读取失败');
+    var rows = Array.isArray(out.items) ? out.items : [];
+    var html = '<div class="feedback-note">当前共 ' + rows.length + ' 个账号。这里先提供第一期基础用户清单，方便你们知道谁在使用系统。</div>'
+      + '<div style="overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>'
+      + '<th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;">姓名</th><th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;">手机号</th><th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;">单位</th><th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;">类型</th><th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;">用途</th><th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;">最近登录</th></tr></thead><tbody>'
+      + rows.map(function(item){
+        return '<tr><td style="padding:8px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.name || item.display_name || '') + (item.is_admin ? '（管理员）' : '') + '</td><td style="padding:8px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.phone || item.username || '') + '</td><td style="padding:8px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.organization || '') + '</td><td style="padding:8px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.user_type || '') + '</td><td style="padding:8px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.use_case || '') + '</td><td style="padding:8px;border-bottom:1px solid #f1f5f9;">' + escapeHtml(item.last_login_at ? new Date(Number(item.last_login_at) * 1000).toLocaleString() : '未登录') + '</td></tr>';
+      }).join('')
+      + '</tbody></table></div>';
+    ensureSystemModal('adminUsersModal', '用户列表', '管理员可查看当前本地账号的基础档案与最近登录情况。', html, false);
+    openSystemModal('adminUsersModal');
+  }catch(e){
+    showToast('读取用户列表失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }
+}
+
+function logoutCurrentUser(){
+  clearAuthSession();
+  closeSystemModal('accountModal');
+  setAuthModeAndShow('login');
+}
+
 async function onUserAvatarClick(){
   var u = getAuthUser();
-  var msg = u ? ('当前用户：' + (u.display_name || u.username || u.user_id) + '\n确定要切换账号吗？') : '当前未登录，是否现在登录？';
-  if(!confirm(msg)) return;
-  clearAuthSession();
-  setAuthModeAndShow('login');
+  if(!u){
+    setAuthModeAndShow('login');
+    return;
+  }
+  openAccountModal();
 }
 
 function authHeaders(extra){
@@ -8883,16 +9673,16 @@ function authHeaders(extra){
 
 var __heartosEcgMsgSeq = 0;
 const HEARTOS_IDENTITY_PROMPT =
-  '我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。' +
+  '我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 心电组学、信号补全和心电数据分析。' +
   '当用户询问“你是谁”“你是做什么的”时，请优先使用这句身份介绍，并围绕 HeartOS 的心电相关能力展开回答，不要提及底层模型、第三方厂商或外部品牌。' +
   '回答使用中文，风格专业、清晰、可信。';
-const HEARTOS_IDENTITY_REPLY = '我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。';
-const HEARTOS_CAPABILITY_REPLY = 'HeartOS 主要支持心电图数字化、ECG 特征提取、信号补全和相关心电数据分析。';
-const HEARTOS_PLATFORM_REPLY = 'HeartOS 是一个面向心电数据处理与分析的平台，支持心电图数字化、特征提取、信号补全和相关分析任务。';
-const HEARTOS_GUIDE_REPLY = '你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合特征提取与信号补全。';
+const HEARTOS_IDENTITY_REPLY = '我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 心电组学、信号补全和心电数据分析。';
+const HEARTOS_CAPABILITY_REPLY = 'HeartOS 主要支持心电图数字化、ECG 心电组学、信号补全和相关心电数据分析。';
+const HEARTOS_PLATFORM_REPLY = 'HeartOS 是一个面向心电数据处理与分析的平台，支持心电图数字化、心电组学分析、信号补全和相关分析任务。';
+const HEARTOS_GUIDE_REPLY = '你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合心电组学分析与信号补全。';
 const HEARTOS_INPUT_REPLY = 'HeartOS 目前支持心电图图片、PDF、ECG XML、CSV，以及部分 TSV、TXT、JSON 等波形数据文件。';
 const HEARTOS_DIFF_REPLY = '手动数字化适合精细框选和人工校正，自动数字化适合快速处理标准心电图图片；如果自动结果不理想，建议切换到手动数字化。';
-const HEARTOS_FEATURE_REPLY = '可以把它们理解成两个不同阶段：ECG 信号补全是先补数据，适合导联缺失、波形不完整，或者当前波形还不满足分析条件的时候使用；ECG 特征提取是再读结果，在已有波形上提取心率、节律、间期和形态学等结构化指标。一般来说，波形已经比较完整时，优先做特征提取；如果数据不完整，先做信号补全会更合适。';
+const HEARTOS_FEATURE_REPLY = '可以把它们理解成两个不同阶段：ECG 信号补全是先补数据，适合导联缺失、波形不完整，或者当前波形还不满足分析条件的时候使用；ECG 心电组学是再读结果，在已有波形上提取心率、节律、间期和形态学等结构化指标。一般来说，波形已经比较完整时，优先做心电组学分析；如果数据不完整，先做信号补全会更合适。';
 const HEARTOS_BOUNDARY_REPLY = 'HeartOS 可以协助完成心电数据处理与分析，但不能替代医生作出临床诊断。';
 function isHeartosIdentityQuestion(text){
   var q = String(text || '').toLowerCase().replace(/\s+/g, '');
@@ -10660,7 +11450,7 @@ document.addEventListener('keydown',function(e){
     try{
       if(typeof apiUrl === 'function') return apiUrl(path);
     }catch(_){ }
-    var base = (window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9000').replace(/\/+$/,'');
+    var base = resolveBackendBaseUrl();
     return base + path;
   }
 

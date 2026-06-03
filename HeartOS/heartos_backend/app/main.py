@@ -5,6 +5,7 @@ import base64
 import csv
 import io
 import json
+import mimetypes
 import re
 import time
 import uuid
@@ -19,10 +20,20 @@ from fastapi.responses import FileResponse, Response
 
 from .auth import (
     UpstreamAuthError,
+    change_password,
+    get_user_by_id,
     issue_token,
+    list_users_for_admin,
     register_user,
+    reset_password,
+    send_password_reset_code,
+    send_verification_code,
+    issue_verification_ticket,
+    update_profile,
     upstream_login,
     upstream_register,
+    verify_registration_code,
+    verify_password_reset_code,
     verify_token,
     verify_user,
 )
@@ -43,40 +54,48 @@ from .schemas import (
     ConversationResponse,
     ConversationTurnRequest,
     ECGOmicsAnalyzeRequest,
-    FeedbackSubmitRequest,
     HandEcgSaveRequest,
     LoginRequest,
     LoginResponse,
+    PasswordChangeRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetSendCodeRequest,
+    PasswordResetVerifyRequest,
+    ProfileUpdateRequest,
+    RegisterVerifyRequest,
     RegisterRequest,
     MeResponse,
+    SendCodeRequest,
+    SendCodeResponse,
+    UserAdminListResponse,
 )
 
 
 APP_VERSION = "1.4.1"
 PLATFORM_NAME = "HeartOS"
 DEFAULT_CHAT_SYSTEM = (
-    "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。"
+    "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 心电组学、信号补全和心电数据分析。"
     "当用户询问“你是谁”“你是做什么的”时，请优先使用这句身份介绍，并围绕 HeartOS 的心电相关能力展开回答；"
     "不要提及底层模型、第三方厂商或外部品牌。"
     "回答使用中文，风格专业、清晰、可信。"
 )
-IDENTITY_REPLY = "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 特征提取、信号补全和心电数据分析。"
-CAPABILITY_REPLY = "HeartOS 主要支持心电图数字化、ECG 特征提取、信号补全和相关心电数据分析。"
-PLATFORM_REPLY = "HeartOS 是一个面向心电数据处理与分析的平台，支持心电图数字化、特征提取、信号补全和相关分析任务。"
-GUIDE_REPLY = "你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合特征提取与信号补全。"
+IDENTITY_REPLY = "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 心电组学、信号补全和心电数据分析。"
+CAPABILITY_REPLY = "HeartOS 主要支持心电图数字化、ECG 心电组学、信号补全和相关心电数据分析。"
+PLATFORM_REPLY = "HeartOS 是一个面向心电数据处理与分析的平台，支持心电图数字化、心电组学分析、信号补全和相关分析任务。"
+GUIDE_REPLY = "你可以从上传心电图图片、PDF、XML 或波形 CSV 开始；图片和 PDF 适合数字化，XML 或 CSV 适合心电组学分析与信号补全。"
 INPUT_REPLY = "HeartOS 目前支持心电图图片、PDF、ECG XML、CSV，以及部分 TSV、TXT、JSON 等波形数据文件。"
 DIFF_REPLY = "手动数字化适合精细框选和人工校正，自动数字化适合快速处理标准心电图图片；如果自动结果不理想，建议切换到手动数字化。"
 FEATURE_REPLY = (
     "可以把它们理解成两个不同阶段："
     "ECG 信号补全是先补数据，适合导联缺失、波形不完整，或者当前波形还不满足分析条件的时候使用；"
-    "ECG 特征提取是再读结果，在已有波形上提取心率、节律、间期和形态学等结构化指标。"
-    "一般来说，波形已经比较完整时，优先做特征提取；如果数据不完整，先做信号补全会更合适。"
+    "ECG 心电组学是再读结果，在已有波形上提取心率、节律、间期和形态学等结构化指标。"
+    "一般来说，波形已经比较完整时，优先做心电组学分析；如果数据不完整，先做信号补全会更合适。"
 )
 BOUNDARY_REPLY = "HeartOS 可以协助完成心电数据处理与分析，但不能替代医生作出临床诊断。"
 CONVERSATION_INTENT_DESCRIPTIONS: dict[str, str] = {
     "ecg_auto_digitize": "将心电图图片或 PDF 自动数字化为波形数据。",
     "ecg_manual_digitize": "打开手动数字化工具，人工校正和提取波形。",
-    "ecg_feature_extract": "对 ECG XML、CSV 或波形数据进行 ECG 特征提取。",
+    "ecg_feature_extract": "对 ECG XML、CSV 或波形数据进行 ECG 心电组学分析。",
     "ecg_reconstruct": "对缺失导联或不完整 ECG 波形进行信号补全与重建。",
     "zhunxin_risk_assess": "基于心电图图片进行准心胸痛高风险评估，并生成风险报告。",
     "result_interpretation": "解释已有分析结果、波形表现或 ECG 指标含义。",
@@ -129,7 +148,7 @@ CONVERSATION_ROUTER_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "ecg_feature_extract",
-            "description": "当用户要对 ECG XML、CSV、TXT、TSV、JSON 波形数据做 ECG 特征提取或 ECGOmics 分析时调用。",
+            "description": "当用户要对 ECG XML、CSV、TXT、TSV、JSON 波形数据做 ECG 心电组学或 ECGOmics 分析时调用。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -244,6 +263,8 @@ NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json").resolve()
 NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
 FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
+FEEDBACK_MAX_IMAGES = 4
+FEEDBACK_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}
 
 
 def _load_file_meta() -> dict[str, Any]:
@@ -274,6 +295,64 @@ def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
     temp_path = path.with_suffix(path.suffix + ".tmp")
     temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     temp_path.replace(path)
+
+
+def _coerce_feedback_context(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _guess_upload_suffix(filename: str, content_type: str, *, default: str = ".bin") -> str:
+    suffix = Path(filename or "").suffix.lower()
+    if suffix and re.fullmatch(r"\.[a-z0-9]{1,8}", suffix):
+        return suffix
+    guessed = (mimetypes.guess_extension(content_type or "") or "").lower()
+    if guessed == ".jpe":
+        guessed = ".jpg"
+    return guessed or default
+
+
+def _store_upload_bytes(
+    *,
+    content: bytes,
+    filename: str,
+    content_type: str,
+    source: str,
+    user: dict[str, Any],
+) -> dict[str, Any]:
+    suffix = _guess_upload_suffix(filename, content_type)
+    fid = uuid.uuid4().hex
+    safe_name = f"{fid}{suffix}"
+    out_path = UPLOAD_DIR / safe_name
+    out_path.write_bytes(content)
+    meta = _load_file_meta()
+    meta[safe_name] = {
+        "user_id": user.get("id"),
+        "username": user.get("username"),
+        "source": source,
+        "content_type": content_type,
+        "original_name": filename,
+    }
+    _save_file_meta(meta)
+    url = f"{settings.public_base_url}/api/files/{safe_name}"
+    return {
+        "id": safe_name,
+        "name": filename or safe_name,
+        "size": len(content),
+        "source": source,
+        "url": url,
+        "fileUrl": url,
+        "contentType": content_type,
+        "user_id": user.get("id"),
+        "username": user.get("username"),
+    }
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -640,13 +719,13 @@ def _missing_fields_for_intent(intent: str, context: dict[str, Any]) -> list[str
 
 def _message_for_missing_fields(intent: str, missing_fields: list[str]) -> str:
     if "selected_source" in missing_fields:
-        return "请先选择来源文件，再告诉我要执行哪一步。图片或 PDF 适合数字化，XML/CSV 波形适合特征提取、补全和结果解读。"
+        return "请先选择来源文件，再告诉我要执行哪一步。图片或 PDF 适合数字化，XML/CSV 波形适合心电组学分析、补全和结果解读。"
     if "image_source" in missing_fields:
         if intent == "zhunxin_risk_assess":
             return "准心风险评估需要心电图图片或 PDF。请选择单个心电图图片或 PDF 后再试。"
         return "当前选中的来源不适合数字化。请选择单个心电图图片或 PDF 后再试。"
     if "ecg_signal_source" in missing_fields:
-        return "当前选中的来源不适合 ECG 特征提取、补全或结果解读。请选择 XML、CSV、TXT、TSV 或 JSON 波形数据。"
+        return "当前选中的来源不适合 ECG 心电组学、补全或结果解读。请选择 XML、CSV、TXT、TSV 或 JSON 波形数据。"
     return "还缺少执行该任务所需的信息，请补充后再试。"
 
 
@@ -660,7 +739,7 @@ def _ask_missing_meta(intent: str, context: dict[str, Any], missing_fields: list
             "body": "我可以帮你完成这项任务。先选择一个来源文件，我再继续处理。",
             "tips": [
                 "心电图图片或 PDF 适合先做数字化。",
-                "XML、CSV、TXT、TSV、JSON 波形文件适合直接做特征提取、补全或结果解读。",
+                "XML、CSV、TXT、TSV、JSON 波形文件适合直接做心电组学分析、补全或结果解读。",
             ],
             "actions": [
                 {"label": "去上传文件", "kind": "primary", "action": "upload"},
@@ -675,7 +754,7 @@ def _ask_missing_meta(intent: str, context: dict[str, Any], missing_fields: list
                 "body": "我可以帮你生成准心风险报告，但需要先选中一张心电图图片或一个 PDF。",
                 "tips": [
                     "建议只选择 1 个来源进行本次评估。",
-                    "如果你已经有波形 CSV/XML，更适合走特征提取或结果解读流程。",
+                    "如果你已经有波形 CSV/XML，更适合走心电组学分析或结果解读流程。",
                 ],
                 "actions": [
                     {"label": "去上传文件", "kind": "primary", "action": "upload"},
@@ -703,7 +782,7 @@ def _ask_missing_meta(intent: str, context: dict[str, Any], missing_fields: list
                 "body": "当前选中的是图片或 PDF，还不能直接做特征分析。我可以先帮你数字化成波形数据，再继续分析。",
                 "tips": [
                     "数字化后会生成 CSV 波形数据。",
-                    "生成的波形文件加入来源后，就可以继续做特征提取、补全或结果解读。",
+                    "生成的波形文件加入来源后，就可以继续做心电组学分析、补全或结果解读。",
                 ],
                 "actions": [
                     {"label": "先自动数字化", "kind": "primary", "action": "run:ecgsmart"},
@@ -779,7 +858,7 @@ def _build_diagnostic_plan_response(context: dict[str, Any]) -> ConversationResp
                 {
                     "id": "ecgsmart",
                     "title": "先自动数字化再分析",
-                    "description": "先把图片转成波形 CSV，后续可以继续做特征提取、补全和更细致的解读。",
+                    "description": "先把图片转成波形 CSV，后续可以继续做心电组学分析、补全和更细致的解读。",
                     "action": "run:ecgsmart",
                     "kind": "secondary",
                 },
@@ -807,7 +886,7 @@ def _tool_started_message(intent: str) -> str:
     return {
         "ecg_auto_digitize": "已识别为自动数字化任务，正在处理所选心电图图片，完成后会生成波形 CSV。",
         "ecg_manual_digitize": "已识别为手动数字化任务，正在打开数字化工具。",
-        "ecg_feature_extract": "已识别为 ECG 特征提取任务，正在读取所选波形来源并执行提取。",
+        "ecg_feature_extract": "已识别为 ECG 心电组学任务，正在读取所选波形来源并执行分析。",
         "ecg_reconstruct": "已识别为 ECG 信号补全任务，正在标准化导联波形并执行补全，完成后会保存补全 CSV。",
         "zhunxin_risk_assess": "已识别为准心风险评估任务，正在处理所选心电图图片，稍后会生成风险报告。",
     }.get(intent, "已识别到工具任务，正在处理。")
@@ -1161,10 +1240,36 @@ def get_current_user(
     if not payload:
         raise HTTPException(status_code=401, detail="invalid or expired token")
 
+    user = get_user_by_id(str(payload.get("uid") or ""))
+    if user:
+        return {
+            "id": user.get("id"),
+            "username": user.get("username"),
+            "display_name": user.get("display_name"),
+            "phone": user.get("phone"),
+            "name": user.get("name"),
+            "organization": user.get("organization"),
+            "department": user.get("department"),
+            "title": user.get("title"),
+            "user_type": user.get("user_type"),
+            "use_case": user.get("use_case"),
+            "email": user.get("email"),
+            "is_admin": user.get("is_admin"),
+        }
+
     return {
         "id": payload.get("uid"),
         "username": payload.get("username"),
         "display_name": payload.get("name") or payload.get("username"),
+        "phone": "",
+        "name": payload.get("name") or payload.get("username"),
+        "organization": "",
+        "department": "",
+        "title": "",
+        "user_type": "",
+        "use_case": "",
+        "email": "",
+        "is_admin": False,
     }
 
 
@@ -1635,22 +1740,79 @@ async def health() -> dict[str, str]:
 async def login(req: LoginRequest) -> LoginResponse:
     if (settings.auth_mode or "").lower() == "upstream":
         try:
-            user = await asyncio.to_thread(upstream_login, req.username, req.password)
+            user = await asyncio.to_thread(upstream_login, req.username or req.phone, req.password)
         except UpstreamAuthError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message)
     else:
-        user = verify_user(req.username, req.password)
+        user = verify_user(req.username, req.password, phone=req.phone)
         if not user:
-            raise HTTPException(status_code=401, detail="用户名或密码错误")
+            raise HTTPException(status_code=401, detail="手机号或密码错误")
 
     token = issue_token(user)
     return LoginResponse(
         token=token,
         user_id=str(user.get("id")),
         username=str(user.get("username")),
+        phone=str(user.get("phone") or ""),
         display_name=str(user.get("display_name") or user.get("username")),
+        name=str(user.get("name") or user.get("display_name") or user.get("username")),
+        organization=str(user.get("organization") or ""),
+        department=str(user.get("department") or ""),
+        title=str(user.get("title") or ""),
+        user_type=str(user.get("user_type") or ""),
+        use_case=str(user.get("use_case") or ""),
+        email=str(user.get("email") or ""),
+        is_admin=bool(user.get("is_admin")),
         expires_in=max(1, settings.auth_expire_hours) * 3600,
     )
+
+
+@app.post("/api/auth/send-code", response_model=SendCodeResponse)
+async def auth_send_code(req: SendCodeRequest) -> SendCodeResponse:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地短信验证码")
+    try:
+        out = send_verification_code(req.phone, req.purpose)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return SendCodeResponse(**out)
+
+
+@app.post("/api/auth/password/reset/send-code", response_model=SendCodeResponse)
+async def auth_password_reset_send_code(req: PasswordResetSendCodeRequest) -> SendCodeResponse:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地找回密码")
+    try:
+        out = send_password_reset_code(req.phone)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return SendCodeResponse(**out)
+
+
+@app.post("/api/auth/password/reset/verify")
+async def auth_password_reset_verify(req: PasswordResetVerifyRequest) -> dict[str, Any]:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地找回密码")
+    try:
+        user = verify_password_reset_code(req.phone, req.code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "ok": True,
+        "user_id": str(user.get("id") or ""),
+        "verification_token": issue_verification_ticket(req.phone, "reset_password"),
+    }
+
+
+@app.post("/api/auth/register/verify")
+async def auth_register_verify(req: RegisterVerifyRequest) -> dict[str, Any]:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地短信验证码")
+    try:
+        verify_registration_code(req.phone, req.code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "verification_token": issue_verification_ticket(req.phone, "register")}
 
 
 
@@ -1658,12 +1820,25 @@ async def login(req: LoginRequest) -> LoginResponse:
 async def register(req: RegisterRequest) -> LoginResponse:
     if (settings.auth_mode or "").lower() == "upstream":
         try:
-            user = await asyncio.to_thread(upstream_register, req.username, req.password, req.display_name)
+            user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
         except UpstreamAuthError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message)
     else:
         try:
-            user = register_user(req.username, req.password, req.display_name)
+            user = register_user(
+                phone=req.phone,
+                password=req.password,
+                code=req.code,
+                verification_token=req.verification_token,
+                name=req.name,
+                organization=req.organization,
+                user_type=req.user_type,
+                use_case=req.use_case,
+                department=req.department,
+                title=req.title,
+                email=req.email,
+                display_name=req.display_name,
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -1672,13 +1847,95 @@ async def register(req: RegisterRequest) -> LoginResponse:
         token=token,
         user_id=str(user.get("id")),
         username=str(user.get("username")),
+        phone=str(user.get("phone") or ""),
         display_name=str(user.get("display_name") or user.get("username")),
+        name=str(user.get("name") or user.get("display_name") or user.get("username")),
+        organization=str(user.get("organization") or ""),
+        department=str(user.get("department") or ""),
+        title=str(user.get("title") or ""),
+        user_type=str(user.get("user_type") or ""),
+        use_case=str(user.get("use_case") or ""),
+        email=str(user.get("email") or ""),
+        is_admin=bool(user.get("is_admin")),
         expires_in=max(1, settings.auth_expire_hours) * 3600,
     )
 
+
+@app.post("/api/auth/password/reset/confirm")
+async def auth_password_reset_confirm(req: PasswordResetConfirmRequest) -> dict[str, Any]:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地找回密码")
+    try:
+        user = reset_password(req.phone, req.code, req.new_password, req.verification_token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "user_id": str(user.get("id") or "")}
+
+
+@app.post("/api/auth/password/change")
+async def auth_password_change(
+    req: PasswordChangeRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地修改密码")
+    try:
+        change_password(str(user.get("id") or ""), req.old_password, req.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
 @app.get("/api/auth/me", response_model=MeResponse)
 async def me(user: dict[str, Any] = Depends(get_current_user)) -> MeResponse:
-    return MeResponse(user_id=str(user.get("id")), username=str(user.get("username")), display_name=str(user.get("display_name")))
+    return MeResponse(
+        user_id=str(user.get("id")),
+        username=str(user.get("username")),
+        display_name=str(user.get("display_name")),
+        phone=str(user.get("phone") or ""),
+        name=str(user.get("name") or user.get("display_name") or user.get("username")),
+        organization=str(user.get("organization") or ""),
+        department=str(user.get("department") or ""),
+        title=str(user.get("title") or ""),
+        user_type=str(user.get("user_type") or ""),
+        use_case=str(user.get("use_case") or ""),
+        email=str(user.get("email") or ""),
+        is_admin=bool(user.get("is_admin")),
+    )
+
+
+@app.post("/api/auth/profile", response_model=MeResponse)
+async def save_profile(
+    req: ProfileUpdateRequest,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> MeResponse:
+    if (settings.auth_mode or "").lower() == "upstream":
+        raise HTTPException(status_code=501, detail="当前部署暂未启用本地资料维护")
+    try:
+        updated = update_profile(str(user.get("id") or ""), req.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return MeResponse(
+        user_id=str(updated.get("id")),
+        username=str(updated.get("username")),
+        display_name=str(updated.get("display_name")),
+        phone=str(updated.get("phone") or ""),
+        name=str(updated.get("name") or updated.get("display_name") or updated.get("username")),
+        organization=str(updated.get("organization") or ""),
+        department=str(updated.get("department") or ""),
+        title=str(updated.get("title") or ""),
+        user_type=str(updated.get("user_type") or ""),
+        use_case=str(updated.get("use_case") or ""),
+        email=str(updated.get("email") or ""),
+        is_admin=bool(updated.get("is_admin")),
+    )
+
+
+@app.get("/api/admin/users", response_model=UserAdminListResponse)
+async def admin_users(user: dict[str, Any] = Depends(get_current_user)) -> UserAdminListResponse:
+    if not bool(user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="仅管理员可查看用户列表")
+    return UserAdminListResponse(items=list_users_for_admin())
 
 
 @app.get("/api/user/ai-config")
@@ -1722,13 +1979,54 @@ async def save_ai_config(payload: dict[str, Any], user: dict[str, Any] = Depends
 
 @app.post("/api/feedback")
 async def submit_feedback(
-    payload: FeedbackSubmitRequest,
+    request: Request,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    message = payload.message.strip()
-    if len(message) < 5:
-        raise HTTPException(status_code=422, detail="反馈内容至少需要 5 个字符")
+    message = ""
+    context: dict[str, Any] = {}
+    attachments: list[dict[str, Any]] = []
 
+    content_type = str(request.headers.get("content-type") or "").lower()
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        message = str(form.get("message") or "").strip()
+        context = _coerce_feedback_context(form.get("context"))
+        raw_files = [item for item in form.getlist("images") if hasattr(item, "filename") and hasattr(item, "read")]
+        if len(raw_files) > FEEDBACK_MAX_IMAGES:
+            raise HTTPException(status_code=422, detail=f"反馈图片最多上传 {FEEDBACK_MAX_IMAGES} 张")
+        for file in raw_files:
+            filename = str(file.filename or "").strip()
+            if not filename:
+                continue
+            image_type = str(file.content_type or "").strip().lower()
+            if image_type and image_type not in FEEDBACK_ALLOWED_IMAGE_TYPES:
+                raise HTTPException(status_code=422, detail="反馈图片仅支持 PNG、JPG、WebP、GIF、BMP")
+            content = await file.read()
+            if not content:
+                continue
+            if len(content) > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail=f"反馈图片过大，单张最大 {settings.max_upload_mb}MB")
+            attachments.append(
+                _store_upload_bytes(
+                    content=content,
+                    filename=filename,
+                    content_type=image_type or "application/octet-stream",
+                    source="feedback",
+                    user=user,
+                )
+            )
+    else:
+        try:
+            payload = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="反馈请求格式不正确") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=422, detail="反馈请求格式不正确")
+        message = str(payload.get("message") or "").strip()
+        context = _coerce_feedback_context(payload.get("context"))
+
+    if len(message) < 5 and not attachments:
+        raise HTTPException(status_code=422, detail="请至少填写 5 个字符的反馈内容，或上传反馈图片")
     db = _load_json_file(FEEDBACK_PATH)
     items = db.get("items", [])
     if not isinstance(items, list):
@@ -1738,7 +2036,8 @@ async def submit_feedback(
         "id": uuid.uuid4().hex,
         "createdAt": int(time.time() * 1000),
         "message": message,
-        "context": payload.context if isinstance(payload.context, dict) else {},
+        "context": context,
+        "attachments": attachments,
         "status": "new",
         "user": {
             "id": str(user.get("id") or ""),
@@ -1749,7 +2048,7 @@ async def submit_feedback(
     items.insert(0, record)
     db["items"] = items[:1000]
     _save_json_file(FEEDBACK_PATH, db)
-    return {"ok": True, "id": record["id"]}
+    return {"ok": True, "id": record["id"], "attachments": attachments}
 
 
 def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
