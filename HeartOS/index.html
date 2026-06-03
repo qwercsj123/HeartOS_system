@@ -698,7 +698,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 @keyframes pulse-ring{0%{transform:scale(.85);opacity:.6}100%{transform:scale(1.8);opacity:0}}
 @keyframes float-particle{0%,100%{transform:translateY(0) scale(1);opacity:.4}50%{transform:translateY(-18px) scale(1.15);opacity:.8}}
 @keyframes blink-dot{0%,100%{opacity:1}50%{opacity:.3}}
-.auth-gate{position:fixed;inset:0;z-index:20000;display:flex;align-items:flex-start;justify-content:center;padding:18px 28px 64px;background:linear-gradient(135deg,#070d18 0%,#0b1322 52%,#07111e 100%);overflow-x:hidden;overflow-y:auto;}
+.auth-gate{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px 28px 64px;background:linear-gradient(135deg,#070d18 0%,#0b1322 52%,#07111e 100%);overflow-x:hidden;overflow-y:auto;}
+.auth-gate.auth-register{align-items:flex-start;}
 .auth-gate::before{content:'';position:absolute;inset:0;background:
   radial-gradient(ellipse 820px 520px at 25% 38%,rgba(220,38,38,.12) 0%,transparent 70%),
   radial-gradient(ellipse 680px 460px at 72% 58%,rgba(14,165,233,.055) 0%,transparent 72%),
@@ -708,18 +709,25 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
   linear-gradient(90deg,rgba(148,163,184,.035) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(circle at 50% 50%,rgba(0,0,0,.70) 0%,rgba(0,0,0,.35) 42%,transparent 78%);pointer-events:none;}
 .auth-ecg-bg{display:none;}
 .auth-ecg-line svg{display:none;}
-.auth-card{position:relative;z-index:1;width:min(1000px,94vw);min-height:560px;height:min(760px,calc(100vh - 82px));background:rgba(10,18,32,.88);border:1px solid rgba(220,38,38,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.34),0 8px 24px rgba(220,38,38,.08);display:grid;grid-template-columns:minmax(0,1.08fr) 420px;overflow:hidden;backdrop-filter:blur(18px);pointer-events:auto;}
-.auth-visual{position:relative;padding:40px 42px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(8,15,28,.94));color:#e5e7eb;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;border-right:1px solid rgba(148,163,184,.14);}
+.auth-card{position:relative;z-index:1;width:min(920px,92vw);min-height:520px;height:min(700px,calc(100vh - 90px));background:rgba(10,18,32,.88);border:1px solid rgba(220,38,38,.22);border-radius:22px;box-shadow:0 24px 70px rgba(0,0,0,.34),0 8px 24px rgba(220,38,38,.08);display:grid;grid-template-columns:minmax(0,.92fr) 408px;overflow:hidden;backdrop-filter:blur(18px);pointer-events:auto;}
+.auth-card.auth-login{min-height:0;height:540px;grid-template-columns:minmax(0,.88fr) 408px;}
+.auth-card.auth-login .auth-visual{padding:28px 30px 32px;}
+.auth-card.auth-login .auth-heart-container{width:156px;height:156px;margin-bottom:20px;}
+.auth-card.auth-login .auth-heart-svg svg{width:72px;height:72px;}
+.auth-card.auth-login .auth-ecg-line{bottom:28px;height:44px;}
+.auth-card.auth-login .auth-form{padding:30px 34px 36px;}
+.auth-card.auth-login .auth-sub{margin-bottom:22px;}
+.auth-visual{position:relative;padding:34px 34px;background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(8,15,28,.94));color:#e5e7eb;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;border-right:1px solid rgba(148,163,184,.14);}
 .auth-visual::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 48%,rgba(220,38,38,.12) 0%,transparent 58%);pointer-events:none;}
-.auth-heart-container{position:relative;width:220px;height:220px;display:flex;align-items:center;justify-content:center;margin-bottom:36px;}
+.auth-heart-container{position:relative;width:184px;height:184px;display:flex;align-items:center;justify-content:center;margin-bottom:28px;}
 .auth-heart-ring{position:absolute;inset:0;border:1.5px solid rgba(220,38,38,.20);border-radius:50%;animation:pulse-ring 2.4s ease-out infinite;}
 .auth-heart-ring:nth-child(2){animation-delay:.6s;}
 .auth-heart-ring:nth-child(3){animation-delay:1.2s;}
 .auth-heart-svg{position:relative;z-index:2;animation:heartbeat 1.8s ease-in-out infinite;}
-.auth-heart-svg svg{width:96px;height:96px;filter:drop-shadow(0 12px 28px rgba(220,38,38,.32));}
+.auth-heart-svg svg{width:82px;height:82px;filter:drop-shadow(0 12px 28px rgba(220,38,38,.32));}
 .auth-heart-svg svg path:first-child{fill:rgba(220,38,38,.85);stroke:#dc2626;}
 .auth-heart-svg svg path:last-child{stroke:rgba(255,255,255,.9);}
-.auth-ecg-line{position:absolute;bottom:60px;left:0;right:0;height:60px;overflow:hidden;}
+.auth-ecg-line{position:absolute;bottom:44px;left:0;right:0;height:52px;overflow:hidden;}
 .auth-ecg-line canvas{display:block;width:100%;height:100%;}
 .auth-visual-text{position:relative;text-align:center;z-index:2;}
 .auth-kicker{font-size:12px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#ef4444;}
@@ -734,7 +742,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .auth-particle:nth-child(4){left:25%;top:70%;animation-delay:1.5s;background:rgba(14,165,233,.16);}
 .auth-particle:nth-child(5){left:45%;top:15%;animation-delay:.7s;width:2px;height:2px;}
 .auth-particle:nth-child(6){left:75%;top:55%;animation-delay:2.5s;width:2px;height:2px;background:rgba(14,165,233,.14);}
-.auth-form{position:relative;z-index:2;padding:40px 42px 56px;display:flex;flex-direction:column;justify-content:flex-start;background:rgba(7,13,24,.54);overflow-y:auto;min-height:0;}
+.auth-form{position:relative;z-index:2;padding:36px 36px 48px;display:flex;flex-direction:column;justify-content:flex-start;background:rgba(7,13,24,.54);overflow-y:auto;min-height:0;}
 .auth-title{font-size:27px;font-weight:750;color:#f8fafc;margin-bottom:6px;letter-spacing:-.45px;}
 .auth-sub{font-size:13px;color:#94a3b8;margin-bottom:30px;line-height:1.65;}
 .auth-steps{display:flex;align-items:center;gap:10px;margin:-2px 0 22px;}
@@ -775,7 +783,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .auth-help{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5;}
 .auth-hidden{display:none !important;}
 .auth-footer{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-size:11px;color:#94a3b8;letter-spacing:.06em;z-index:1;pointer-events:none;}
-@media (max-width: 860px){.auth-gate{padding:12px 12px 56px}.auth-card{grid-template-columns:1fr;min-height:0;height:auto;min-height:min(560px,calc(100vh - 32px));width:min(460px,100%)}.auth-visual{display:none}.auth-form{padding:28px 20px 44px;overflow-y:visible}.auth-title{font-size:24px}}
+@media (max-width: 860px){.auth-gate{padding:12px 12px 56px;align-items:flex-start}.auth-card{grid-template-columns:1fr;min-height:0;height:auto;min-height:min(560px,calc(100vh - 32px));width:min(460px,100%)}.auth-visual{display:none}.auth-form{padding:28px 20px 44px;overflow-y:visible}.auth-title{font-size:24px}}
 @media (max-height: 820px){.auth-card{height:auto;min-height:560px}.auth-form{overflow-y:visible}}
 
 .system-modal{position:fixed;inset:0;z-index:26200;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.42);backdrop-filter:blur(4px);}
@@ -9205,6 +9213,7 @@ function goAuthRegisterStep(step){
 
 function setAuthModeAndShow(mode){
   authMode = mode || 'login';
+  var card = document.querySelector('.auth-card');
   var rows = ['authCodeWrap','authNameWrap','authOrgWrap','authUserTypeWrap','authUseCaseWrap','authDepartmentWrap','authTitleWrap','authEmailWrap'];
   var btn = document.getElementById('authRegisterBtn');
   var pri = document.getElementById('authLoginBtn');
@@ -9224,6 +9233,8 @@ function setAuthModeAndShow(mode){
   if(phoneInput) phoneInput.placeholder = authMode === 'login' ? '请输入手机号或管理员账号' : '请输入手机号';
   var forgot = document.getElementById('authForgotBtn');
   if(forgot) forgot.classList.toggle('auth-hidden', authMode !== 'login');
+  if(card) card.classList.toggle('auth-login', authMode === 'login');
+  if(gate) gate.classList.toggle('auth-register', authMode === 'register');
   resetAuthRegisterVerification();
   setAuthPasswordVisibility(false);
   setAuthCodeSending(false);
