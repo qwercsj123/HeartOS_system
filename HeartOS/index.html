@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NoteAI</title>
-<script src="./deploy-config.js"></script>
+<script src="./deploy-config.server.example.js"></script>
+<!-- <script src="./deploy-config.local.example.js"></script> -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -8837,7 +8838,7 @@ if(!aiConfig.model) aiConfig.model = 'glm-4-flash';
 aiConfig.key = '';
 let aiServerKeyState = {};
 function resolveBackendBaseUrl(){
-  var raw = window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base') || 'http://127.0.0.1:9010';
+  var raw = window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base');
   var normalized = String(raw || '').replace(/\/+$/,'');
   if(normalized === 'http://127.0.0.1:9000' || normalized === 'http://localhost:9000'){
     normalized = normalized.replace(':9000', ':9010');
