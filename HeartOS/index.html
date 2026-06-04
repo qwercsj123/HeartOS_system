@@ -897,7 +897,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="auth-particle"></div><div class="auth-particle"></div><div class="auth-particle"></div>
     <div class="auth-particle"></div><div class="auth-particle"></div><div class="auth-particle"></div>
   </div>
-  <div class="auth-card">
+  <div class="auth-card auth-login">
     <div class="auth-visual">
       <div class="auth-brand">
         <div class="auth-brand-mark">
@@ -933,10 +933,10 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <div class="auth-step-line"></div>
         <div class="auth-step" id="authStepItem2"><span class="auth-step-dot">2</span><span>完善资料</span></div>
       </div>
-      <div class="auth-step-pane" id="authStepPane1">
+      <div class="auth-step-pane active" id="authStepPane1">
         <div class="auth-row">
-          <label>手机号</label>
-          <input id="authPhone" placeholder="请输入手机号" autocomplete="tel-national" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
+          <label>手机号 / 账号</label>
+          <input id="authPhone" placeholder="请输入手机号或管理员账号" autocomplete="tel-national" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
         </div>
         <div class="auth-row auth-hidden" id="authCodeWrap">
           <label>短信验证码</label>
@@ -1292,6 +1292,8 @@ window.__heartosLastImageSource = null;
 let __nbLoaded = false;
 const __nbSaveTimers = new Map();
 const __nbSaveQueues = new Map();
+const __nbSourceSaveTimers = new Map();
+const __nbSourceSaveQueues = new Map();
 const __nbDetailInflight = new Map();
 let __nbOpenRequestSeq = 0;
 let __nbOpeningId = '';
@@ -1436,18 +1438,28 @@ function renderHome(){
   g.innerHTML = h;
   persistNotebookSummaryCache();
 }
+function showHomeLanding(usePushState){
+  var home = document.getElementById('homePage');
+  var notebook = document.getElementById('nbPage');
+  if(home) home.classList.add('active');
+  if(notebook) notebook.classList.remove('active');
+  renderHome();
+  if(!__heartosHistoryReady){
+    history.replaceState({page:'home'}, '', '#conversations');
+    __heartosHistoryReady = true;
+  }else if(usePushState && (!history.state || history.state.page !== 'home')){
+    history.pushState({page:'home'}, '', '#conversations');
+  }else{
+    history.replaceState({page:'home'}, '', '#conversations');
+  }
+}
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
 function goHome(){
   __nbOpenRequestSeq++;
   setNotebookOpeningState('');
   setNotebookDetailLoadingState('');
   if(busy || activeStudioTask) cancelActiveChatWork();
-  document.getElementById('homePage').classList.add('active');
-  document.getElementById('nbPage').classList.remove('active');
-  renderHome();
-  if(__heartosHistoryReady && (!history.state || history.state.page !== 'home')){
-    history.pushState({page:'home'}, '', '#conversations');
-  }
+  showHomeLanding(true);
 }
 
 function todayText(){
@@ -1601,7 +1613,13 @@ async function deleteNotebook(id, evt){
     clearTimeout(pendingTimer);
     __nbSaveTimers.delete(String(id));
   }
+  const pendingSourceTimer = __nbSourceSaveTimers.get(String(id));
+  if(pendingSourceTimer){
+    clearTimeout(pendingSourceTimer);
+    __nbSourceSaveTimers.delete(String(id));
+  }
   try{ await (__nbSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
+  try{ await (__nbSourceSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
   try{ await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' }); }catch(_){ }
   showToast('对话已删除');
 }
@@ -1782,7 +1800,7 @@ function buildNotebookPayload(nb){
     icon: nb.icon || '📔',
     color: nb.color || '#e8f0fe',
     date: nb.date || todayText(),
-    sources: Array.isArray(nb.sources) ? nb.sources : [],
+    sources: normalizeSourcesForPersistence(nb.sources),
     msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
     events: Array.isArray(nb.events) ? nb.events : [],
     analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
@@ -1804,6 +1822,15 @@ async function persistNotebookPayload(payload){
   if(!resp.ok) throw new Error('保存笔记失败');
 }
 
+async function persistNotebookSourcesPayload(notebookId, items){
+  const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(String(notebookId)) + '/sources', {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ items: normalizeSourcesForPersistence(items) })
+  });
+  if(!resp.ok) throw new Error('保存来源失败');
+}
+
 function enqueueNotebookSave(nb){
   const payload = buildNotebookPayload(nb);
   if(!payload) return Promise.resolve();
@@ -1823,6 +1850,40 @@ function reportNotebookSaveError(){
   showToast('对话保存失败，请检查网络后重试');
 }
 
+function enqueueNotebookSourceSave(nb){
+  if(!nb || !nb.id) return Promise.resolve();
+  const id = String(nb.id);
+  const items = normalizeSourcesForPersistence(nb.sources);
+  const previous = __nbSourceSaveQueues.get(id) || Promise.resolve();
+  const next = previous.catch(function(){}).then(function(){
+    return persistNotebookSourcesPayload(id, items);
+  });
+  __nbSourceSaveQueues.set(id, next);
+  next.finally(function(){
+    if(__nbSourceSaveQueues.get(id) === next) __nbSourceSaveQueues.delete(id);
+  }).catch(function(){});
+  return next;
+}
+
+function scheduleSaveCurrentNotebookSources(immediate){
+  if(!curNb || !__nbLoaded) return;
+  const target = curNb;
+  const id = String(target.id);
+  const activeTimer = __nbSourceSaveTimers.get(id);
+  if(activeTimer){
+    clearTimeout(activeTimer);
+    __nbSourceSaveTimers.delete(id);
+  }
+  const run = function(){
+    __nbSourceSaveTimers.delete(id);
+    enqueueNotebookSourceSave(target).catch(function(){
+      showToast('来源保存失败，请检查网络后重试');
+    });
+  };
+  if(immediate) run();
+  else __nbSourceSaveTimers.set(id, setTimeout(run, 250));
+}
+
 async function saveNotebook(nb){
   if(!nb) return;
   return enqueueNotebookSave(nb);
@@ -1830,7 +1891,7 @@ async function saveNotebook(nb){
 
 function syncCurrentNotebookState(){
   if(!curNb) return;
-  curNb.sources = Array.isArray(sources) ? sources : [];
+  curNb.sources = normalizeSourcesForPersistence(sources);
   curNb.msgs = Array.isArray(msgs) ? msgs : [];
   curNb.events = Array.isArray(chatEvents) ? chatEvents : [];
   curNb.analysisFiles = Array.isArray(analysisFiles) ? analysisFiles : [];
@@ -1979,6 +2040,41 @@ function writeLocalJson(key, value){
   }
 }
 
+function normalizeSourceForPersistence(src){
+  if(!src || typeof src !== 'object') return null;
+  const type = String(src.type || 'file').toLowerCase();
+  const out = {
+    id: Number(src.id) || 0,
+    name: String(src.name || '未命名来源'),
+    type: type,
+    checked: !!src.checked
+  };
+  if(src.fileId) out.fileId = String(src.fileId);
+  if(src.serverFileId) out.serverFileId = String(src.serverFileId);
+  if(src.fileUrl) out.fileUrl = String(src.fileUrl);
+  if(src.sampleRate != null && Number.isFinite(Number(src.sampleRate))) out.sampleRate = Number(src.sampleRate);
+  if(src.sampleRateSource) out.sampleRateSource = String(src.sampleRateSource);
+  if(src.generatedBy) out.generatedBy = String(src.generatedBy);
+  if(src.source) out.source = String(src.source);
+  if(src.sourceName) out.sourceName = String(src.sourceName);
+  if(src.parentSourceId != null) out.parentSourceId = String(src.parentSourceId);
+  if(src.__fromDigitize) out.__fromDigitize = true;
+  if(src.__fromEcgomics) out.__fromEcgomics = true;
+  if(src.__fromReconstruct) out.__fromReconstruct = true;
+  const hasServerFile = !!(out.fileId || out.serverFileId);
+  if(typeof src.content === 'string' && (!hasServerFile || ['csv','tsv','txt','xml','json','md','url'].includes(type))){
+    out.content = String(src.content).slice(0, 200000);
+  }
+  if(typeof src.imageDataUrl === 'string' && /^data:image\//i.test(src.imageDataUrl) && !hasServerFile){
+    out.imageDataUrl = String(src.imageDataUrl);
+  }
+  return out;
+}
+
+function normalizeSourcesForPersistence(items){
+  return (Array.isArray(items) ? items : []).map(normalizeSourceForPersistence).filter(Boolean);
+}
+
 function notebookSummarySnapshot(nb){
   if(!nb) return null;
   const srcCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
@@ -2057,7 +2153,7 @@ function setNotebookDetailLoadingState(id){
 
 function applyNotebookToWorkspace(nb){
   curNb = nb || null;
-  sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
+  sources = normalizeSourcesForPersistence(curNb && curNb.sources);
   window.sources = sources;
   msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
   chatEvents = Array.isArray(curNb && curNb.events) ? curNb.events : [];
@@ -2240,8 +2336,8 @@ function fileIco(t){
   const cls={pdf:'pdf',txt:'txt',md:'md',url:'url',png:'img',jpg:'img',jpeg:'img',bmp:'img',tiff:'img',docx:'txt'}[t]||'default';
   return `<span class="src-ico ${cls}">${labels[t]||t.toUpperCase().slice(0,3)}</span>`;
 }
-function toggleAll(){const a=sources.every(s=>s.checked);sources.forEach(s=>s.checked=!a);renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);}
-function togSrc(id, evt){if(evt) evt.stopPropagation();const s=sources.find(x=>x.id===id);if(s){s.checked=!s.checked;renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);}}
+function toggleAll(){const a=sources.every(s=>s.checked);sources.forEach(s=>s.checked=!a);renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);scheduleSaveCurrentNotebookSources(false);}
+function togSrc(id, evt){if(evt) evt.stopPropagation();const s=sources.find(x=>x.id===id);if(s){s.checked=!s.checked;renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);scheduleSaveCurrentNotebookSources(false);}}
 function handleSourceRowClick(id, evt){
   const target = evt && evt.target ? evt.target : null;
   if(target){
@@ -2270,6 +2366,7 @@ function renameSource(id, evt){
   src.name = cleanPlainName(next);
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
+  scheduleSaveCurrentNotebookSources(false);
   renderSrcs();
   renderChat();
   showToast('来源已重命名');
@@ -2607,6 +2704,7 @@ function runSummarySourceTool(type, sourceId){
     updateCiSrc();
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
+    scheduleSaveCurrentNotebookSources(false);
   }
   return runStudio(type);
 }
@@ -3251,6 +3349,7 @@ async function deleteSource(id, evt){
   if(curNb) curNb.srcs = sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
+  scheduleSaveCurrentNotebookSources(false);
   renderSrcs();
   updateCiSrc();
   renderChat();
@@ -3282,6 +3381,7 @@ async function deleteSelectedSources(evt){
   if(curNb) curNb.srcs = sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
+  scheduleSaveCurrentNotebookSources(false);
   renderSrcs();
   updateCiSrc();
   renderChat();
@@ -5226,6 +5326,32 @@ function appendConversationPlanBubble(resp, userText){
   finishRichChatTurn(userText, html);
 }
 
+function appendConversationPlanPopover(resp, userText){
+  var meta = (resp && resp.meta && typeof resp.meta === 'object') ? resp.meta : {};
+  var headline = String(meta.headline || '我整理了几个处理选项');
+  var body = String(meta.body || resp.message || '');
+  var options = Array.isArray(meta.options) ? meta.options.filter(Boolean) : [];
+  var renderedOptions = options.length
+    ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">' + options.map(function(opt){
+        var action = String(opt.action || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        var btnClass = opt.kind === 'primary' ? 'mo-btn confirm' : 'mo-btn';
+        return '<button class="' + btnClass + '" onclick="runConversationGuidedAction(\'' + action + '\')" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:12px 14px;border-radius:14px;">'
+          + '<span style="display:block;min-width:0;">'
+          + '<span style="display:block;font-size:14px;font-weight:800;color:var(--text);line-height:1.4;">' + esc(String(opt.title || '方案')) + '</span>'
+          + '</span>'
+          + '<span style="flex-shrink:0;font-size:16px;line-height:1;color:var(--text3);">›</span>'
+          + '</button>';
+      }).join('') + '</div>'
+    : '';
+  var html = '<div class="ai-av">AI</div><div class="ai-body">' +
+    '<div style="max-width:520px;border:1px solid #dbe3f1;border-radius:16px;background:#ffffff;padding:12px;box-shadow:0 6px 18px rgba(15,23,42,.05);">' +
+    '<div style="font-size:17px;font-weight:800;color:var(--text);line-height:1.3;">' + esc(headline) + '</div>' +
+    '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-top:4px;">' + esc(body) + '</div>' +
+    renderedOptions +
+    '</div></div>';
+  finishRichChatTurn(userText, html);
+}
+
 function conversationConfirmLabel(intent){
   return ({
     zhunxin_risk_assess: '开始准心评估',
@@ -5447,8 +5573,11 @@ async function routeByLLM(userText){
 function requestedStudioToolFromChat(text){
   const q = String(text || '').trim();
   if(!q) return '';
+  const asksCapabilityQuestion = /(?:可以|可不可以|能不能|能否|是否可以).{0,12}(?:自动数字化|手动数字化|数字化|分析|提取|补全|重建|评估).{0,6}(?:吗|\?|？)/i.test(q)
+    || /(?:自动数字化|手动数字化|数字化|分析|提取|补全|重建|评估).{0,12}(?:可以|可不可以|能不能|能否).{0,6}(?:吗|\?|？)/i.test(q);
   const asksAboutTool = /(?:什么是|是什么|原理|介绍|说明|解释|解读|结果|能否|是否|支持吗|怎么|如何|有哪些|方法|流程|要求|区别|差别|不同|用途)/i.test(q);
   const asksToRun = /(?:帮我|请|开始|进行|执行|运行|处理|生成|提取|补全|重建|数字化)/i.test(q);
+  if(asksCapabilityQuestion) return '';
   if(asksAboutTool) return '';
   if(!asksToRun) return '';
   if(/(?:准心|风险评估|胸痛模型)/i.test(q) && /(?:心电|ECG|心电图|风险)/i.test(q)) return 'zhunxin';
@@ -5551,7 +5680,11 @@ async function sendMsg(){
         return;
       }
       if(out && out.type === 'plan_options'){
-        appendConversationPlanBubble(out, q);
+        if(out.meta && out.meta.presentation === 'popover'){
+          appendConversationPlanPopover(out, q);
+        }else{
+          appendConversationPlanBubble(out, q);
+        }
         return;
       }
       if(out && out.type === 'ask_missing'){
@@ -8519,6 +8652,7 @@ async function persistSourceFileIfNeeded(srcObj, rawFile){
     srcObj.fileUrl = out.url || out.fileUrl || '';
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
+    scheduleSaveCurrentNotebookSources(false);
     return true;
   }catch(_){
     return false;
@@ -8548,6 +8682,7 @@ function finalizeSourceImport(imported){
   if(curNb) curNb.srcs=sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
+  scheduleSaveCurrentNotebookSources(false);
   renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
 }
 
@@ -10086,21 +10221,30 @@ async function loadAuthedAppData(){
 
 async function initAuthBoot(){
   setAppAuthed(false);
+  setAuthModeAndShow('login');
+  var hasToken = !!getAuthToken();
+  if(hasToken){
+    setAuthMsg('已识别登录状态，正在进入首页…', false);
+    setAuthSubmitting(true, '进入中…');
+  }
   try{
     await ensureLogin();
+    setAuthSubmitting(false);
     setAppAuthed(true);
     setAuthMsg('');
     hydrateNotebookSummariesFromLocal();
+    showHomeLanding(false);
     loadAuthedAppData().catch(function(){});
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     updateUserAvatarUI();
   }catch(e){
+    setAuthSubmitting(false);
     console.warn('[heartos-auth] login skipped', e && e.message ? e.message : e);
     updateUserAvatarUI();
   }
 }
-setTimeout(initAuthBoot, 100);
+initAuthBoot();
 
 updateApiStatus();
 </script>
