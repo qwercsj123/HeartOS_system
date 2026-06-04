@@ -263,6 +263,7 @@ NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json").resolve()
 NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
 NOTEBOOK_SOURCES_PATH = (Path(settings.users_file).resolve().parent / "notebook_sources.json").resolve()
+NOTEBOOK_TOMBSTONES_PATH = (Path(settings.users_file).resolve().parent / "notebook_tombstones.json").resolve()
 FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
 FEEDBACK_MAX_IMAGES = 4
 FEEDBACK_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}
@@ -372,6 +373,48 @@ def _delete_conversation_sources(uid: str, notebook_id: str) -> None:
         del bucket[str(notebook_id)]
         db[uid] = bucket
         _save_notebook_sources_db(db)
+
+
+def _load_notebook_tombstones_db() -> dict[str, Any]:
+    return _load_json_file(NOTEBOOK_TOMBSTONES_PATH)
+
+
+def _save_notebook_tombstones_db(payload: dict[str, Any]) -> None:
+    _save_json_file(NOTEBOOK_TOMBSTONES_PATH, payload)
+
+
+def _get_user_notebook_tombstones(uid: str) -> dict[str, int]:
+    db = _load_notebook_tombstones_db()
+    bucket = db.get(uid, {})
+    return bucket if isinstance(bucket, dict) else {}
+
+
+def _get_notebook_tombstone(uid: str, notebook_id: str) -> int:
+    bucket = _get_user_notebook_tombstones(uid)
+    value = bucket.get(str(notebook_id), 0)
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
+
+
+def _set_notebook_tombstone(uid: str, notebook_id: str, deleted_at: int) -> None:
+    db = _load_notebook_tombstones_db()
+    bucket = db.get(uid, {})
+    if not isinstance(bucket, dict):
+        bucket = {}
+    bucket[str(notebook_id)] = int(deleted_at or 0)
+    db[uid] = bucket
+    _save_notebook_tombstones_db(db)
+
+
+def _clear_notebook_tombstone(uid: str, notebook_id: str) -> None:
+    db = _load_notebook_tombstones_db()
+    bucket = db.get(uid, {})
+    if isinstance(bucket, dict) and str(notebook_id) in bucket:
+        del bucket[str(notebook_id)]
+        db[uid] = bucket
+        _save_notebook_tombstones_db(db)
 
 
 def _coerce_feedback_context(raw: Any) -> dict[str, Any]:
@@ -2397,6 +2440,9 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
     items = db.get(uid, [])
     if not isinstance(items, list):
         items = []
+    tombstone_ts = _get_notebook_tombstone(uid, item["id"])
+    if tombstone_ts and int(item.get("updatedAt") or 0) <= tombstone_ts:
+        return {"ok": True, "id": item["id"], "stale": True, "deleted": True}
 
     replaced = False
     for i, existing in enumerate(items):
@@ -2411,6 +2457,8 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
 
     db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
+    if tombstone_ts:
+        _clear_notebook_tombstone(uid, item["id"])
     if isinstance(raw_sources, list):
         _set_conversation_sources(uid, item["id"], source_items)
     return {"ok": True, "id": item["id"]}
@@ -2428,6 +2476,7 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
     db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
     _delete_conversation_sources(uid, notebook_id)
+    _set_notebook_tombstone(uid, notebook_id, int(time.time() * 1000))
     return {"ok": True, "deleted": before - len(items)}
 
 

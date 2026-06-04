@@ -1499,6 +1499,7 @@ async function loadNotebooksFromServer(){
   const out = await resp.json().catch(function(){ return {items:[]}; });
   const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
   notebooks = items;
+  pruneNotebookDetailCaches(items.map(function(item){ return item && item.id; }));
   __nbLoaded = true;
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
@@ -1598,31 +1599,38 @@ async function deleteNotebook(id, evt){
   if(!nb) return;
   if(!confirm('确认删除历史对话：' + (defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title) + '？')) return;
   if(curNb && curNb.id === id && (busy || activeStudioTask)) cancelActiveChatWork();
-  try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
-  notebooks = notebooks.filter(n => n.id !== id);
-  if(curNb && curNb.id === id){
-    curNb = null;
-    sources = [];
-    msgs = [];
-    analysisFiles = [];
-    document.getElementById('homePage').classList.add('active');
-    document.getElementById('nbPage').classList.remove('active');
+  try{
+    const pendingTimer = __nbSaveTimers.get(String(id));
+    if(pendingTimer){
+      clearTimeout(pendingTimer);
+      __nbSaveTimers.delete(String(id));
+    }
+    const pendingSourceTimer = __nbSourceSaveTimers.get(String(id));
+    if(pendingSourceTimer){
+      clearTimeout(pendingSourceTimer);
+      __nbSourceSaveTimers.delete(String(id));
+    }
+    try{ await (__nbSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
+    try{ await (__nbSourceSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
+    const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' });
+    if(!resp.ok) throw new Error('删除对话失败');
+    try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
+    notebooks = notebooks.filter(n => n.id !== id);
+    persistNotebookSummaryCache();
+    pruneNotebookDetailCaches(notebooks.map(function(item){ return item && item.id; }));
+    if(curNb && curNb.id === id){
+      curNb = null;
+      sources = [];
+      msgs = [];
+      analysisFiles = [];
+      showHomeLanding(false);
+    }else{
+      renderHome();
+    }
+    showToast('对话已删除');
+  }catch(e){
+    showToast('删除失败：' + (e && e.message ? e.message : '请稍后重试'));
   }
-  renderHome();
-  const pendingTimer = __nbSaveTimers.get(String(id));
-  if(pendingTimer){
-    clearTimeout(pendingTimer);
-    __nbSaveTimers.delete(String(id));
-  }
-  const pendingSourceTimer = __nbSourceSaveTimers.get(String(id));
-  if(pendingSourceTimer){
-    clearTimeout(pendingSourceTimer);
-    __nbSourceSaveTimers.delete(String(id));
-  }
-  try{ await (__nbSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
-  try{ await (__nbSourceSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
-  try{ await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' }); }catch(_){ }
-  showToast('对话已删除');
 }
 
 /* ── Chat header 更多菜单 ─────────────────────────────── */
@@ -2041,6 +2049,20 @@ function writeLocalJson(key, value){
   }
 }
 
+function pruneNotebookDetailCaches(validIds){
+  const keep = new Set((Array.isArray(validIds) ? validIds : []).map(function(id){ return String(id || ''); }).filter(Boolean));
+  const prefix = 'heartos_nb_detail_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':';
+  try{
+    Object.keys(localStorage).forEach(function(key){
+      if(String(key).indexOf(prefix) !== 0) return;
+      const notebookId = String(key).slice(prefix.length);
+      if(!keep.has(notebookId)){
+        try{ localStorage.removeItem(key); }catch(_){ }
+      }
+    });
+  }catch(_){ }
+}
+
 function normalizeSourceForPersistence(src){
   if(!src || typeof src !== 'object') return null;
   const type = String(src.type || 'file').toLowerCase();
@@ -2127,6 +2149,7 @@ function hydrateNotebookSummariesFromLocal(){
   const cachedItems = loadNotebookSummariesFromLocal();
   if(!cachedItems.length) return false;
   notebooks = cachedItems;
+  pruneNotebookDetailCaches(cachedItems.map(function(item){ return item && item.id; }));
   __nbLoaded = true;
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
@@ -2141,6 +2164,18 @@ function hydrateNotebookSummariesFromLocal(){
 function refreshHomeIfVisible(){
   const home = document.getElementById('homePage');
   if(home && home.classList.contains('active')) renderHome();
+}
+
+async function flushNotebookPersistenceBeforeExit(){
+  if(curNb && __nbLoaded){
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(true);
+    scheduleSaveCurrentNotebookSources(true);
+  }
+  const waits = [];
+  __nbSaveQueues.forEach(function(p){ waits.push(p); });
+  __nbSourceSaveQueues.forEach(function(p){ waits.push(p); });
+  if(waits.length) await Promise.allSettled(waits);
 }
 
 function setNotebookOpeningState(id){
@@ -2386,7 +2421,7 @@ async function sourceDataUrl(src){
       }catch(_){ resolve(''); }
     });
   }
-  const fileId = src.fileId || src.serverFileId || '';
+  const fileId = sourceServerFileId(src);
   if(fileId){
     try{
       const ctrl = new AbortController();
@@ -2404,19 +2439,34 @@ async function sourceDataUrl(src){
       }
     }catch(_){ }
   }
+  try{
+    const blob = await fetchSourceRemoteBlob(src);
+    if(blob){
+      return await new Promise(resolve=>{
+        const r = new FileReader();
+        r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
+        r.onerror = () => resolve('');
+        r.readAsDataURL(blob);
+      });
+    }
+  }catch(_){ }
   return '';
 }
 
 async function sourceObjectUrl(src){
   if(!src) return '';
   if(isBlobLike(src.fileObj)) return URL.createObjectURL(src.fileObj);
-  const fileId = src.fileId || src.serverFileId || '';
+  const fileId = sourceServerFileId(src);
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
       if(resp.ok) return URL.createObjectURL(await resp.blob());
     }catch(_){ }
   }
+  try{
+    const blob = await fetchSourceRemoteBlob(src);
+    if(blob) return URL.createObjectURL(blob);
+  }catch(_){ }
   return '';
 }
 
@@ -2463,7 +2513,7 @@ async function readTextFromSource(src){
   }
   // 本地无 fileObj 时优先返回已缓存内容，避免网络请求挂起
   if(src.content) return String(src.content);
-  const fileId = src.fileId || src.serverFileId || '';
+  const fileId = sourceServerFileId(src);
   if(fileId){
     try{
       const ctrl = new AbortController();
@@ -2473,7 +2523,53 @@ async function readTextFromSource(src){
       if(resp.ok) return await resp.text();
     }catch(_){ }
   }
+  try{
+    const blob = await fetchSourceRemoteBlob(src);
+    if(blob && typeof blob.text === 'function') return await blob.text();
+  }catch(_){ }
   return '';
+}
+
+function sourceServerFileId(src){
+  if(!src) return '';
+  const directId = String(src.fileId || src.serverFileId || '').trim();
+  if(directId) return directId;
+  const rawUrl = String(src.fileUrl || src.url || src.remoteUrl || src.imageUrl || '').trim();
+  if(!rawUrl) return '';
+  try{
+    const parsed = new URL(rawUrl, window.location.href);
+    const match = parsed.pathname.match(/\/api\/files\/([^/?#]+)/i);
+    if(match && match[1]){
+      const derived = decodeURIComponent(String(match[1]));
+      if(derived){
+        src.fileId = derived;
+        src.serverFileId = derived;
+        return derived;
+      }
+    }
+  }catch(_){ }
+  return '';
+}
+
+async function fetchSourceRemoteBlob(src){
+  if(!src) return null;
+  const rawUrl = String(src.fileUrl || src.url || src.remoteUrl || src.imageUrl || '').trim();
+  if(!rawUrl) return null;
+  const ctrl = new AbortController();
+  const tm = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 10000);
+  try{
+    const resp = await fetch(rawUrl, {
+      method:'GET',
+      headers: authHeaders(),
+      signal: ctrl.signal
+    });
+    if(!resp.ok) return null;
+    return await resp.blob();
+  }catch(_){
+    return null;
+  }finally{
+    clearTimeout(tm);
+  }
 }
 
 function isImageLikeSource(src){
@@ -3964,6 +4060,7 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
   const picked = Array.isArray(sourcesToList) ? sourcesToList.filter(Boolean) : [];
   const hasImage = picked.some(canUseAsImageToolSource);
   const isWaveTool = toolName === 'ECG 心电组学' || toolName === 'ECG 信号补全';
+  const allImageLike = !!picked.length && picked.every(canUseAsImageToolSource);
   if(message === '__single_unchecked_candidate__' && picked.length === 1){
     const src = picked[0];
     const actionTool = toolActionNameByToolName(toolName);
@@ -4031,6 +4128,35 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
         { label:'去自动数字化', kind:'primary', action:'run:ecgsmart' },
         { label:'去手动数字化', kind:'secondary', action:'run:ecg' },
         { label:'关闭', kind:'ghost', action:'close' }
+      ]
+    };
+  }
+  if(toolName === '自动数字化'){
+    return {
+      title: '自动数字化暂时不能开始',
+      intro: '当前勾选来源里没有可处理的心电图图片/PDF，或部分文件暂时无法转换，所以这次还不能启动批量数字化。',
+      supportText: '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；可同时勾选多张图片/PDF 批量启动自动数字化。',
+      steps: [
+        { title:'先看当前来源类型', desc:'请确认勾选的是心电图图片/PDF，而不是 CSV、XML、JSON 或普通文本。' },
+        { title:'保留可处理图片', desc:'可以同时勾选多张心电图图片/PDF；系统会按顺序批量处理。' },
+        { title:'重新启动自动数字化', desc:'如仍有失败文件，可重新上传更清晰的图片/PDF 后再试。' }
+      ],
+      actions: [
+        { label:'去上传文件', kind:'primary', action:'upload' },
+        { label:'我知道了', kind:'ghost', action:'close' }
+      ]
+    };
+  }
+  if(toolName === '手动数字化' && allImageLike && picked.length > 1){
+    return {
+      title: '手动数字化一次只能处理 1 张图片',
+      intro: '你当前勾选了多张心电图图片。手动数字化需要逐张处理，请先只保留 1 张图片后再开始。',
+      supportText: '支持 JPG、PNG、BMP、TIFF、WebP 或 PDF；手动数字化单次仅支持 1 个来源。',
+      steps: [],
+      hideList: true,
+      actions: [
+        { label:'我去重新选择', kind:'primary', action:'close' },
+        { label:'改用自动数字化', kind:'secondary', action:'run:ecgsmart' }
       ]
     };
   }
@@ -4287,18 +4413,21 @@ async function convertPdfSourceToImageDataUrl(src){
     const arr = new Uint8Array(raw.length);
     for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
     pdfBytes = arr.buffer;
-  }else if(src.fileId || src.serverFileId){
+  }else if(sourceServerFileId(src)){
     try{
-      const fileId = src.fileId || src.serverFileId;
+      const fileId = sourceServerFileId(src);
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
       if(resp && resp.ok){
         pdfBytes = await (await resp.blob()).arrayBuffer();
       }
     }catch(_){ }
   }else{
-    return '';
+    try{
+      const blob = await fetchSourceRemoteBlob(src);
+      if(blob) pdfBytes = await blob.arrayBuffer();
+    }catch(_){ }
   }
-  const fileIdForBackend = src.fileId || src.serverFileId || '';
+  const fileIdForBackend = sourceServerFileId(src);
   if(!pdfBytes && !fileIdForBackend) return '';
 
   try{
@@ -4322,7 +4451,7 @@ async function convertPdfSourceToImageDataUrl(src){
 async function convertPdfSourceToImageDataUrlBackend(src, pdfBytes, frontErr){
   try{
     const fd = new FormData();
-    const fileId = src && (src.fileId || src.serverFileId || '');
+    const fileId = sourceServerFileId(src);
     if(fileId){
       fd.append('file_id', String(fileId));
     }else if(isBlobLike(src && src.fileObj)){
@@ -4381,6 +4510,20 @@ async function ensureEcgImageSource(src){
     });
     if(dataUrl){
       src.imageDataUrl = await normalizeToolImageDataUrl(dataUrl);
+      return src;
+    }
+  }
+  if(canUseAsImageToolSource(src) && !isPdfSource(src)){
+    const fetchedImageDataUrl = await sourceDataUrl(src);
+    if(fetchedImageDataUrl && String(fetchedImageDataUrl).indexOf('data:image') === 0){
+      src.imageDataUrl = await normalizeToolImageDataUrl(fetchedImageDataUrl);
+      const imageName = String(src.name || 'ecg_image.png');
+      const fetchedImageFile = dataUrlToFile(src.imageDataUrl, imageName);
+      if(fetchedImageFile) src.fileObj = fetchedImageFile;
+      if(!src.type && fetchedImageFile && fetchedImageFile.type){
+        const mimeExt = String(fetchedImageFile.type || '').split('/')[1] || '';
+        if(mimeExt) src.type = mimeExt.toLowerCase();
+      }
       return src;
     }
   }
@@ -7052,7 +7195,7 @@ async function readCsvTextFromSource(src){
   if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
-  const fileId = src.fileId || src.serverFileId || '';
+  const fileId = sourceServerFileId(src);
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
@@ -7062,6 +7205,13 @@ async function readCsvTextFromSource(src){
       }
     }catch(_){ }
   }
+  try{
+    const blob = await fetchSourceRemoteBlob(src);
+    if(blob && typeof blob.text === 'function'){
+      const txt = await blob.text();
+      if(txt && txt.indexOf(',') >= 0) return txt;
+    }
+  }catch(_){ }
   return String(src.content||'');
 }
 
@@ -7520,7 +7670,7 @@ async function readXmlTextFromSource(src){
   if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
-  const fileId = src.fileId || src.serverFileId || '';
+  const fileId = sourceServerFileId(src);
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
@@ -7530,6 +7680,13 @@ async function readXmlTextFromSource(src){
       }
     }catch(_){ }
   }
+  try{
+    const blob = await fetchSourceRemoteBlob(src);
+    if(blob && typeof blob.text === 'function'){
+      const txt = await blob.text();
+      if(txt && txt.indexOf('<') >= 0 && txt.indexOf('>') >= 0) return txt;
+    }
+  }catch(_){ }
   const c = String(src.content||'').trim();
   if(c && c.indexOf('<') >= 0 && c.indexOf('>') >= 0) return c;
   return '';
@@ -9889,7 +10046,10 @@ async function openAdminUsersModal(){
   }
 }
 
-function logoutCurrentUser(){
+async function logoutCurrentUser(){
+  try{
+    await flushNotebookPersistenceBeforeExit();
+  }catch(_){ }
   clearAuthSession();
   closeSystemModal('accountModal');
   setAuthModeAndShow('login');
@@ -10193,6 +10353,15 @@ document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'hidden' && curNb && __nbLoaded){
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(true);
+    scheduleSaveCurrentNotebookSources(true);
+  }
+});
+
+window.addEventListener('pagehide', function(){
+  if(curNb && __nbLoaded){
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(true);
+    scheduleSaveCurrentNotebookSources(true);
   }
 });
 
