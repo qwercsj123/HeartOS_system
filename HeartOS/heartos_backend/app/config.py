@@ -5,6 +5,13 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+LOCAL_DEV_CORS_ORIGINS = (
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
+    "http://127.0.0.1:8081",
+    "http://localhost:8081",
+)
+
 
 class Settings(BaseSettings):
     _BASE_DIR = Path(__file__).resolve().parent.parent
@@ -57,7 +64,13 @@ class Settings(BaseSettings):
         raw = (self.cors_origins or "").strip()
         if not raw or raw == "*":
             return ["*"]
-        return [x.strip() for x in raw.split(",") if x.strip()]
+        values = [x.strip() for x in raw.split(",") if x.strip()]
+        seen = set(values)
+        for origin in LOCAL_DEV_CORS_ORIGINS:
+            if origin not in seen:
+                values.append(origin)
+                seen.add(origin)
+        return values
 
     @property
     def allow_credentials(self) -> bool:

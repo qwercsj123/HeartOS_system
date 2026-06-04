@@ -23,6 +23,7 @@ SEND_INTERVAL_SECONDS = 60
 SEND_LIMIT_PER_HOUR = 5
 VERIFY_ATTEMPT_LIMIT = 5
 FLOW_TICKET_TTL_SECONDS = 600
+PASSWORD_SUFFIX = "HeartOS123++--**"
 
 
 def _b64e(b: bytes) -> str:
@@ -40,6 +41,13 @@ def _sha256_hex(v: str) -> str:
 
 def _hash_password(password: str, salt: str) -> str:
     return _sha256_hex(f"{salt}:{password}")
+
+
+def _strip_password_suffix(password: str) -> str:
+    value = str(password or "")
+    if value.endswith(PASSWORD_SUFFIX):
+        return value[: -len(PASSWORD_SUFFIX)]
+    return value
 
 
 def _is_client_password_digest(password: str) -> bool:
@@ -242,6 +250,10 @@ def _verify_plain_password(user: dict[str, Any], password: str) -> bool:
     stored_hash = str(user.get("password_hash", ""))
     if hmac.compare_digest(_hash_password(password, salt), stored_hash):
         return True
+    plain_password = _strip_password_suffix(password)
+    if plain_password != password and hmac.compare_digest(_hash_password(plain_password, salt), stored_hash):
+        user["password_hash"] = _hash_password(password, salt)
+        return True
     derived_password = _client_password_digest(username, password)
     if hmac.compare_digest(_hash_password(derived_password, salt), stored_hash):
         user["password_hash"] = _hash_password(password, salt)
@@ -268,9 +280,10 @@ def verify_user(username: str, password: str, *, phone: str = "") -> dict[str, A
 
 def _validate_password(password: str, username: str = "") -> None:
     if not _is_client_password_digest(password) and not _is_client_password_heartos(password):
-        if len(password or "") < 6:
+        plain_password = _strip_password_suffix(password)
+        if len(plain_password or "") < 6:
             raise ValueError("密码至少 6 位")
-        if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        if not any(c.isalpha() for c in plain_password) or not any(c.isdigit() for c in plain_password):
             raise ValueError("密码需同时包含字母和数字")
 
 

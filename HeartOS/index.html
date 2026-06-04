@@ -8681,6 +8681,7 @@ function resolveBackendBaseUrl(){
   }
   return normalized;
 }
+
 const HEARTOS_BACKEND_BASE_URL = resolveBackendBaseUrl();
 
 function apiUrl(path){
@@ -8962,6 +8963,7 @@ let __authRegisterVerified = false;
 let __authRegisterVerifiedPhone = '';
 let __authRegisterVerifiedCode = '';
 let __authRegisterVerificationToken = '';
+const AUTH_PASSWORD_SUFFIX = 'HeartOS123++--**';
 let authRegisterStep = 1;
 const AUTH_ME_TTL_MS = 120000;
 const AUTH_USER_TYPE_OPTIONS = ['医生','技师','科研人员','学生','企业用户','其他'];
@@ -9258,6 +9260,12 @@ async function deriveAuthPassword(username, password){
   return 'heartos:v1:sha256:' + hex;
 }
 
+function withAuthPasswordSuffix(password){
+  var value = String(password || '');
+  if(!value) return '';
+  return value.endsWith(AUTH_PASSWORD_SUFFIX) ? value : (value + AUTH_PASSWORD_SUFFIX);
+}
+
 function getWeakPasswordReason(password, username){
   const p = String(password || '');
   if(p.length < 6) return '密码至少 6 位，并同时包含字母和数字';
@@ -9320,8 +9328,8 @@ async function submitAuthLogin(){
     }
     var url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
     var body = authMode === 'login'
-      ? { phone: validPhone, username: validPhone ? '' : rawIdentity, password: p }
-      : { phone: u, password: p };
+      ? { phone: validPhone, username: validPhone ? '' : rawIdentity, password: withAuthPasswordSuffix(p) }
+      : { phone: u, password: withAuthPasswordSuffix(p) };
     if(authMode === 'register'){
       body.code = (document.getElementById('authCode').value || '').trim();
       body.verification_token = __authRegisterVerificationToken || '';
@@ -9474,7 +9482,7 @@ async function submitForgotPassword(evt){
     var resp = await fetch(apiUrl('/api/auth/password/reset/confirm'), {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ phone: phone, code: code, verification_token: __forgotPasswordVerificationToken || '', new_password: p1 })
+      body: JSON.stringify({ phone: phone, code: code, verification_token: __forgotPasswordVerificationToken || '', new_password: withAuthPasswordSuffix(p1) })
     });
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '重置失败');
@@ -9626,7 +9634,7 @@ async function submitChangePassword(evt){
     var resp = await apiFetch('/api/auth/password/change', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+      body: JSON.stringify({ old_password: withAuthPasswordSuffix(oldPassword), new_password: withAuthPasswordSuffix(newPassword) })
     });
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '修改失败');
