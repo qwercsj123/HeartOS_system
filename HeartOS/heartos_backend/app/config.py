@@ -15,49 +15,50 @@ LOCAL_DEV_CORS_ORIGINS = (
 
 class Settings(BaseSettings):
     _BASE_DIR = Path(__file__).resolve().parent.parent
-    model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env'), env_prefix='APP_', extra='ignore')
+    model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env.server.example'), env_prefix='APP_', extra='ignore')  # 线上使用
+    # model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env.local.example'), env_prefix='APP_', extra='ignore')  # 本地使用
 
-    name: str = Field(default="HeartOS Backend")
-    env: str = Field(default="prod")
-    host: str = Field(default="0.0.0.0")
-    port: int = Field(default=9010)
-    cors_origins: str = Field(default="*")
-    http_timeout: int = Field(default=45)
-    http_retries: int = Field(default=2)
-    upload_dir: str = Field(default="./data/uploads")
-    public_base_url: str = Field(default="http://127.0.0.1:9010")
-    max_upload_mb: int = Field(default=20)
-    ecgomics_url: str = Field(default="http://110.157.241.24:18023/ECGOmics")
-    ai_ecg_digitize_url: str = Field(default="http://110.157.241.24:18022/digitize")
-    ecg_reconstruct_url: str = Field(default="http://219.147.100.43:18007/reconstruct")
-    chest_pain_predict_url: str = Field(default="http://110.157.241.3:18008/predict_text")
-    impute_ecg_save_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/heartos/saveImputeECGR")
-    llm_default_provider: str = Field(default="zhipu")
-    llm_default_model: str = Field(default="glm-4-flash")
+    name: str
+    env: str
+    host: str
+    port: str
+    cors_origins: str
+    http_timeout: int
+    http_retries: int
+    upload_dir: str
+    public_base_url: str
+    max_upload_mb: int
+    ecgomics_url: str
+    ai_ecg_digitize_url: str
+    ecg_reconstruct_url: str
+    chest_pain_predict_url: str
+    impute_ecg_save_url: str
+    llm_default_provider: str
+    llm_default_model: str
     llm_zhipu_api_key: str = Field(default="")
     llm_openrouter_api_key: str = Field(default="")
     llm_deepseek_api_key: str = Field(default="")
     llm_qwen_api_key: str = Field(default="")
     llm_groq_api_key: str = Field(default="")
 
-    auth_secret: str = Field(default="heartos-dev-secret-change-me")
-    auth_expire_hours: int = Field(default=24)
-    users_file: str = Field(default="./data/users.json")
-    default_username: str = Field(default="admin")
-    default_password: str = Field(default="admin123")
-    default_admin_phone: str = Field(default="13800000000")
+    auth_secret: str
+    auth_expire_hours: int
+    users_file: str
+    default_username: str
+    default_password: str
+    default_admin_phone: str
 
     # local: 使用本地 users.json
     # upstream: 转发到外部账号服务（auth_upstream_base）
-    auth_mode: str = Field(default="upstream")
-    auth_upstream_base: str = Field(default="https://www.heartvoice.com.cn/dcs")
-    auth_upstream_login_path: str = Field(default="/api/heartos/login")
-    auth_upstream_register_path: str = Field(default="/api/heartos/register")
-    phone_send_code_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/phone/sendCode")
-    phone_login_by_code_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/phone/loginByCode")
+    auth_mode: str
+    auth_upstream_base: str
+    auth_upstream_login_path: str
+    auth_upstream_register_path: str
+    phone_send_code_url: str
+    phone_login_by_code_url: str
 
     # HandECG 数字化结果上传转发地址
-    handecg_save_url: str = Field(default="https://www.heartvoice.com.cn/dcs/api/heartos/saveHandECG")
+    handecg_save_url: str
 
     @property
     def cors_list(self) -> list[str]:
