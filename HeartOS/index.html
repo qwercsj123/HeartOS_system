@@ -814,6 +814,34 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .feedback-image-remove{position:absolute;top:8px;right:8px;width:24px;height:24px;border:none;border-radius:999px;background:rgba(15,23,42,.72);color:#fff;font-size:14px;line-height:1;cursor:pointer;}
 .feedback-image-empty{display:flex;align-items:center;justify-content:center;min-height:88px;padding:14px 16px;border:1px dashed #d5deec;border-radius:16px;background:#fafcff;font-size:12px;color:#8592a8;line-height:1.7;text-align:center;}
 .feedback-note{font-size:12px;color:var(--text3);line-height:1.6;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid var(--border);}
+.forgot-flow{display:flex;flex-direction:column;gap:14px;}
+.forgot-stage{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:18px;border:1px solid #e6ecf5;background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);box-shadow:0 10px 24px rgba(15,23,42,.04);}
+.forgot-stage.is-ready{border-color:#bfd3ff;box-shadow:0 12px 28px rgba(47,99,217,.08);}
+.forgot-stage.is-collapsed{gap:10px;}
+.forgot-stage.is-collapsed .forgot-verify-body{display:none;}
+.forgot-verify-summary{display:none;padding:12px 14px;border-radius:14px;background:#f4f8ff;border:1px solid #d7e5ff;color:#3158b8;font-size:13px;line-height:1.6;}
+.forgot-stage.is-collapsed .forgot-verify-summary{display:block;}
+.forgot-verify-summary .ghost{height:32px;padding:0 12px;border-radius:12px;border:1px solid #c9d8f4;background:#fff;color:#4f5f78;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.forgot-stage-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.forgot-stage-title{font-size:14px;font-weight:800;color:#14233c;line-height:1.4;}
+.forgot-stage-sub{font-size:12px;color:#6b778c;line-height:1.65;margin-top:4px;}
+.forgot-stage-badge{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 10px;border-radius:999px;background:#eef4ff;color:#3158b8;font-size:12px;font-weight:800;flex-shrink:0;}
+.forgot-inline{display:grid;grid-template-columns:minmax(0,1fr) 132px;gap:12px;align-items:center;}
+.forgot-inline input{width:100%;height:44px;border:1px solid #d7deeb;border-radius:14px;padding:0 14px;font:inherit;font-size:14px;background:#fff;outline:none;}
+.forgot-inline input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,99,217,.12);}
+.forgot-send-btn{height:44px;border-radius:14px;border:1px solid #f5c2c7;background:#fff5f5;color:#dc2626;font:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:all .16s ease;}
+.forgot-send-btn:hover{background:#feecec;border-color:#f19aa3;}
+.forgot-send-btn:disabled{background:#f8dede;color:#f29aa3;border-color:#f6b7bf;cursor:not-allowed;opacity:1;}
+.forgot-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;}
+.forgot-actions .ghost{height:40px;padding:0 16px;border-radius:14px;border:1px solid #d7deeb;background:#fff;color:#4f5f78;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.forgot-actions .primary{height:40px;padding:0 18px;border-radius:14px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 10px 22px rgba(47,99,217,.18);}
+.forgot-actions .primary:disabled,.forgot-actions .ghost:disabled{opacity:.6;cursor:not-allowed;box-shadow:none;}
+.forgot-password-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.forgot-password-grid input{width:100%;height:44px;border:1px solid #d7deeb;border-radius:14px;padding:0 14px;font:inherit;background:#fbfcff;outline:none;}
+.forgot-password-grid input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,99,217,.12);background:#fff;}
+@media (max-width: 720px){
+  .forgot-inline,.forgot-password-grid{grid-template-columns:1fr;}
+}
 .feedback-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
 .feedback-actions.sticky{position:sticky;bottom:-22px;padding:14px 0 0;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 24px);}
 .feedback-actions button{height:38px;padding:0 14px;border-radius:12px;border:1px solid var(--border2);background:#fff;color:var(--text2);font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
@@ -908,12 +936,12 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="auth-step-pane" id="authStepPane1">
         <div class="auth-row">
           <label>手机号</label>
-          <input id="authPhone" placeholder="请输入手机号" autocomplete="username" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
+          <input id="authPhone" placeholder="请输入手机号" autocomplete="tel-national" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
         </div>
         <div class="auth-row auth-hidden" id="authCodeWrap">
           <label>短信验证码</label>
           <div class="auth-inline">
-            <input id="authCode" placeholder="请输入验证码" inputmode="numeric" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()">
+            <input id="authCode" placeholder="请输入验证码" inputmode="numeric" autocomplete="one-time-code" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()">
             <button id="authSendCodeBtn" type="button" onclick="sendAuthCode('register')">获取验证码</button>
           </div>
         </div>
@@ -8986,6 +9014,13 @@ function setAuthMsg(msg, isErr){
   el.style.color = isErr ? '#f87171' : '#34d399';
 }
 
+function setForgotPasswordMsg(msg, isErr){
+  var el = document.getElementById('forgotPasswordMsg');
+  if(!el) return;
+  el.textContent = msg || '';
+  el.style.color = isErr ? '#f87171' : '#34d399';
+}
+
 function normalizeAuthErrorMessage(msg, fallback){
   var text = String(msg || '').trim();
   if(!text) return fallback || '操作失败，请稍后重试';
@@ -9107,7 +9142,7 @@ function setForgotCodeSending(next, label){
   if(!btn) return;
   var now = Date.now();
   btn.disabled = !!next || __forgotCodeCooldownUntil > now;
-  btn.textContent = label || '获取验证码';
+  btn.textContent = label || '发送验证码';
 }
 
 function clearForgotCodeCooldown(){
@@ -9116,7 +9151,7 @@ function clearForgotCodeCooldown(){
     clearInterval(__forgotCodeCooldownTimer);
     __forgotCodeCooldownTimer = null;
   }
-  setForgotCodeSending(false, '获取验证码');
+  setForgotCodeSending(false, '发送验证码');
 }
 
 function startForgotCodeCooldown(seconds){
@@ -9131,7 +9166,7 @@ function startForgotCodeCooldown(seconds){
       return;
     }
     btn.disabled = true;
-    btn.textContent = remain + 's 后重试';
+    btn.textContent = remain + 's 后重发';
   }, 250);
 }
 
@@ -9394,29 +9429,61 @@ async function submitAuthLogin(){
 
 function buildForgotPasswordHtml(){
   return '<form class="feedback-form" onsubmit="submitForgotPassword(event)">'
-    + '<div class="feedback-note">先完成手机号和验证码校验，验证通过后再设置新密码。</div>'
-    + '<div class="feedback-field"><label for="forgotPhone">手机号</label><input id="forgotPhone" type="tel" placeholder="请输入注册手机号" oninput="__forgotPasswordVerified=false;__forgotPasswordVerificationToken=\'\';" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
-    + '<div class="feedback-field"><label for="forgotCode">短信验证码</label><div class="auth-inline"><input id="forgotCode" placeholder="请输入验证码" oninput="__forgotPasswordVerified=false;__forgotPasswordVerificationToken=\'\';"><button type="button" id="forgotSendCodeBtn" onclick="sendForgotPasswordCode()">获取验证码</button></div></div>'
-    + '<div id="forgotPasswordFields" class="auth-hidden">'
-    + '<div class="feedback-note">验证码已通过，请设置新密码。</div>'
-    + '<div class="feedback-field"><label for="forgotPassword">新密码</label><input id="forgotPassword" type="password" placeholder="至少 6 位，且包含字母和数字" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
-    + '<div class="feedback-field"><label for="forgotPassword2">确认新密码</label><input id="forgotPassword2" type="password" placeholder="请再次输入新密码" style="width:100%;height:42px;border:1px solid var(--border2);border-radius:12px;padding:0 12px;font:inherit"></div>'
+    + '<div class="forgot-flow">'
+    + '<div id="forgotVerifyStage" class="forgot-stage">'
+    + '<div class="forgot-stage-head"><div><div class="forgot-stage-title">第一步：验证手机号</div><div class="forgot-stage-sub">先发送短信验证码并完成校验，验证通过后再设置新密码。</div></div><span class="forgot-stage-badge">1</span></div>'
+    + '<div id="forgotVerifySummary" class="forgot-verify-summary"></div>'
+    + '<div class="forgot-verify-body">'
+    + '<div class="feedback-field"><label for="forgotPhone">手机号</label><input id="forgotPhone" name="forgot-phone" type="tel" placeholder="请输入注册手机号" autocomplete="tel-national" oninput="handleForgotIdentityChange()" style="width:100%;height:44px;border:1px solid #d7deeb;border-radius:14px;padding:0 14px;font:inherit;background:#fff"></div>'
+    + '<div class="feedback-field"><label for="forgotCode">短信验证码</label><div class="forgot-inline"><input id="forgotCode" name="forgot-code" type="text" placeholder="请输入验证码" inputmode="numeric" autocomplete="one-time-code" oninput="handleForgotIdentityChange()"><button type="button" class="forgot-send-btn" id="forgotSendCodeBtn" onclick="sendForgotPasswordCode()">发送验证码</button></div></div>'
+    + '<div id="forgotPasswordMsg" class="auth-msg" style="margin-top:0"></div>'
+    + '<div class="forgot-actions"><button type="button" class="ghost" onclick="closeSystemModal(\'forgotPasswordModal\')">取消</button><button type="button" id="forgotVerifyBtn" class="primary" onclick="verifyForgotPasswordCode()">验证并继续</button></div>'
     + '</div>'
-    + '<div class="feedback-actions sticky"><button type="button" onclick="closeSystemModal(\'forgotPasswordModal\')">取消</button><button type="button" id="forgotVerifyBtn" class="primary" onclick="verifyForgotPasswordCode()">验证验证码</button><button class="primary auth-hidden" id="forgotResetBtn" type="submit">重置密码</button></div>'
+    + '</div>'
+    + '<div id="forgotPasswordFields" class="forgot-stage auth-hidden">'
+    + '<div class="forgot-stage-head"><div><div class="forgot-stage-title">第二步：设置新密码</div><div class="forgot-stage-sub">验证码已通过，请设置并确认你的新密码。</div></div><span class="forgot-stage-badge">2</span></div>'
+    + '<div class="forgot-password-grid"><div class="feedback-field"><label for="forgotPassword">新密码</label><input id="forgotPassword" type="password" placeholder="至少 6 位，且包含字母和数字"></div><div class="feedback-field"><label for="forgotPassword2">确认新密码</label><input id="forgotPassword2" type="password" placeholder="请再次输入新密码"></div></div>'
+    + '<div class="forgot-actions"><button type="button" class="ghost" onclick="closeSystemModal(\'forgotPasswordModal\')">取消</button><button class="primary" id="forgotResetBtn" type="submit">重置密码</button></div>'
+    + '</div>'
+    + '</div>'
     + '</form>';
 }
 
+function handleForgotIdentityChange(){
+  __forgotPasswordVerified = false;
+  __forgotPasswordVerificationToken = '';
+  setForgotPasswordMsg('', false);
+  var fields = document.getElementById('forgotPasswordFields');
+  var verifyStage = document.getElementById('forgotVerifyStage');
+  var verifySummary = document.getElementById('forgotVerifySummary');
+  var verifyBtn = document.getElementById('forgotVerifyBtn');
+  if(fields) fields.classList.add('auth-hidden');
+  if(verifyStage){
+    verifyStage.classList.remove('is-ready');
+    verifyStage.classList.remove('is-collapsed');
+  }
+  if(verifySummary) verifySummary.textContent = '';
+  if(verifyBtn){
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = '验证并继续';
+  }
+}
+
 function openForgotPasswordModal(){
+  clearForgotCodeCooldown();
   __forgotPasswordVerified = false;
   __forgotPasswordVerificationToken = '';
   ensureSystemModal('forgotPasswordModal', '找回密码', '通过手机号验证码重置当前账号密码。', buildForgotPasswordHtml(), true);
   openSystemModal('forgotPasswordModal');
+  setForgotCodeSending(false, '发送验证码');
+  setForgotPasswordMsg('', false);
 }
 
 async function sendForgotPasswordCode(){
   var phone = validateAuthPhone(document.getElementById('forgotPhone') && document.getElementById('forgotPhone').value);
-  if(!phone){ showToast('请输入有效的注册手机号'); return; }
+  if(!phone){ setForgotPasswordMsg('请输入有效的注册手机号', true); showToast('请输入有效的注册手机号'); return; }
   setForgotCodeSending(true, '发送中…');
+  setForgotPasswordMsg('正在发送验证码…', false);
   try{
     var resp = await fetch(apiUrl('/api/auth/password/reset/send-code'), {
       method:'POST',
@@ -9426,9 +9493,13 @@ async function sendForgotPasswordCode(){
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '验证码发送失败');
     startForgotCodeCooldown(60);
-    showToast(out.debug_code ? ('验证码已发送，开发验证码：' + out.debug_code) : '验证码已发送');
+    var sentMsg = out.debug_code ? ('验证码已发送，开发验证码：' + out.debug_code) : '验证码已发送，请注意查收短信';
+    setForgotPasswordMsg(sentMsg, false);
+    showToast(sentMsg);
   }catch(e){
-    showToast('发送失败：' + (e && e.message ? e.message : '请稍后重试'));
+    var errMsg = '发送失败：' + (e && e.message ? e.message : '请稍后重试');
+    setForgotPasswordMsg(errMsg, true);
+    showToast(errMsg);
   }finally{
     setForgotCodeSending(false);
   }
@@ -9438,8 +9509,13 @@ async function verifyForgotPasswordCode(){
   var phone = validateAuthPhone(document.getElementById('forgotPhone') && document.getElementById('forgotPhone').value);
   var code = (document.getElementById('forgotCode').value || '').trim();
   var verifyBtn = document.getElementById('forgotVerifyBtn');
-  if(!phone || !code){ showToast('请先填写手机号和验证码'); return; }
-  if(verifyBtn) verifyBtn.disabled = true;
+  var verifyStage = document.getElementById('forgotVerifyStage');
+  if(!phone || !code){ setForgotPasswordMsg('请先填写手机号和验证码', true); showToast('请先填写手机号和验证码'); return; }
+  if(verifyBtn){
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = '验证中…';
+  }
+  setForgotPasswordMsg('正在校验验证码…', false);
   try{
     var resp = await fetch(apiUrl('/api/auth/password/reset/verify'), {
       method:'POST',
@@ -9452,19 +9528,30 @@ async function verifyForgotPasswordCode(){
       __forgotPasswordVerificationToken = String(out.verification_token || '');
       var fields = document.getElementById('forgotPasswordFields');
       var passwordInput = document.getElementById('forgotPassword');
-      var resetBtn = document.getElementById('forgotResetBtn');
+      var verifySummary = document.getElementById('forgotVerifySummary');
       if(fields) fields.classList.remove('auth-hidden');
-      if(resetBtn) resetBtn.classList.remove('auth-hidden');
-      if(verifyBtn) verifyBtn.classList.add('auth-hidden');
+      if(verifyStage){
+        verifyStage.classList.add('is-ready');
+        verifyStage.classList.add('is-collapsed');
+      }
+      if(verifySummary){
+        verifySummary.innerHTML = '手机号 <strong>' + escapeHtml(phone) + '</strong> 已验证，可直接设置新密码。<button type="button" class="ghost" style="margin-left:10px;height:32px;padding:0 12px;border-radius:12px" onclick="handleForgotIdentityChange()">重新验证</button>';
+      }
+      setForgotPasswordMsg('验证码已通过，请设置新密码', false);
       showToast('验证码已通过，请设置新密码');
       if(passwordInput) passwordInput.focus();
       return;
     }
     throw new Error(out.detail || '验证码校验失败');
   }catch(e){
-    showToast('验证失败：' + (e && e.message ? e.message : '请稍后重试'));
+    var errMsg = '验证失败：' + (e && e.message ? e.message : '请稍后重试');
+    setForgotPasswordMsg(errMsg, true);
+    showToast(errMsg);
   }finally{
-    if(verifyBtn) verifyBtn.disabled = false;
+    if(verifyBtn && !__forgotPasswordVerified){
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = '验证并继续';
+    }
   }
 }
 

@@ -6,6 +6,7 @@ import hmac
 import json
 import re
 import secrets
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -354,7 +355,7 @@ def send_verification_code(phone: str, purpose: str) -> dict[str, Any]:
     if (settings.phone_send_code_url or "").strip():
         status, data, text = _post_form_url(settings.phone_send_code_url, {"phone": phone_norm})
         if status >= 400 or not _is_phone_service_ok(data):
-            message = _extract_error_message(data if data is not None else text, "验证码发送失败")
+            message = _finalize_upstream_error_message(data, text, "验证码发送失败，请稍后重试")
             raise ValueError(message)
         return {"ok": True, "expires_in": CODE_TTL_SECONDS, "retry_after": SEND_INTERVAL_SECONDS, "debug_code": ""}
     return _issue_verification_code(phone_norm, purpose_key)
@@ -368,7 +369,7 @@ def _check_verification_code(phone: str, purpose: str, code: str, *, consume: bo
     if (settings.phone_login_by_code_url or "").strip():
         status, data, text = _post_form_url(settings.phone_login_by_code_url, {"phone": phone_norm, "code": code_text})
         if status >= 400 or not _is_phone_service_ok(data):
-            message = _extract_error_message(data if data is not None else text, "验证码错误或已失效")
+            message = _finalize_upstream_error_message(data, text, "验证码错误或已失效，请重新获取")
             raise ValueError(message)
         return
     db = _load_users()
@@ -468,7 +469,7 @@ def send_password_reset_code(phone: str) -> dict[str, Any]:
     if (settings.phone_send_code_url or "").strip():
         status, data, text = _post_form_url(settings.phone_send_code_url, {"phone": phone_norm})
         if status >= 400 or not _is_phone_service_ok(data):
-            message = _extract_error_message(data if data is not None else text, "验证码发送失败")
+            message = _finalize_upstream_error_message(data, text, "验证码发送失败，请稍后重试")
             raise ValueError(message)
         return {"ok": True, "expires_in": CODE_TTL_SECONDS, "retry_after": SEND_INTERVAL_SECONDS, "debug_code": ""}
     return _issue_verification_code(phone_norm, "reset_password")
@@ -640,6 +641,8 @@ def _extract_error_message(payload: Any, fallback: str) -> str:
                 if isinstance(inner, str) and inner.strip():
                     return inner.strip()
         data = payload.get("data")
+        if isinstance(data, str) and data.strip():
+            return data.strip()
         if isinstance(data, dict):
             inner = _extract_error_message(data, "")
             if inner:
@@ -647,6 +650,17 @@ def _extract_error_message(payload: Any, fallback: str) -> str:
     elif isinstance(payload, str) and payload.strip():
         return payload.strip()[:300]
     return fallback
+
+
+def _finalize_upstream_error_message(payload: Any, text: str, fallback: str) -> str:
+    message = _extract_error_message(payload if payload is not None else text, fallback).strip()
+    if message.lower() in {"fail", "error", "false"}:
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, str) and data.strip():
+                return data.strip()
+        return fallback
+    return message or fallback
 
 
 def _normalize_upstream_user(raw: Any, fallback_username: str) -> tuple[dict[str, Any], str | None]:
@@ -712,7 +726,7 @@ def _post_upstream(path: str, body: dict[str, Any]) -> tuple[int, Any, str]:
         raise UpstreamAuthError(500, "未配置外部账号服务地址 APP_AUTH_UPSTREAM_BASE")
     url = base + path
     try:
-        with httpx.Client(timeout=httpx.Timeout(settings.http_timeout)) as client:
+        with httpx.Client(timeout=httpx.Timeout(settings.http_timeout), trust_env=False) as client:
             resp = client.post(url, json=body, headers={"Content-Type": "application/json"})
     except httpx.RequestError as e:
         raise UpstreamAuthError(502, f"无法连接外部账号服务: {e}") from e
@@ -729,18 +743,51 @@ def _post_form_url(url: str, body: dict[str, Any]) -> tuple[int, Any, str]:
     target = (url or "").strip()
     if not target:
         raise UpstreamAuthError(500, "未配置手机号验证码服务地址")
+    httpx_error: str | None = None
     try:
-        with httpx.Client(timeout=httpx.Timeout(settings.http_timeout)) as client:
+        with httpx.Client(timeout=httpx.Timeout(settings.http_timeout), trust_env=False) as client:
             resp = client.post(target, data=body)
+        text = resp.text or ""
+        try:
+            data = resp.json()
+        except Exception:
+            data = None
+        if resp.status_code < 400 and _is_phone_service_ok(data):
+            return resp.status_code, data, text
+        httpx_error = text.strip() or f"http {resp.status_code}"
     except httpx.RequestError as e:
-        raise UpstreamAuthError(502, f"无法连接手机号验证码服务: {e}") from e
+        httpx_error = str(e)
 
-    text = resp.text or ""
     try:
-        data = resp.json()
+        return _post_form_url_via_curl(target, body)
+    except Exception as e:
+        detail = httpx_error or str(e) or "unknown error"
+        raise UpstreamAuthError(502, f"无法连接手机号验证码服务: {detail}") from e
+
+
+def _post_form_url_via_curl(url: str, body: dict[str, Any]) -> tuple[int, Any, str]:
+    cmd = ["/usr/bin/curl", "-sS", "-X", "POST", url, "--max-time", str(max(5, int(settings.http_timeout)))]
+    for key, value in body.items():
+        cmd.extend(["--data-urlencode", f"{key}={value}"])
+    cmd.extend(["-w", "\n__CURL_HTTP_STATUS__:%{http_code}"])
+    resp = subprocess.run(cmd, capture_output=True, text=True, timeout=max(5, int(settings.http_timeout) + 2), check=False)
+    output = (resp.stdout or "") + (resp.stderr or "")
+    marker = "\n__CURL_HTTP_STATUS__:"
+    if marker in output:
+        text, status_text = output.rsplit(marker, 1)
+        try:
+            status = int(status_text.strip())
+        except Exception:
+            status = 0
+    else:
+        text = output
+        status = 0
+    text = text.strip()
+    try:
+        data = json.loads(text) if text else None
     except Exception:
         data = None
-    return resp.status_code, data, text
+    return status, data, text
 
 
 def _is_phone_service_ok(data: Any) -> bool:
