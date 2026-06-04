@@ -1,6 +1,38 @@
 ﻿$ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
+function Get-EnvValue {
+  param(
+    [string]$Key,
+    [string]$Default = ""
+  )
+
+  $current = [Environment]::GetEnvironmentVariable($Key)
+  if (![string]::IsNullOrWhiteSpace($current)) {
+    return $current
+  }
+
+  if (Test-Path .\.env) {
+    $line = Get-Content .\.env | Where-Object { $_ -match "^$Key=" } | Select-Object -Last 1
+    if ($line) {
+      $value = $line.Substring($Key.Length + 1).Trim()
+      if ($value.StartsWith('"') -and $value.EndsWith('"')) {
+        $value = $value.Substring(1, $value.Length - 2)
+      }
+      if (![string]::IsNullOrWhiteSpace($value)) {
+        return $value
+      }
+    }
+  }
+
+  return $Default
+}
+
+if (!(Test-Path .\.env) -and (Test-Path .\.env.example)) {
+  Copy-Item .\.env.example .\.env
+  Write-Host "未找到 .env，已从 .env.example 复制一份。请按部署环境修改其中配置。" -ForegroundColor Yellow
+}
+
 if (!(Test-Path .\.venv)) {
   python -m venv .venv
 }
@@ -8,13 +40,13 @@ if (!(Test-Path .\.venv)) {
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r .\requirements.txt
 
-$env:APP_ENV = "dev"
-$env:APP_HOST = "0.0.0.0"
-$env:APP_PORT = "9000"
-$env:APP_PUBLIC_BASE_URL = "http://127.0.0.1:9000"
-$env:APP_CORS_ORIGINS = "http://127.0.0.1:8080,http://localhost:8080"
-$env:APP_AI_ECG_DIGITIZE_URL = "http://110.157.241.24:18022/digitize"
-$env:APP_ECG_RECONSTRUCT_URL = "http://219.147.100.43:18007/reconstruct"
-$env:APP_IMPUTE_ECG_SAVE_URL = "https://www.heartvoice.com.cn/dcs/api/heartos/saveImputeECGR"
+$appHost = Get-EnvValue "APP_HOST" "0.0.0.0"
+$appPort = Get-EnvValue "APP_PORT" "9010"
+$reloadEnabled = Get-EnvValue "HEARTOS_RELOAD" "1"
+$reloadArgs = @()
+if ($reloadEnabled -eq "1") {
+  $reloadArgs = @("--reload")
+}
 
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload
+Write-Host "HeartOS Backend: http://127.0.0.1:$appPort" -ForegroundColor Green
+& .\.venv\Scripts\python.exe -m uvicorn app.main:app --host $appHost --port $appPort @reloadArgs

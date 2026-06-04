@@ -24,6 +24,10 @@ cd /Users/chen/Documents/HeartOS_system/HeartOS/heartos_backend
 ./start.sh
 ```
 
+部署时默认只需要修改：
+- `.env`
+- `../deploy-config.js`
+
 常用调试参数：
 ```bash
 # 临时换端口，不修改 .env
@@ -69,6 +73,8 @@ cd E:\HeartOS\heartos_backend
 powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
+`start.ps1` 现在会优先读取同目录 `.env`，不再需要手改脚本里的地址和端口。
+
 后端默认监听：`http://127.0.0.1:9000`
 
 健康检查：
@@ -82,6 +88,8 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 cd E:\HeartOS\heartos_backend
 docker compose up -d --build
 ```
+
+`docker-compose.yml` 现在会读取同目录 `.env`，端口映射也跟随 `APP_PORT`。
 
 停止：
 ```powershell
@@ -104,9 +112,14 @@ python3 -m http.server 8080
 
 ## 5) 前端如何连接后端
 
-前端默认连接：`http://127.0.0.1:9000`
+前端默认连接配置在 `../deploy-config.js`
 
-如果后端地址变了，在浏览器控制台执行：
+部署时只改这一行：
+```js
+window.HEARTOS_BACKEND_BASE_URL = 'http://你的地址:端口';
+```
+
+如果浏览器里缓存了旧地址，再执行一次：
 ```js
 localStorage.setItem('heartos_backend_base', 'http://你的地址:端口')
 location.reload()
