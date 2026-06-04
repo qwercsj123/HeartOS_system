@@ -262,6 +262,7 @@ LLM_GATEWAY = build_default_gateway()
 NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json").resolve()
 NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
+NOTEBOOK_SOURCES_PATH = (Path(settings.users_file).resolve().parent / "notebook_sources.json").resolve()
 FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
 FEEDBACK_MAX_IMAGES = 4
 FEEDBACK_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}
@@ -295,6 +296,82 @@ def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
     temp_path = path.with_suffix(path.suffix + ".tmp")
     temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     temp_path.replace(path)
+
+
+def _normalize_source_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    source_id = str(raw.get("source_id") or raw.get("id") or "").strip()
+    if not source_id:
+        return None
+    item = {
+        "id": source_id,
+        "source_id": source_id,
+        "name": str(raw.get("name") or "未命名来源"),
+        "type": str(raw.get("type") or "file").lower(),
+        "checked": bool(raw.get("checked")),
+    }
+    for key in (
+        "fileId",
+        "serverFileId",
+        "fileUrl",
+        "content",
+        "imageDataUrl",
+        "sampleRate",
+        "sampleRateSource",
+        "generatedBy",
+        "source",
+        "sourceName",
+        "parentSourceId",
+        "__fromDigitize",
+        "__fromEcgomics",
+        "__fromReconstruct",
+        "finding",
+        "finding_text",
+        "mime",
+    ):
+        if key in raw:
+            item[key] = raw.get(key)
+    return item
+
+
+def _load_notebook_sources_db() -> dict[str, Any]:
+    return _load_json_file(NOTEBOOK_SOURCES_PATH)
+
+
+def _save_notebook_sources_db(payload: dict[str, Any]) -> None:
+    _save_json_file(NOTEBOOK_SOURCES_PATH, payload)
+
+
+def _get_user_notebook_sources(uid: str) -> dict[str, list[dict[str, Any]]]:
+    db = _load_notebook_sources_db()
+    bucket = db.get(uid, {})
+    return bucket if isinstance(bucket, dict) else {}
+
+
+def _get_conversation_sources(uid: str, notebook_id: str) -> list[dict[str, Any]]:
+    bucket = _get_user_notebook_sources(uid)
+    items = bucket.get(str(notebook_id), [])
+    return items if isinstance(items, list) else []
+
+
+def _set_conversation_sources(uid: str, notebook_id: str, sources: list[dict[str, Any]]) -> None:
+    db = _load_notebook_sources_db()
+    bucket = db.get(uid, {})
+    if not isinstance(bucket, dict):
+        bucket = {}
+    bucket[str(notebook_id)] = sources
+    db[uid] = bucket
+    _save_notebook_sources_db(db)
+
+
+def _delete_conversation_sources(uid: str, notebook_id: str) -> None:
+    db = _load_notebook_sources_db()
+    bucket = db.get(uid, {})
+    if isinstance(bucket, dict) and str(notebook_id) in bucket:
+        del bucket[str(notebook_id)]
+        db[uid] = bucket
+        _save_notebook_sources_db(db)
 
 
 def _coerce_feedback_context(raw: Any) -> dict[str, Any]:
@@ -593,6 +670,82 @@ def _normalized_message_text(message: str) -> str:
     return (message or "").strip().lower()
 
 
+def _looks_like_capability_question(message: str) -> bool:
+    msg_text = _normalized_message_text(message)
+    if not msg_text:
+        return False
+    if "?" not in msg_text and "？" not in msg_text and "吗" not in msg_text:
+        return False
+    capability_patterns = (
+        "可以",
+        "可不可以",
+        "能不能",
+        "能否",
+        "是否可以",
+        "能",
+    )
+    topic_patterns = (
+        "分析",
+        "做",
+        "处理",
+        "数字化",
+        "提取",
+        "补全",
+        "重建",
+        "评估",
+        "使用",
+        "识别",
+    )
+    return any(pattern in msg_text for pattern in capability_patterns) and any(
+        pattern in msg_text for pattern in topic_patterns
+    )
+
+
+def _looks_like_explicit_action_request(message: str) -> bool:
+    msg_text = _normalized_message_text(message)
+    if not msg_text or _looks_like_capability_question(message):
+        return False
+    action_patterns = (
+        "帮我",
+        "请帮我",
+        "请",
+        "开始",
+        "执行",
+        "运行",
+        "处理",
+        "生成",
+        "提取",
+        "补全",
+        "重建",
+        "数字化",
+        "评估一下",
+        "分析一下",
+        "打开",
+        "来个",
+        "做一下",
+    )
+    return any(pattern in msg_text for pattern in action_patterns)
+
+
+def _capability_question_target_intent(message: str, context: dict[str, Any]) -> str:
+    msg_text = _normalized_message_text(message)
+    if not msg_text or not _looks_like_capability_question(message):
+        return ""
+    has_image = bool((context or {}).get("has_image"))
+    has_waveform = bool((context or {}).get("has_ecg_signal")) or bool((context or {}).get("has_xml")) or bool((context or {}).get("has_csv"))
+    if ("自动数字化" in msg_text or "自动提取波形" in msg_text) and has_image:
+        return "ecg_auto_digitize"
+    if ("手动数字化" in msg_text or "手动提取波形" in msg_text) and has_image:
+        return "ecg_manual_digitize"
+    if any(pattern in msg_text for pattern in ("风险评估", "准心", "看看有没有病", "有没有异常", "有没有风险")) and has_image:
+        return "zhunxin_risk_assess"
+    if any(pattern in msg_text for pattern in ("心电组学", "ecgomics", "特征提取", "提取特征")) and has_waveform:
+        return "ecg_feature_extract"
+    if any(pattern in msg_text for pattern in ("补全", "重建", "reconstruct")) and has_waveform:
+        return "ecg_reconstruct"
+    return ""
+
+
 def _is_explicit_zhunxin_action(message: str) -> bool:
     msg_text = _normalized_message_text(message)
     if not msg_text:
@@ -874,6 +1027,110 @@ def _build_diagnostic_plan_response(context: dict[str, Any]) -> ConversationResp
     )
 
 
+def _build_capability_options_response(context: dict[str, Any]) -> ConversationResponse:
+    stats = _context_source_stats(context)
+    selected_ids = stats.get("selected_source_ids", [])
+    if stats["has_image"]:
+        return _build_conversation_response(
+            response_type="plan_options",
+            stage="planned",
+            intent="knowledge_qa",
+            confidence=0.92,
+            message="这张图片可以继续处理。我整理了几个可选操作，已经为你准备成选项。",
+            description="面向心电图图片/PDF的下一步处理建议。",
+            args={"source_ids": selected_ids},
+            meta={
+                "headline": "这张心电图可以这样处理",
+                "body": "你可以先做快速风险判断，也可以先提取波形，再进入更深入的 ECG 分析流程。",
+                "presentation": "popover",
+                "options": [
+                    {
+                        "id": "zhunxin",
+                        "title": "准心风险评估",
+                        "description": "直接基于当前图片做初步风险筛查，适合先快速判断是否存在明显异常风险。",
+                        "action": "run:zhunxin",
+                        "kind": "primary",
+                    },
+                    {
+                        "id": "ecgsmart",
+                        "title": "自动数字化提取波形",
+                        "description": "把图片转换成波形 CSV，方便后续继续做心电组学分析、补全和结果解读。",
+                        "action": "run:ecgsmart",
+                        "kind": "secondary",
+                    },
+                    {
+                        "id": "ecg",
+                        "title": "手动数字化精细处理",
+                        "description": "适合图片复杂、自动识别可能不稳的情况，可以人工校正后再继续分析。",
+                        "action": "run:ecg",
+                        "kind": "secondary",
+                    },
+                ],
+            },
+        )
+    if stats["has_ecg_signal"] or stats["has_xml"] or stats["has_csv"]:
+        return _build_conversation_response(
+            response_type="plan_options",
+            stage="planned",
+            intent="knowledge_qa",
+            confidence=0.9,
+            message="当前波形数据可以直接进入分析流程。我整理了几个可选操作。",
+            description="面向 ECG 波形/XML/CSV 的下一步处理建议。",
+            args={"source_ids": selected_ids},
+            meta={
+                "headline": "这份波形数据可以这样处理",
+                "body": "如果你已经有 XML 或 CSV，可以直接做结构化分析；若波形不完整，也可以先补全。",
+                "presentation": "popover",
+                "options": [
+                    {
+                        "id": "ecgd",
+                        "title": "ECG 心电组学分析",
+                        "description": "提取心率、节律、间期和形态学等结构化指标，适合已有可读波形数据时直接分析。",
+                        "action": "run:ecgd",
+                        "kind": "primary",
+                    },
+                    {
+                        "id": "ecgrecon",
+                        "title": "ECG 信号补全",
+                        "description": "适合导联缺失、波形不完整或当前数据质量不足的情况，先补全再继续分析。",
+                        "action": "run:ecgrecon",
+                        "kind": "secondary",
+                    },
+                ],
+            },
+        )
+    return _build_conversation_response(
+        response_type="chat",
+        stage="answered",
+        intent="knowledge_qa",
+        confidence=0.75,
+        message="可以。我可以根据你选择的来源给出下一步建议。图片/PDF 更适合数字化或风险评估，XML/CSV 波形更适合直接做心电组学分析或信号补全。",
+        description=CONVERSATION_INTENT_DESCRIPTIONS["knowledge_qa"],
+    )
+
+
+def _build_capability_confirm_response(intent: str, context: dict[str, Any]) -> ConversationResponse:
+    selected_ids = _context_source_stats(context).get("selected_source_ids", [])
+    prompt_map = {
+        "ecg_auto_digitize": "这张图片可以自动数字化。是否现在开始自动数字化？",
+        "ecg_manual_digitize": "这张图片可以做手动数字化。是否现在打开手动数字化工具？",
+        "zhunxin_risk_assess": "这张图片可以做准心风险评估。是否现在开始评估？",
+        "ecg_feature_extract": "当前波形数据可以做 ECG 心电组学分析。是否现在开始？",
+        "ecg_reconstruct": "当前波形数据可以做 ECG 信号补全。是否现在开始？",
+    }
+    return _build_conversation_response(
+        response_type="need_confirm",
+        stage="classified",
+        intent=intent,
+        confidence=0.9,
+        message=prompt_map.get(intent, "我理解你想执行这个任务，是否继续？"),
+        description=CONVERSATION_INTENT_DESCRIPTIONS.get(intent, ""),
+        args={"source_ids": selected_ids},
+        action=CONVERSATION_INTENT_TO_ACTION.get(intent),
+        meta={"reason": "capability_question_confirm"},
+    )
+
+
 def _parse_tool_call_arguments(raw_args: Any) -> dict[str, Any]:
     if isinstance(raw_args, dict):
         return raw_args
@@ -972,6 +1229,11 @@ async def _route_conversation_turn(
         )
 
     stats = _context_source_stats(context)
+    targeted_capability_intent = _capability_question_target_intent(message, context)
+    if targeted_capability_intent and stats["selected_count"]:
+        return _build_capability_confirm_response(targeted_capability_intent, context)
+    if _looks_like_capability_question(message) and stats["selected_count"]:
+        return _build_capability_options_response(context)
     if stats["has_image"] and _looks_like_disease_check_goal(message):
         return _build_diagnostic_plan_response(context)
 
@@ -987,6 +1249,10 @@ async def _route_conversation_turn(
     intent = _normalize_route_intent(str(route_plan.get("intent") or "chat"))
     confidence = float(route_plan.get("confidence") or 0.0)
     args = route_plan.get("args") if isinstance(route_plan.get("args"), dict) else {}
+    if intent in CONVERSATION_INTENT_TO_ACTION and _looks_like_capability_question(message) and not _looks_like_explicit_action_request(message):
+        intent = "knowledge_qa"
+        confidence = max(confidence, 0.88)
+        route_plan["reason"] = "capability_question_guard"
     if (
         intent == "zhunxin_risk_assess"
         and _last_result_kind(context) == "zhunxin_risk"
@@ -1163,10 +1429,11 @@ async def _classify_conversation_intent(
     last_result_kind = _last_result_kind(context)
     asks_about_tool = any(k in msg_text for k in ("什么是", "是什么", "介绍", "说明", "解释", "原理", "怎么用", "如何用", "支持什么", "区别", "差别", "不同", "用途"))
     asks_result = _looks_like_result_followup_question(message)
-    wants_action = any(k in msg_text for k in ("帮我", "请", "开始", "进行", "执行", "运行", "处理", "生成", "提取", "补全", "重建", "数字化"))
+    capability_question = _looks_like_capability_question(message)
+    wants_action = _looks_like_explicit_action_request(message)
     if asks_result:
         return {"intent": "result_interpretation", "confidence": 0.78, "reason": "result_keywords", "args": {}, "missing_fields": _missing_fields_for_intent("result_interpretation", context)}
-    if asks_about_tool:
+    if asks_about_tool or capability_question:
         return {"intent": "knowledge_qa", "confidence": 0.88, "reason": "knowledge_keywords", "args": {}, "missing_fields": []}
     if last_result_kind == "zhunxin_risk" and _looks_like_result_followup_question(message) and not _is_explicit_zhunxin_action(message):
         return {"intent": "result_interpretation", "confidence": 0.9, "reason": "zhunxin_result_followup", "args": {}, "missing_fields": _missing_fields_for_intent("result_interpretation", context)}
@@ -2039,8 +2306,8 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
     nid = str(raw.get("id") or "").strip()
     if not nid:
         raise HTTPException(status_code=422, detail="notebook id is required")
-    sources = raw.get("sources")
     msgs = raw.get("msgs")
+    events = raw.get("events")
     analysis_files = raw.get("analysisFiles")
     return {
         "id": nid,
@@ -2048,8 +2315,9 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
         "icon": str(raw.get("icon") or "📔"),
         "color": str(raw.get("color") or "#e8f0fe"),
         "date": str(raw.get("date") or ""),
-        "sources": sources if isinstance(sources, list) else [],
+        "sources": [],
         "msgs": msgs if isinstance(msgs, list) else [],
+        "events": events if isinstance(events, list) else [],
         "analysisFiles": analysis_files if isinstance(analysis_files, list) else [],
         "sumHtml": str(raw.get("sumHtml") or ""),
         "suggHtml": str(raw.get("suggHtml") or ""),
@@ -2057,7 +2325,7 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _notebook_summary(raw: dict[str, Any]) -> dict[str, Any]:
+def _notebook_summary(raw: dict[str, Any], source_count: int | None = None) -> dict[str, Any]:
     sources = raw.get("sources")
     msgs = raw.get("msgs")
     analysis_files = raw.get("analysisFiles")
@@ -2067,7 +2335,7 @@ def _notebook_summary(raw: dict[str, Any]) -> dict[str, Any]:
         "icon": str(raw.get("icon") or "📔"),
         "color": str(raw.get("color") or "#e8f0fe"),
         "date": str(raw.get("date") or ""),
-        "srcs": len(sources) if isinstance(sources, list) else 0,
+        "srcs": int(source_count) if source_count is not None else (len(sources) if isinstance(sources, list) else 0),
         "msgCount": len(msgs) if isinstance(msgs, list) else 0,
         "analysisCount": len(analysis_files) if isinstance(analysis_files, list) else 0,
         "updatedAt": int(raw.get("updatedAt") or 0),
@@ -2081,8 +2349,18 @@ async def list_notebooks(summary_only: bool = False, user: dict[str, Any] = Depe
     items = db.get(uid, [])
     if not isinstance(items, list):
         items = []
+    source_bucket = _get_user_notebook_sources(uid)
     if summary_only:
-        return {"items": [_notebook_summary(item) for item in items if isinstance(item, dict)]}
+        return {
+            "items": [
+                _notebook_summary(
+                    item,
+                    len(source_bucket.get(str(item.get("id") or ""), [])) if isinstance(source_bucket.get(str(item.get("id") or ""), []), list) else None,
+                )
+                for item in items
+                if isinstance(item, dict)
+            ]
+        }
     return {"items": items}
 
 
@@ -2095,13 +2373,24 @@ async def get_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_curr
         items = []
     for item in items:
         if isinstance(item, dict) and str(item.get("id")) == str(notebook_id):
-            return {"item": item}
+            linked_sources = _get_conversation_sources(uid, notebook_id)
+            if not linked_sources and isinstance(item.get("sources"), list) and item.get("sources"):
+                migrated = [src for src in (_normalize_source_item(raw) for raw in item.get("sources")) if src]
+                if migrated:
+                    _set_conversation_sources(uid, notebook_id, migrated)
+                    linked_sources = migrated
+            merged = dict(item)
+            merged["sources"] = linked_sources
+            return {"item": merged}
     raise HTTPException(status_code=404, detail="notebook not found")
 
 
 @app.post("/api/notebooks")
 async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    raw_payload = payload if isinstance(payload, dict) else {}
+    raw_sources = raw_payload.get("sources")
+    source_items = [src for src in (_normalize_source_item(raw) for raw in raw_sources) if src] if isinstance(raw_sources, list) else []
     item = _normalize_notebook_item(payload if isinstance(payload, dict) else {})
 
     db = _load_json_file(NOTEBOOKS_PATH)
@@ -2122,6 +2411,8 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
 
     db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
+    if isinstance(raw_sources, list):
+        _set_conversation_sources(uid, item["id"], source_items)
     return {"ok": True, "id": item["id"]}
 
 
@@ -2136,7 +2427,29 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
     items = [it for it in items if not (isinstance(it, dict) and str(it.get("id")) == str(notebook_id))]
     db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
+    _delete_conversation_sources(uid, notebook_id)
     return {"ok": True, "deleted": before - len(items)}
+
+
+@app.get("/api/notebooks/{notebook_id}/sources")
+async def get_notebook_sources(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    return {"items": _get_conversation_sources(uid, notebook_id)}
+
+
+@app.put("/api/notebooks/{notebook_id}/sources")
+async def replace_notebook_sources(
+    notebook_id: str,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    raw_items = payload.get("items") if isinstance(payload, dict) else []
+    if not isinstance(raw_items, list):
+        raise HTTPException(status_code=422, detail="items must be a list")
+    source_items = [src for src in (_normalize_source_item(raw) for raw in raw_items) if src]
+    _set_conversation_sources(uid, notebook_id, source_items)
+    return {"ok": True, "count": len(source_items)}
 
 
 @app.post("/api/conversation/turn", response_model=ConversationResponse)
