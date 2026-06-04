@@ -1769,8 +1769,6 @@ async def login(req: LoginRequest) -> LoginResponse:
 
 @app.post("/api/auth/send-code", response_model=SendCodeResponse)
 async def auth_send_code(req: SendCodeRequest) -> SendCodeResponse:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地短信验证码")
     try:
         out = send_verification_code(req.phone, req.purpose)
     except ValueError as e:
@@ -1780,8 +1778,6 @@ async def auth_send_code(req: SendCodeRequest) -> SendCodeResponse:
 
 @app.post("/api/auth/password/reset/send-code", response_model=SendCodeResponse)
 async def auth_password_reset_send_code(req: PasswordResetSendCodeRequest) -> SendCodeResponse:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地找回密码")
     try:
         out = send_password_reset_code(req.phone)
     except ValueError as e:
@@ -1791,8 +1787,6 @@ async def auth_password_reset_send_code(req: PasswordResetSendCodeRequest) -> Se
 
 @app.post("/api/auth/password/reset/verify")
 async def auth_password_reset_verify(req: PasswordResetVerifyRequest) -> dict[str, Any]:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地找回密码")
     try:
         user = verify_password_reset_code(req.phone, req.code)
     except ValueError as e:
@@ -1806,8 +1800,6 @@ async def auth_password_reset_verify(req: PasswordResetVerifyRequest) -> dict[st
 
 @app.post("/api/auth/register/verify")
 async def auth_register_verify(req: RegisterVerifyRequest) -> dict[str, Any]:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地短信验证码")
     try:
         verify_registration_code(req.phone, req.code)
     except ValueError as e:
@@ -1818,29 +1810,27 @@ async def auth_register_verify(req: RegisterVerifyRequest) -> dict[str, Any]:
 
 @app.post("/api/auth/register", response_model=LoginResponse)
 async def register(req: RegisterRequest) -> LoginResponse:
-    if (settings.auth_mode or "").lower() == "upstream":
-        try:
-            user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
-        except UpstreamAuthError as e:
-            raise HTTPException(status_code=e.status_code, detail=e.message)
-    else:
-        try:
-            user = register_user(
-                phone=req.phone,
-                password=req.password,
-                code=req.code,
-                verification_token=req.verification_token,
-                name=req.name,
-                organization=req.organization,
-                user_type=req.user_type,
-                use_case=req.use_case,
-                department=req.department,
-                title=req.title,
-                email=req.email,
-                display_name=req.display_name,
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+    try:
+        user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
+    except UpstreamAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    try:
+        user = register_user(
+            phone=req.phone,
+            password=req.password,
+            code=req.code,
+            verification_token=req.verification_token,
+            name=req.name,
+            organization=req.organization,
+            user_type=req.user_type,
+            use_case=req.use_case,
+            department=req.department,
+            title=req.title,
+            email=req.email,
+            display_name=req.display_name,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     token = issue_token(user)
     return LoginResponse(
@@ -1863,8 +1853,6 @@ async def register(req: RegisterRequest) -> LoginResponse:
 
 @app.post("/api/auth/password/reset/confirm")
 async def auth_password_reset_confirm(req: PasswordResetConfirmRequest) -> dict[str, Any]:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地找回密码")
     try:
         user = reset_password(req.phone, req.code, req.new_password, req.verification_token)
     except ValueError as e:
@@ -1877,8 +1865,6 @@ async def auth_password_change(
     req: PasswordChangeRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地修改密码")
     try:
         change_password(str(user.get("id") or ""), req.old_password, req.new_password)
     except ValueError as e:
@@ -1909,8 +1895,6 @@ async def save_profile(
     req: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> MeResponse:
-    if (settings.auth_mode or "").lower() == "upstream":
-        raise HTTPException(status_code=501, detail="当前部署暂未启用本地资料维护")
     try:
         updated = update_profile(str(user.get("id") or ""), req.model_dump())
     except ValueError as e:
