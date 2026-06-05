@@ -29,6 +29,7 @@ from .auth import (
     send_password_reset_code,
     send_verification_code,
     issue_verification_ticket,
+    sync_local_user,
     update_profile,
     upstream_login,
     upstream_register,
@@ -2051,6 +2052,7 @@ async def login(req: LoginRequest) -> LoginResponse:
     if (settings.auth_mode or "").lower() == "upstream":
         try:
             user = await asyncio.to_thread(upstream_login, req.username or req.phone, req.password)
+            user = await asyncio.to_thread(sync_local_user, user)
         except UpstreamAuthError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message)
     else:
@@ -2121,7 +2123,7 @@ async def auth_register_verify(req: RegisterVerifyRequest) -> dict[str, Any]:
 @app.post("/api/auth/register", response_model=LoginResponse)
 async def register(req: RegisterRequest) -> LoginResponse:
     try:
-        user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
+        upstream_user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
     except UpstreamAuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     try:
@@ -2139,6 +2141,27 @@ async def register(req: RegisterRequest) -> LoginResponse:
             email=req.email,
             display_name=req.display_name,
         )
+        if (settings.auth_mode or "").lower() == "upstream":
+            user = await asyncio.to_thread(
+                sync_local_user,
+                {
+                    **upstream_user,
+                    "phone": req.phone,
+                    "display_name": req.display_name or req.name,
+                    "name": req.name,
+                },
+                req.password,
+                {
+                    "name": req.name,
+                    "organization": req.organization,
+                    "department": req.department,
+                    "title": req.title,
+                    "user_type": req.user_type,
+                    "use_case": req.use_case,
+                    "email": req.email,
+                    "display_name": req.display_name or req.name,
+                },
+            )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -2167,6 +2190,8 @@ async def auth_password_reset_confirm(req: PasswordResetConfirmRequest) -> dict[
         user = reset_password(req.phone, req.code, req.new_password, req.verification_token)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except UpstreamAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     return {"ok": True, "user_id": str(user.get("id") or "")}
 
 
@@ -2176,9 +2201,17 @@ async def auth_password_change(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
-        change_password(str(user.get("id") or ""), req.old_password, req.new_password)
+        change_password(
+            str(user.get("id") or ""),
+            req.old_password,
+            req.new_password,
+            username=str(user.get("username") or ""),
+            phone=str(user.get("phone") or ""),
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except UpstreamAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     return {"ok": True}
 
 

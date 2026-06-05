@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     auth_upstream_base: str
     auth_upstream_login_path: str
     auth_upstream_register_path: str
+    auth_upstream_reset_password_path: str = Field(default="/api/heartos/reset_password")
     phone_send_code_url: str
     phone_login_by_code_url: str
 
@@ -79,5 +80,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-

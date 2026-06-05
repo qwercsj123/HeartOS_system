@@ -278,6 +278,104 @@ def verify_user(username: str, password: str, *, phone: str = "") -> dict[str, A
     return _public_user(user)
 
 
+def _is_upstream_auth_mode() -> bool:
+    return (settings.auth_mode or "").strip().lower() == "upstream"
+
+
+def _minimal_public_user(username: str, *, user_id: str = "", phone: str = "", display_name: str = "") -> dict[str, Any]:
+    username_value = str(username or "").strip()
+    phone_value = _normalize_phone(phone or username_value)
+    display_value = str(display_name or username_value or phone_value or "用户").strip() or "用户"
+    return {
+        "id": str(user_id or ""),
+        "username": username_value or phone_value,
+        "phone": phone_value,
+        "display_name": display_value,
+        "name": display_value,
+        "organization": "",
+        "department": "",
+        "title": "",
+        "user_type": "",
+        "use_case": "",
+        "email": "",
+        "is_admin": False,
+        "active": True,
+        "created_at": 0,
+        "last_login_at": 0,
+    }
+
+
+def sync_local_user(user: dict[str, Any], password: str | None = None, profile: dict[str, Any] | None = None) -> dict[str, Any]:
+    raw = dict(user or {})
+    profile_data = dict(profile or {})
+    username = str(raw.get("username") or raw.get("phone") or profile_data.get("phone") or "").strip()
+    phone = _normalize_phone(str(raw.get("phone") or profile_data.get("phone") or username))
+    if not username and phone:
+        username = phone
+    if not username:
+        raise ValueError("缺少用户名")
+
+    upstream_id = str(raw.get("id") or "").strip()
+    db = _load_users()
+    target = _find_user(db, user_id=upstream_id) if upstream_id else None
+    if not target:
+        target = _find_user(db, phone=phone, username=username)
+
+    now = _now_ts()
+    if not target:
+        target = _normalize_user_record(
+            {
+                "id": upstream_id or f"u_{secrets.token_hex(6)}",
+                "username": username,
+                "phone": phone,
+                "phone_verified": bool(phone),
+                "phone_verified_at": now if phone else 0,
+                "display_name": str(raw.get("display_name") or profile_data.get("display_name") or profile_data.get("name") or username).strip() or username,
+                "name": str(raw.get("name") or profile_data.get("name") or raw.get("display_name") or username).strip() or username,
+                "organization": str(profile_data.get("organization") or raw.get("organization") or "").strip(),
+                "department": str(profile_data.get("department") or raw.get("department") or "").strip(),
+                "title": str(profile_data.get("title") or raw.get("title") or "").strip(),
+                "user_type": str(profile_data.get("user_type") or raw.get("user_type") or "").strip(),
+                "use_case": str(profile_data.get("use_case") or raw.get("use_case") or "").strip(),
+                "email": str(profile_data.get("email") or raw.get("email") or "").strip(),
+                "active": True,
+                "created_at": now,
+                "last_login_at": now,
+            }
+        )
+        db.setdefault("users", []).append(target)
+    else:
+        if upstream_id:
+            target["id"] = upstream_id
+        target["username"] = username
+        if phone:
+            target["phone"] = phone
+            target["phone_verified"] = True
+            target["phone_verified_at"] = int(target.get("phone_verified_at") or now)
+        target["active"] = True
+        target["last_login_at"] = now
+
+    for source in (raw, profile_data):
+        if not isinstance(source, dict):
+            continue
+        for key in ("display_name", "name", "organization", "department", "title", "user_type", "use_case", "email"):
+            value = source.get(key)
+            if value is None:
+                continue
+            value_text = str(value).strip()
+            if value_text:
+                target[key] = value_text
+
+    target["display_name"] = str(target.get("display_name") or target.get("name") or phone or username).strip() or username
+    target["name"] = str(target.get("name") or target.get("display_name") or phone or username).strip() or username
+    if password:
+        salt = str(target.get("salt") or secrets.token_hex(8))
+        target["salt"] = salt
+        target["password_hash"] = _hash_password(password, salt)
+    _save_users(db)
+    return _public_user(target)
+
+
 
 def _validate_password(password: str, username: str = "") -> None:
     if not _is_client_password_digest(password) and not _is_client_password_heartos(password):
@@ -350,7 +448,7 @@ def send_verification_code(phone: str, purpose: str) -> dict[str, Any]:
     existing_user = _find_user(db, phone=phone_norm)
     if purpose_key == "register" and existing_user and existing_user.get("active", True):
         raise ValueError("该手机号已注册，请直接登录或找回密码")
-    if purpose_key == "reset_password" and (not existing_user or not existing_user.get("active", True)):
+    if purpose_key == "reset_password" and (not existing_user or not existing_user.get("active", True)) and not _is_upstream_auth_mode():
         raise ValueError("该手机号尚未注册")
     if (settings.phone_send_code_url or "").strip():
         status, data, text = _post_form_url(settings.phone_send_code_url, {"phone": phone_norm})
@@ -464,7 +562,7 @@ def send_password_reset_code(phone: str) -> dict[str, Any]:
     phone_norm = _validate_phone(phone)
     db = _load_users()
     user = _find_user(db, phone=phone_norm)
-    if not user or not user.get("active", True):
+    if (not user or not user.get("active", True)) and not _is_upstream_auth_mode():
         raise ValueError("该手机号尚未注册")
     if (settings.phone_send_code_url or "").strip():
         status, data, text = _post_form_url(settings.phone_send_code_url, {"phone": phone_norm})
@@ -480,10 +578,14 @@ def reset_password(phone: str, code: str, new_password: str, verification_token:
     _validate_password(new_password, phone_norm)
     db = _load_users()
     user = _find_user(db, phone=phone_norm)
-    if not user or not user.get("active", True):
-        raise ValueError("账号不存在")
     if not verify_verification_ticket(str(verification_token or ""), phone_norm, "reset_password"):
         _consume_verification_code(phone_norm, "reset_password", code)
+    if _is_upstream_auth_mode():
+        upstream_reset_password(phone_norm, new_password)
+        seed = _public_user(user) if user and user.get("active", True) else _minimal_public_user(phone_norm, phone=phone_norm)
+        return sync_local_user(seed, new_password)
+    if not user or not user.get("active", True):
+        raise ValueError("账号不存在")
     salt = str(user.get("salt") or secrets.token_hex(8))
     user["salt"] = salt
     user["password_hash"] = _hash_password(new_password, salt)
@@ -496,7 +598,10 @@ def verify_password_reset_code(phone: str, code: str) -> dict[str, Any]:
     db = _load_users()
     user = _find_user(db, phone=phone_norm)
     if not user or not user.get("active", True):
-        raise ValueError("账号不存在")
+        if not _is_upstream_auth_mode():
+            raise ValueError("账号不存在")
+        verify_verification_code(phone_norm, "reset_password", code)
+        return _minimal_public_user(phone_norm, phone=phone_norm)
     verify_verification_code(phone_norm, "reset_password", code)
     return _public_user(user)
 
@@ -545,7 +650,22 @@ def verify_verification_ticket(ticket: str, phone: str, purpose: str) -> bool:
     )
 
 
-def change_password(user_id: str, old_password: str, new_password: str) -> dict[str, Any]:
+def change_password(user_id: str, old_password: str, new_password: str, *, username: str = "", phone: str = "") -> dict[str, Any]:
+    login_name = _normalize_phone(phone) or str(username or "").strip()
+    _validate_password(new_password, login_name)
+    if _is_upstream_auth_mode():
+        if not login_name:
+            db = _load_users()
+            local_user = _find_user(db, user_id=user_id)
+            login_name = _normalize_phone(str(local_user.get("phone") or "")) if local_user else ""
+            if not login_name and local_user:
+                login_name = str(local_user.get("username") or "").strip()
+        if not login_name:
+            raise ValueError("账号不存在")
+        upstream_reset_password(login_name, new_password, old_password=old_password)
+        seed = get_user_by_id(user_id) or _minimal_public_user(login_name, user_id=user_id, phone=phone or login_name, display_name=username or login_name)
+        return sync_local_user(seed, new_password)
+
     db = _load_users()
     user = _find_user(db, user_id=user_id)
     if not user or not user.get("active", True):
@@ -835,20 +955,46 @@ def upstream_login(username: str, password: str) -> dict[str, Any]:
     return user
 
 
+def _is_upstream_success_payload(data: Any) -> bool:
+    if data is None:
+        return True
+    if isinstance(data, dict) and "code" in data:
+        try:
+            return int(data.get("code") or 0) == 200
+        except Exception:
+            return False
+    return True
+
+
 def upstream_register(username: str, password: str, display_name: str | None = None) -> dict[str, Any]:
     body: dict[str, Any] = {"username": username, "password": password}
     if display_name:
         body["display_name"] = display_name
 
     try:
-        status, data, _text = _post_upstream(settings.auth_upstream_register_path, body)
+        status, data, text = _post_upstream(settings.auth_upstream_register_path, body)
     except UpstreamAuthError:
         raise UpstreamAuthError(500, "注册失败，用户名重复")
 
     if status >= 400 or not _has_valid_user_payload(data):
-        raise UpstreamAuthError(500, "注册失败，用户名重复")
+        message = _finalize_upstream_error_message(data, text, "注册失败，用户名重复")
+        raise UpstreamAuthError(500, message)
 
     user, _upstream_token = _normalize_upstream_user(data, fallback_username=username)
     if not user.get("display_name") and display_name:
         user["display_name"] = display_name
     return user
+
+
+def upstream_reset_password(username: str, new_password: str, old_password: str | None = None) -> None:
+    body: dict[str, Any] = {"username": username, "newPassword": new_password}
+    if old_password:
+        body["oldPassword"] = old_password
+    try:
+        status, data, text = _post_upstream(settings.auth_upstream_reset_password_path, body)
+    except UpstreamAuthError as e:
+        raise UpstreamAuthError(e.status_code, e.message) from e
+
+    if status >= 400 or not _is_upstream_success_payload(data):
+        message = _finalize_upstream_error_message(data, text, "密码重置失败，请稍后重试")
+        raise UpstreamAuthError(400 if status < 500 else status, message)
