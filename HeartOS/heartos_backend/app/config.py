@@ -15,8 +15,9 @@ LOCAL_DEV_CORS_ORIGINS = (
 
 class Settings(BaseSettings):
     _BASE_DIR = Path(__file__).resolve().parent.parent
-    model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env.server.example'), env_prefix='APP_', extra='ignore')  # 线上使用
-    # model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env.local.example'), env_prefix='APP_', extra='ignore')  # 本地使用
+    # Always read the real runtime config from `.env`.
+    # `start.sh` will create it from `.env.example` when missing.
+    model_config = SettingsConfigDict(env_file=str(_BASE_DIR / '.env'), env_prefix='APP_', extra='ignore')
 
     name: str
     env: str

@@ -26,6 +26,17 @@
 }
 html,body{height:100%;overflow:hidden;}
 body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
+.heartos-has-session #authGate{display:none !important;}
+.heartos-init-notebook #homePage{display:none !important;}
+.heartos-init-notebook #nbPage{display:flex !important;}
+.heartos-init-notebook #nbPage.page:not(.active){display:flex !important;}
+.heartos-init-notebook #feedbackPage{display:none !important;}
+.heartos-init-home #homePage{display:flex !important;}
+.heartos-init-home #nbPage{display:none !important;}
+.heartos-init-home #feedbackPage{display:none !important;}
+.heartos-init-feedback #homePage{display:none !important;}
+.heartos-init-feedback #nbPage{display:none !important;}
+.heartos-init-feedback #feedbackPage{display:flex !important;}
 .ui-icon{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
 .ui-icon.sm{width:14px;height:14px;stroke-width:1.9;}
 .ui-icon.lg{width:18px;height:18px;stroke-width:1.75;}
@@ -1552,6 +1563,11 @@ function goHome(){
   setNotebookOpeningState('');
   setNotebookDetailLoadingState('');
   if(busy || activeStudioTask) cancelActiveChatWork();
+  try{
+    document.documentElement.classList.remove('heartos-init-notebook');
+    document.documentElement.classList.remove('heartos-init-feedback');
+    document.documentElement.classList.add('heartos-init-home');
+  }catch(_){ }
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
   var fp = document.getElementById('feedbackPage');
@@ -1565,6 +1581,88 @@ function goHome(){
 function todayText(){
   const d = new Date();
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function clearBootDisplayHints(){
+  try{
+    document.documentElement.classList.remove('heartos-init-home');
+    document.documentElement.classList.remove('heartos-init-notebook');
+    document.documentElement.classList.remove('heartos-init-feedback');
+  }catch(_){ }
+}
+
+function isFeedbackRouteHash(hash){
+  const raw = String(typeof hash === 'string' ? hash : (window.location.hash || ''));
+  return raw === '#feedback' || raw.indexOf('#feedback/') === 0;
+}
+
+function feedbackRouteHash(id){
+  return id ? ('#feedback/' + encodeURIComponent(String(id))) : '#feedback';
+}
+
+function feedbackIdFromHash(hash){
+  const raw = String(typeof hash === 'string' ? hash : (window.location.hash || ''));
+  if(raw.indexOf('#feedback/') !== 0) return '';
+  const encodedId = raw.slice('#feedback/'.length);
+  if(!encodedId) return '';
+  try{ return decodeURIComponent(encodedId); }catch(_){ return encodedId; }
+}
+
+function notebookRouteHash(id){
+  return '#conversation-' + encodeURIComponent(String(id || ''));
+}
+
+function notebookIdFromHash(hash){
+  const raw = String(typeof hash === 'string' ? hash : (window.location.hash || ''));
+  if(!raw || raw === '#conversations') return '';
+  if(raw.indexOf('#conversation-') !== 0) return '';
+  const encodedId = raw.slice('#conversation-'.length);
+  if(!encodedId) return '';
+  try{ return decodeURIComponent(encodedId); }catch(_){ return encodedId; }
+}
+
+function ensureHistoryReadyFromLocation(){
+  const routeNotebookId = notebookIdFromHash();
+  if(routeNotebookId){
+    history.replaceState({page:'notebook', id:routeNotebookId}, '', notebookRouteHash(routeNotebookId));
+  }else if(isFeedbackRouteHash()){
+    const feedbackId = feedbackIdFromHash();
+    history.replaceState({page:'feedback', id:feedbackId || ''}, '', feedbackRouteHash(feedbackId));
+  }else{
+    history.replaceState({page:'home'}, '', '#conversations');
+  }
+  __heartosHistoryReady = true;
+}
+
+function restoreNotebookRouteFromLocation(){
+  const routeNotebookId = notebookIdFromHash();
+  if(!routeNotebookId) return false;
+  const nbPage = document.getElementById('nbPage');
+  if(curNb && String(curNb.id) === routeNotebookId && nbPage && nbPage.classList.contains('active')){
+    return true;
+  }
+  let matched = notebooks.find(function(item){ return String(item.id) === routeNotebookId; });
+  if(!matched){
+    const cachedDetail = loadNotebookDetailFromLocal(routeNotebookId);
+    if(cachedDetail){
+      notebooks = [cachedDetail].concat((Array.isArray(notebooks) ? notebooks : []).filter(function(item){
+        return String(item && item.id) !== routeNotebookId;
+      }));
+      matched = cachedDetail;
+    }
+  }
+  if(!matched) return false;
+  openNb(routeNotebookId, false);
+  return true;
+}
+
+function restoreFeedbackRouteFromLocation(){
+  if(!isFeedbackRouteHash()) return false;
+  const routeFeedbackId = feedbackIdFromHash();
+  feedbackPageSelectedId = routeFeedbackId || '';
+  feedbackPageDrafting = !routeFeedbackId;
+  openFeedbackPage(false);
+  return true;
 }
 
 function normalizeNotebookItem(it, detailsLoaded){
@@ -1599,12 +1697,28 @@ async function loadNotebooksFromServer(){
   const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
   notebooks = items;
   __nbLoaded = true;
-  document.getElementById('homePage').classList.add('active');
-  document.getElementById('nbPage').classList.remove('active');
   renderHome();
-  if(!__heartosHistoryReady){
+  if(__preferHomeAfterFreshLogin){
+    __preferHomeAfterFreshLogin = false;
+    document.getElementById('homePage').classList.add('active');
+    document.getElementById('nbPage').classList.remove('active');
+    if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
     history.replaceState({page:'home'}, '', '#conversations');
-    __heartosHistoryReady = true;
+    hydrateNotebookDetailsInBackground();
+    return;
+  }
+  if(!__heartosHistoryReady){
+    ensureHistoryReadyFromLocation();
+  }
+  if(isFeedbackRouteHash()){
+    restoreFeedbackRouteFromLocation();
+    hydrateNotebookDetailsInBackground();
+    return;
+  }
+  if(!restoreNotebookRouteFromLocation() && !curNb){
+    document.getElementById('homePage').classList.add('active');
+    document.getElementById('nbPage').classList.remove('active');
+    document.getElementById('feedbackPage').classList.remove('active');
   }
   hydrateNotebookDetailsInBackground();
 }
@@ -1993,6 +2107,7 @@ function scheduleSaveCurrentNotebookSources(immediate, nb){
 function buildNotebookPayload(nb){
   if(!nb) return null;
   nb.updatedAt = Date.now();
+  const serializedSources = serializeNotebookSources(nb.sources);
   const payload = {
     id: String(nb.id),
     title: nb.title || 'New Conversation',
@@ -2018,6 +2133,49 @@ async function persistNotebookPayload(payload){
     body: JSON.stringify(payload)
   });
   if(!resp.ok) throw new Error('保存笔记失败');
+}
+
+async function persistNotebookSourcesPayload(notebookId, items){
+  if(!notebookId) return;
+  const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(String(notebookId)) + '/sources', {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ items: Array.isArray(items) ? items : [] })
+  });
+  if(!resp.ok) throw new Error('保存来源失败');
+}
+
+function enqueueNotebookSourceSave(nb){
+  if(!nb || !nb.id) return Promise.resolve();
+  const notebookId = String(nb.id);
+  const items = serializeNotebookSources(nb.sources);
+  const previous = __nbSourceSaveQueues.get(notebookId) || Promise.resolve();
+  const next = previous.catch(function(){}).then(function(){
+    return persistNotebookSourcesPayload(notebookId, items);
+  });
+  __nbSourceSaveQueues.set(notebookId, next);
+  next.finally(function(){
+    if(__nbSourceSaveQueues.get(notebookId) === next) __nbSourceSaveQueues.delete(notebookId);
+  }).catch(function(){});
+  return next;
+}
+
+async function persistNotebookSources(nb){
+  return enqueueNotebookSourceSave(nb);
+}
+
+function persistNotebookSourcesKeepalive(nb){
+  if(!nb || !nb.id || !getAuthToken()) return;
+  try{
+    const notebookId = String(nb.id);
+    const items = serializeNotebookSources(nb.sources);
+    fetch(apiUrl('/api/notebooks/' + encodeURIComponent(notebookId) + '/sources'), {
+      method:'PUT',
+      headers: authHeaders({'Content-Type':'application/json'}),
+      body: JSON.stringify({ items: items }),
+      keepalive: true
+    }).catch(function(){});
+  }catch(_){ }
 }
 
 function enqueueNotebookSave(nb){
@@ -2142,7 +2300,7 @@ async function openNb(id, autoUpload=false){
   maybeAppendRefreshInterruptionNotice();
   setNotebookOpeningState('');
   if(__heartosHistoryReady && (!history.state || history.state.page !== 'notebook' || history.state.id !== curNb.id)){
-    history.pushState({page:'notebook', id:curNb.id}, '', '#conversation-' + encodeURIComponent(curNb.id));
+    history.pushState({page:'notebook', id:curNb.id}, '', notebookRouteHash(curNb.id));
   }
   if(autoUpload) setTimeout(()=>openUploadModal(), 200);
   if(nextNb._detailsLoaded && !usedLocalDetail){
@@ -2390,6 +2548,11 @@ function applyNotebookToWorkspace(nb){
 }
 
 function openNotebookShell(){
+  try{
+    document.documentElement.classList.remove('heartos-init-home');
+    document.documentElement.classList.remove('heartos-init-feedback');
+    document.documentElement.classList.add('heartos-init-notebook');
+  }catch(_){ }
   document.getElementById('homePage').classList.remove('active');
   document.getElementById('nbPage').classList.add('active');
   var fp = document.getElementById('feedbackPage');
@@ -6762,7 +6925,7 @@ function renameAnalysisFile(id, evt){
   showToast('结果文件名称已更新');
 }
 
-function importAnalysisFileAsSource(id, evt){
+async function importAnalysisFileAsSource(id, evt){
   if(evt) evt.stopPropagation();
   document.querySelectorAll('.result-file-menu.open').forEach(m => m.classList.remove('open'));
   const f = analysisFiles.find(x => x && x.id === id);
@@ -6780,7 +6943,7 @@ function importAnalysisFileAsSource(id, evt){
   try{
     rawFile = new File([String(f.content || '')], f.name || ('analysis.' + ext), {type: f.mime || 'text/plain;charset=utf-8'});
   }catch(_){ }
-  const src = addSrc(f.name || ('analysis.' + ext), ext, String(f.content || ''), null, rawFile);
+  const src = await addSrc(f.name || ('analysis.' + ext), ext, String(f.content || ''), null, rawFile);
   if(src){
     src.__analysisFileId = id;
     src.__fromAnalysisResult = true;
@@ -8644,11 +8807,11 @@ function hideUmoSub(){
   });
   document.getElementById('umoDefault').style.display='';
 }
-function submitText(){
+async function submitText(){
   const text = document.getElementById('textIn').value.trim();
   if(!text) return;
   const name = '粘贴文本_' + (sources.length+1) + '.txt';
-  addSrc(name, 'txt', text, null);
+  await addSrc(name, 'txt', text, null, null, curNb);
   document.getElementById('textIn').value='';
 }
 async function onFileSelect(e){
@@ -8816,6 +8979,7 @@ async function importSourceFiles(fileList){
   const visible = all.filter(f => f && !ignoredImportFile(f));
   const files = visible.filter(supportedImportFile);
   const unsupportedFiles = visible.filter(function(file){ return !supportedImportFile(file); });
+  const targetNotebook = curNb;
   const skipped = all.length - visible.length;
   const unsupported = visible.length - files.length;
   if(!files.length){
@@ -8845,10 +9009,10 @@ async function importSourceFiles(fileList){
       pf.style.width = Math.round((i / files.length) * 100) + '%';
       try{
         const prepared = await prepareImportedSource(file);
-        const source = appendSourceRecord(prepared.name, prepared.type, prepared.content, prepared.imageDataUrl, prepared.rawFile);
+        const source = appendSourceRecord(prepared.name, prepared.type, prepared.content, prepared.imageDataUrl, prepared.rawFile, targetNotebook);
         imported.push(source);
         ps.textContent = '正在保存文件...';
-        if(!(await persistSourceFileIfNeeded(source, prepared.rawFile))) unsynced.push(prepared.name);
+        if(!(await persistSourceFileIfNeeded(source, prepared.rawFile, targetNotebook))) unsynced.push(prepared.name);
       }catch(err){
         failed.push(file.name);
       }
@@ -8857,7 +9021,7 @@ async function importSourceFiles(fileList){
     ps.textContent = '导入完成';
     const hasIssues = showImportIssues(unsupportedFiles, failed, imported.length);
     if(imported.length){
-      finalizeSourceImport(imported);
+      await finalizeSourceImport(imported, targetNotebook);
       if(!hasIssues) closeMo('uploadMo');
     }
     const notes = [];
@@ -8878,8 +9042,9 @@ function readFile(f){
   return importSourceFiles([f]);
 }
 
-async function persistSourceFileIfNeeded(srcObj, rawFile){
+async function persistSourceFileIfNeeded(srcObj, rawFile, nb){
   if(!srcObj || !rawFile || srcObj.fileId || srcObj.serverFileId) return true;
+  const targetNotebook = nb || curNb;
   try{
     const fd = new FormData();
     fd.append('file', rawFile, srcObj.name || rawFile.name || 'source.bin');
@@ -8899,12 +9064,17 @@ async function persistSourceFileIfNeeded(srcObj, rawFile){
   }
 }
 
-function nextSourceId(){
-  return sources.reduce((max, src) => Math.max(max, Number(src && src.id) || 0), 0) + 1;
+function nextSourceId(sourceList){
+  const list = Array.isArray(sourceList) ? sourceList : sources;
+  return list.reduce((max, src) => Math.max(max, Number(src && src.id) || 0), 0) + 1;
 }
 
-function appendSourceRecord(name,type,content,imageDataUrl,rawFile){
-  const id=nextSourceId();
+function appendSourceRecord(name,type,content,imageDataUrl,rawFile,nb){
+  const targetNotebook = nb || curNb;
+  const targetSources = targetNotebook === curNb
+    ? (Array.isArray(sources) ? sources : [])
+    : (Array.isArray(targetNotebook && targetNotebook.sources) ? targetNotebook.sources : []);
+  const id=nextSourceId(targetSources);
   const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null};
   sources.push(srcObj);
   window.sources = sources;
@@ -8912,8 +9082,9 @@ function appendSourceRecord(name,type,content,imageDataUrl,rawFile){
   return srcObj;
 }
 
-function finalizeSourceImport(imported){
+async function finalizeSourceImport(imported, nb){
   if(!Array.isArray(imported) || !imported.length) return;
+  const targetNotebook = nb || curNb;
   const latest = imported[imported.length - 1];
   window.__heartosJustAddedSourceId = latest.id;
   window.__heartosJustImportedSourceIds = imported.map(function(src){ return src.id; });
@@ -8924,14 +9095,17 @@ function finalizeSourceImport(imported){
   renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
 }
 
-function addSrc(name,type,content,imageDataUrl,rawFile){
-  const srcObj = appendSourceRecord(name,type,content,imageDataUrl,rawFile);
-  if(rawFile) persistSourceFileIfNeeded(srcObj, rawFile);
-  finalizeSourceImport([srcObj]);
-  closeMo('uploadMo');
-  document.getElementById('progWrap').style.display='none';
-  document.getElementById('progFill').style.width='0';
-  document.getElementById('umoDefault').style.display='';
+async function addSrc(name,type,content,imageDataUrl,rawFile,nb){
+  const targetNotebook = nb || curNb;
+  const srcObj = appendSourceRecord(name,type,content,imageDataUrl,rawFile,targetNotebook);
+  if(rawFile) await persistSourceFileIfNeeded(srcObj, rawFile, targetNotebook);
+  await finalizeSourceImport([srcObj], targetNotebook);
+  if(targetNotebook === curNb){
+    closeMo('uploadMo');
+    document.getElementById('progWrap').style.display='none';
+    document.getElementById('progFill').style.width='0';
+    document.getElementById('umoDefault').style.display='';
+  }
   return srcObj;
 }
 
@@ -9105,6 +9279,9 @@ function setAuthSession(token, user){
   if(token) localStorage.setItem('heartos_auth_token', token);
   if(user) localStorage.setItem('heartos_auth_user', JSON.stringify(user));
   if(token) __authMeCheckedAt = Date.now();
+  try{
+    document.documentElement.classList.toggle('heartos-has-session', !!token);
+  }catch(_){}
   updateUserAvatarUI();
 }
 
@@ -9112,6 +9289,7 @@ function clearAuthSession(){
   localStorage.removeItem('heartos_auth_token');
   localStorage.removeItem('heartos_auth_user');
   __authMeCheckedAt = 0;
+  try{ document.documentElement.classList.remove('heartos-has-session'); }catch(_){}
   updateUserAvatarUI();
 }
 
@@ -9148,7 +9326,7 @@ function ensureSystemModal(id, title, sub, bodyHtml, narrow){
     modal = document.createElement('div');
     modal.id = id;
     modal.className = 'system-modal';
-    modal.addEventListener('click', function(){ modal.classList.remove('open'); });
+    modal.addEventListener('click', function(){ closeSystemModal(modal.id); });
     document.body.appendChild(modal);
   }
   modal.innerHTML = '<div class="system-dialog' + (narrow ? ' narrow' : '') + '" role="dialog" aria-modal="true" onclick="event.stopPropagation()">'
@@ -9161,6 +9339,7 @@ function ensureSystemModal(id, title, sub, bodyHtml, narrow){
 function closeSystemModal(id){
   var modal = document.getElementById(id);
   if(modal) modal.classList.remove('open');
+  if(id === 'adminFeedbackModal' || id === 'feedbackCenterModal') cleanupAdminFeedbackPreviewUrls();
 }
 
 function openSystemModal(id){
@@ -9194,7 +9373,7 @@ function renderFeedbackImageList(){
   }
   host.innerHTML = feedbackAttachments.map(function(item){
     return '<div class="feedback-image-card">'
-      + '<img src="' + escapeHtml(item.previewUrl) + '" alt="' + escapeHtml(item.file.name || '反馈图片') + '">'
+      + '<img class="clickable" src="' + escapeHtml(item.previewUrl) + '" alt="' + escapeHtml(item.file.name || '反馈图片') + '" onclick="openChatImageZoom(\'' + escapeHtml(item.previewUrl) + '\')">'
       + '<button class="feedback-image-remove" type="button" onclick="removeFeedbackImage(\'' + escapeHtml(item.id) + '\')" title="移除">×</button>'
       + '<div class="feedback-image-card-info"><div class="feedback-image-card-name">' + escapeHtml(item.file.name || '未命名图片') + '</div>'
       + '<div class="feedback-image-card-size">' + escapeHtml(formatFeedbackFileSize(item.file.size)) + '</div></div></div>';
@@ -9737,12 +9916,14 @@ let authRegisterStep = 1;
 const AUTH_ME_TTL_MS = 120000;
 const AUTH_USER_TYPE_OPTIONS = ['医生','技师','科研人员','学生','企业用户','其他'];
 const AUTH_USE_CASE_OPTIONS = ['临床辅助','科研分析','教学演示','产品测试','学习体验','其他'];
+let __preferHomeAfterFreshLogin = false;
 
 function setAppAuthed(authed){
   var hp = document.getElementById('homePage');
   var np = document.getElementById('nbPage');
   var fp = document.getElementById('feedbackPage');
   var gate = document.getElementById('authGate');
+  if(!authed) clearBootDisplayHints();
   if(hp) hp.style.display = authed ? '' : 'none';
   if(np) np.style.display = authed ? '' : 'none';
   if(fp) fp.style.display = authed ? '' : 'none';
@@ -10148,8 +10329,13 @@ async function submitAuthLogin(){
       email: out.email,
       is_admin: !!out.is_admin
     });
+    __preferHomeAfterFreshLogin = true;
     updateUserAvatarUI();
     setAppAuthed(true);
+    document.getElementById('homePage')?.classList.add('active');
+    document.getElementById('nbPage')?.classList.remove('active');
+    if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
+    history.replaceState({page:'home'}, '', '#conversations');
     setAuthMsg('');
     setAuthSubmitting(false);
     hydrateNotebookSummariesFromLocal();
@@ -10366,7 +10552,14 @@ async function ensureLogin(){
         __authMeCheckedAt = Date.now();
         return true;
       }
-    }catch(_){ }
+      if(r.status === 401){
+        clearAuthSession();
+        return await doLoginFlow(true);
+      }
+      if(getAuthUser()) return true;
+    }catch(_){
+      if(getAuthUser()) return true;
+    }
     clearAuthSession();
     return await doLoginFlow(true);
   })();
@@ -10377,10 +10570,39 @@ async function ensureLogin(){
   }
 }
 
+async function refreshCurrentUserProfile(){
+  var token = getAuthToken();
+  if(!token) return getAuthUser();
+  try{
+    var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
+    if(!r.ok) return getAuthUser();
+    var me = await r.json().catch(function(){ return null; });
+    if(!me) return getAuthUser();
+    setAuthSession(token, {
+      user_id: me.user_id,
+      username: me.username,
+      phone: me.phone,
+      display_name: me.display_name,
+      name: me.name,
+      organization: me.organization,
+      department: me.department,
+      title: me.title,
+      user_type: me.user_type,
+      use_case: me.use_case,
+      email: me.email,
+      is_admin: !!me.is_admin
+    });
+    __authMeCheckedAt = Date.now();
+    return getAuthUser();
+  }catch(_){
+    return getAuthUser();
+  }
+}
+
 function buildAccountProfileHtml(user){
   var u = user || {};
   return '<form class="account-shell" onsubmit="submitAccountProfile(event)">'
-    + '<div class="account-hero"><div class="account-hero-copy"><div class="account-eyebrow">Account Center</div><div class="account-name">' + escapeHtml(u.display_name || u.name || u.phone || 'HeartOS 用户') + '</div><div class="account-meta">手机号 ' + escapeHtml(u.phone || '') + ' · ' + escapeHtml(u.organization || '未填写工作单位') + '<br>在这里维护账号资料、密码和使用画像。</div></div><div class="account-hero-actions"><button class="account-chip-btn" type="button" onclick="openChangePasswordModal()">修改密码</button>' + (u.is_admin ? '<button class="account-chip-btn" type="button" onclick="openAdminUsersModal()">用户列表</button>' : '') + '<button class="account-chip-btn danger" type="button" onclick="logoutCurrentUser()">退出登录</button></div></div>'
+    + '<div class="account-hero"><div class="account-hero-copy"><div class="account-eyebrow">Account Center</div><div class="account-name">' + escapeHtml(u.display_name || u.name || u.phone || 'HeartOS 用户') + '</div><div class="account-meta">手机号 ' + escapeHtml(u.phone || '') + ' · ' + escapeHtml(u.organization || '未填写工作单位') + '<br>在这里维护账号资料、密码和管理员视图。</div></div><div class="account-hero-actions"><button class="account-chip-btn" type="button" onclick="openChangePasswordModal()">修改密码</button>' + (u.is_admin ? '<button class="account-chip-btn" type="button" onclick="openAdminUsersModal()">用户列表</button><button class="account-chip-btn" type="button" onclick="openAdminFeedbackModal()">反馈管理</button>' : '') + '<button class="account-chip-btn danger" type="button" onclick="logoutCurrentUser()">退出登录</button></div></div>'
     + '<div class="account-grid">'
     + '<div class="account-card"><div class="account-card-title">基础身份</div><div class="account-field"><label for="profileName">姓名</label><input id="profileName" value="' + escapeHtml(u.name || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileDisplayName">显示名称</label><input id="profileDisplayName" value="' + escapeHtml(u.display_name || u.name || '') + '"></div></div>'
     + '<div class="account-card"><div class="account-card-title">机构信息</div><div class="account-field"><label for="profileOrganization">工作单位</label><input id="profileOrganization" value="' + escapeHtml(u.organization || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileEmail">邮箱</label><input id="profileEmail" value="' + escapeHtml(u.email || '') + '"></div></div>'
@@ -10479,6 +10701,7 @@ async function submitChangePassword(evt){
 
 async function openAdminUsersModal(){
   try{
+    closeSystemModal('accountModal');
     var resp = await apiFetch('/api/admin/users', { method:'GET' });
     var out = await resp.json().catch(function(){ return {}; });
     if(!resp.ok) throw new Error(out.detail || '读取失败');
@@ -10497,7 +10720,152 @@ async function openAdminUsersModal(){
   }
 }
 
+function feedbackStatusMeta(status){
+  var key = String(status || 'new').toLowerCase();
+  if(key === 'processing') return { key:key, label:'处理中' };
+  if(key === 'resolved') return { key:key, label:'已解决' };
+  return { key:'new', label:'待处理' };
+}
+
+function formatFeedbackCreatedAt(ts){
+  var num = Number(ts || 0);
+  if(!num) return '未知时间';
+  try{ return new Date(num).toLocaleString(); }catch(_){ return '未知时间'; }
+}
+
+function cleanupAdminFeedbackPreviewUrls(){
+  feedbackAttachmentPreviewUrls.forEach(function(url){
+    if(url){
+      try{ URL.revokeObjectURL(url); }catch(_){}
+    }
+  });
+  feedbackAttachmentPreviewUrls.clear();
+}
+
+function adminFeedbackPreviewKey(feedbackId, attachmentId){
+  return String(feedbackId || '') + ':' + String(attachmentId || '');
+}
+
+async function ensureFeedbackAttachmentPreview(feedbackId, attachment){
+  if(!attachment || !attachment.fileUrl) return '';
+  var key = adminFeedbackPreviewKey(feedbackId, attachment.id || attachment.name || '');
+  if(feedbackAttachmentPreviewUrls.has(key)) return feedbackAttachmentPreviewUrls.get(key) || '';
+  try{
+    var resp = await fetch(String(attachment.fileUrl), { headers: authHeaders() });
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    var blob = await resp.blob();
+    var objectUrl = URL.createObjectURL(blob);
+    feedbackAttachmentPreviewUrls.set(key, objectUrl);
+    return objectUrl;
+  }catch(_){
+    feedbackAttachmentPreviewUrls.set(key, '');
+    return '';
+  }
+}
+
+function buildAdminFeedbackHtml(items){
+  var rows = Array.isArray(items) ? items : [];
+  if(!rows.length){
+    return '<div class="feedback-note">当前还没有收到反馈。</div>';
+  }
+  var newCount = rows.filter(function(item){ return String(item.status || 'new') === 'new'; }).length;
+  var processingCount = rows.filter(function(item){ return String(item.status || '') === 'processing'; }).length;
+  var resolvedCount = rows.filter(function(item){ return String(item.status || '') === 'resolved'; }).length;
+  return '<div class="feedback-admin-toolbar"><div class="feedback-admin-summary">共 ' + rows.length + ' 条反馈，待处理 ' + newCount + ' 条，处理中 ' + processingCount + ' 条，已解决 ' + resolvedCount + ' 条。</div><button class="account-chip-btn" type="button" onclick="openAdminFeedbackModal()">刷新列表</button></div>'
+    + '<div class="feedback-admin-list">'
+    + rows.map(function(item){
+      var meta = feedbackStatusMeta(item.status);
+      var attachments = Array.isArray(item.attachments) ? item.attachments : [];
+      return '<div class="feedback-admin-item" id="adminFeedbackItem-' + escapeHtml(item.id) + '">'
+        + '<div class="feedback-admin-head"><div><div class="feedback-admin-user">' + escapeHtml((item.user && (item.user.display_name || item.user.username)) || '匿名用户') + '</div><div class="feedback-admin-meta">提交时间 ' + escapeHtml(formatFeedbackCreatedAt(item.createdAt)) + ' · 页面 ' + escapeHtml((item.context && item.context.page) || '-') + ' · 会话 ' + escapeHtml((item.context && item.context.notebookId) || '-') + '</div></div>'
+        + '<div class="feedback-admin-status-wrap"><span class="feedback-admin-status-badge is-' + escapeHtml(meta.key) + '" id="adminFeedbackBadge-' + escapeHtml(item.id) + '">' + escapeHtml(meta.label) + '</span>'
+        + '<select class="feedback-admin-select" onchange="updateAdminFeedbackStatus(\'' + escapeHtml(item.id) + '\', this)"><option value="new"' + (meta.key === 'new' ? ' selected' : '') + '>待处理</option><option value="processing"' + (meta.key === 'processing' ? ' selected' : '') + '>处理中</option><option value="resolved"' + (meta.key === 'resolved' ? ' selected' : '') + '>已解决</option></select></div></div>'
+        + '<div class="feedback-admin-message">' + escapeHtml(item.message || '用户未填写文字，仅提交了图片附件。') + '</div>'
+        + '<div class="feedback-admin-context"><div class="feedback-admin-context-item"><label>来源数</label><strong>' + escapeHtml(String((item.context && item.context.sourceCount) || 0)) + '</strong></div><div class="feedback-admin-context-item"><label>消息数</label><strong>' + escapeHtml(String((item.context && item.context.messageCount) || 0)) + '</strong></div><div class="feedback-admin-context-item"><label>账号</label><strong>' + escapeHtml((item.user && item.user.username) || '-') + '</strong></div><div class="feedback-admin-context-item"><label>附件数</label><strong>' + escapeHtml(String(attachments.length)) + '</strong></div></div>'
+        + (attachments.length ? '<div class="feedback-admin-attachments"><div class="feedback-admin-attachments-title">附件</div><div class="feedback-admin-attachment-list">'
+          + attachments.map(function(att, idx){
+            var isImage = /^image\//i.test(String(att.contentType || ''));
+            var previewId = 'feedbackAttachmentPreview-' + escapeHtml(item.id + '-' + idx);
+            return '<div class="feedback-admin-attachment"><div class="feedback-admin-attachment-preview" id="' + previewId + '">' + (isImage ? '加载图片预览中…' : '非图片附件') + '</div><div class="feedback-admin-attachment-meta"><div class="feedback-admin-attachment-name">' + escapeHtml(att.name || '附件') + '</div><div class="feedback-admin-attachment-size">' + escapeHtml(formatFeedbackFileSize(att.size)) + '</div></div></div>';
+          }).join('')
+          + '</div></div>' : '')
+        + '</div>';
+    }).join('')
+    + '</div>';
+}
+
+async function hydrateAdminFeedbackPreviews(){
+  var rows = Array.isArray(adminFeedbackRecords) ? adminFeedbackRecords : [];
+  for(var i=0;i<rows.length;i++){
+    var item = rows[i];
+    var attachments = Array.isArray(item && item.attachments) ? item.attachments : [];
+    for(var j=0;j<attachments.length;j++){
+      var att = attachments[j];
+      if(!/^image\//i.test(String(att && att.contentType || ''))) continue;
+      var host = document.getElementById('feedbackAttachmentPreview-' + item.id + '-' + j);
+      if(!host) continue;
+      host.textContent = '加载图片预览中…';
+      var previewUrl = await ensureFeedbackAttachmentPreview(item.id, att);
+      if(previewUrl){
+        host.innerHTML = '<img src="' + escapeHtml(previewUrl) + '" alt="' + escapeHtml(att.name || '反馈附件') + '" onclick="openChatImageZoom(\'' + escapeHtml(previewUrl) + '\')">';
+      }else{
+        host.textContent = '图片预览失败';
+      }
+    }
+  }
+}
+
+async function openAdminFeedbackModal(){
+  try{
+    closeSystemModal('accountModal');
+    cleanupAdminFeedbackPreviewUrls();
+    var resp = await apiFetch('/api/admin/feedback', { method:'GET' });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '读取失败');
+    adminFeedbackRecords = Array.isArray(out.items) ? out.items : [];
+    ensureSystemModal('adminFeedbackModal', '反馈管理', '管理员可查看反馈文本、附件、提交时间与处理状态。', buildAdminFeedbackHtml(adminFeedbackRecords), false);
+    openSystemModal('adminFeedbackModal');
+    hydrateAdminFeedbackPreviews().catch(function(){});
+  }catch(e){
+    showToast('读取反馈列表失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }
+}
+
+async function updateAdminFeedbackStatus(feedbackId, selectEl){
+  var nextStatus = String(selectEl && selectEl.value || 'new');
+  try{
+    var resp = await apiFetch('/api/admin/feedback/' + encodeURIComponent(String(feedbackId)) + '/status', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: nextStatus })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '更新失败');
+    adminFeedbackRecords = adminFeedbackRecords.map(function(item){
+      if(item && String(item.id) === String(feedbackId)) item.status = out.status || nextStatus;
+      return item;
+    });
+    myFeedbackRecords = myFeedbackRecords.map(function(item){
+      if(item && String(item.id) === String(feedbackId)) item.status = out.status || nextStatus;
+      return item;
+    });
+    var meta = feedbackStatusMeta(out.status || nextStatus);
+    var badge = document.getElementById('adminFeedbackBadge-' + feedbackId);
+    if(badge){
+      badge.className = 'feedback-admin-status-badge is-' + meta.key;
+      badge.textContent = meta.label;
+    }
+    if(document.getElementById('feedbackPage') && document.getElementById('feedbackPage').classList.contains('active')){
+      renderFeedbackPage();
+    }
+    showToast('反馈状态已更新');
+  }catch(e){
+    showToast('更新反馈状态失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }
+}
+
 function logoutCurrentUser(){
+  cleanupAdminFeedbackPreviewUrls();
   clearAuthSession();
   closeSystemModal('accountModal');
   setAuthModeAndShow('login');
@@ -10834,14 +11202,18 @@ async function loadAuthedAppData(){
       await restoreLastOpenedNotebook().catch(function(){});
     }
   }catch(e){
-    notebooks = [];
-    __nbLoaded = true;
-    document.getElementById('homePage').classList.add('active');
-    document.getElementById('nbPage').classList.remove('active');
-    renderHome();
+    const hasLocalNotebookData = Array.isArray(notebooks) && notebooks.length > 0;
+    if(!hasLocalNotebookData){
+      notebooks = [];
+      __nbLoaded = true;
+      document.getElementById('homePage').classList.add('active');
+      document.getElementById('nbPage').classList.remove('active');
+      renderHome();
+    }else{
+      refreshHomeIfVisible();
+    }
     if(!__heartosHistoryReady){
-      history.replaceState({page:'home'}, '', '#conversations');
-      __heartosHistoryReady = true;
+      ensureHistoryReadyFromLocation();
     }
     console.warn('[heartos-auth] notebook load failed', e && e.message ? e.message : e);
     showToast('对话历史加载失败，可刷新后重试');
@@ -10849,11 +11221,21 @@ async function loadAuthedAppData(){
 }
 
 async function initAuthBoot(){
-  setAppAuthed(false);
+  var hasLocalSession = !!getAuthToken();
+  setAppAuthed(hasLocalSession);
   try{
+    if(hasLocalSession){
+      setAuthMsg('');
+      if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
+      hydrateNotebookSummariesFromLocal();
+      if(isFeedbackRouteHash()) restoreFeedbackRouteFromLocation();
+      else restoreNotebookRouteFromLocation();
+      updateUserAvatarUI();
+    }
     await ensureLogin();
     setAppAuthed(true);
     setAuthMsg('');
+    if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
     hydrateNotebookSummariesFromLocal();
     showHomeLanding(false);
     restoreLastOpenedNotebook().catch(function(){});
