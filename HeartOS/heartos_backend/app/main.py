@@ -268,6 +268,7 @@ NOTEBOOK_TOMBSTONES_PATH = (Path(settings.users_file).resolve().parent / "notebo
 FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
 FEEDBACK_MAX_IMAGES = 4
 FEEDBACK_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}
+FEEDBACK_STATUS_VALUES = {"new", "processing", "resolved"}
 
 
 def _load_file_meta() -> dict[str, Any]:
@@ -298,6 +299,110 @@ def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
     temp_path = path.with_suffix(path.suffix + ".tmp")
     temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     temp_path.replace(path)
+
+
+def _normalize_feedback_status(raw: Any) -> str:
+    value = str(raw or "").strip().lower()
+    return value if value in FEEDBACK_STATUS_VALUES else "new"
+
+
+def _feedback_actor(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raw = {}
+    return {
+        "id": str(raw.get("id") or ""),
+        "username": str(raw.get("username") or ""),
+        "display_name": str(raw.get("display_name") or ""),
+        "is_admin": bool(raw.get("is_admin")),
+    }
+
+
+def _feedback_attachment_items(raw: Any) -> list[dict[str, Any]]:
+    safe_attachments: list[dict[str, Any]] = []
+    if not isinstance(raw, list):
+        return safe_attachments
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        safe_attachments.append(
+            {
+                "id": str(item.get("id") or ""),
+                "name": str(item.get("name") or item.get("id") or "附件"),
+                "url": str(item.get("url") or item.get("fileUrl") or ""),
+                "fileUrl": str(item.get("fileUrl") or item.get("url") or ""),
+                "contentType": str(item.get("contentType") or ""),
+                "size": int(item.get("size") or 0),
+            }
+        )
+    return safe_attachments
+
+
+def _feedback_message_item(raw: Any, *, fallback_user: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    actor = _feedback_actor(raw.get("user") if isinstance(raw.get("user"), dict) else fallback_user)
+    sender_role = str(raw.get("senderRole") or "").strip().lower()
+    if sender_role not in {"user", "admin"}:
+        sender_role = "admin" if actor.get("is_admin") else "user"
+    return {
+        "id": str(raw.get("id") or ""),
+        "createdAt": int(raw.get("createdAt") or 0),
+        "message": str(raw.get("message") or ""),
+        "senderRole": sender_role,
+        "attachments": _feedback_attachment_items(raw.get("attachments")),
+        "user": actor,
+    }
+
+
+def _feedback_thread_messages(raw: dict[str, Any], actor: dict[str, Any]) -> list[dict[str, Any]]:
+    thread: list[dict[str, Any]] = []
+    root_message = {
+        "id": "root-" + str(raw.get("id") or uuid.uuid4().hex),
+        "createdAt": int(raw.get("createdAt") or 0),
+        "message": str(raw.get("message") or ""),
+        "senderRole": "user",
+        "attachments": _feedback_attachment_items(raw.get("attachments")),
+        "user": actor,
+    }
+    if root_message["message"] or root_message["attachments"]:
+        thread.append(root_message)
+    extra_messages = raw.get("messages")
+    if isinstance(extra_messages, list):
+        for item in extra_messages:
+            normalized = _feedback_message_item(item, fallback_user=actor)
+            if normalized:
+                thread.append(normalized)
+    return thread
+
+
+def _feedback_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    actor = _feedback_actor(raw.get("user") if isinstance(raw.get("user"), dict) else {})
+    context = raw.get("context") if isinstance(raw.get("context"), dict) else {}
+    return {
+        "id": str(raw.get("id") or ""),
+        "createdAt": int(raw.get("createdAt") or 0),
+        "updatedAt": int(raw.get("updatedAt") or raw.get("createdAt") or 0),
+        "message": str(raw.get("message") or ""),
+        "status": _normalize_feedback_status(raw.get("status")),
+        "attachments": _feedback_attachment_items(raw.get("attachments")),
+        "user": actor,
+        "context": {
+            "page": str(context.get("page") or ""),
+            "notebookId": str(context.get("notebookId") or ""),
+            "sourceCount": int(context.get("sourceCount") or 0),
+            "messageCount": int(context.get("messageCount") or 0),
+        },
+        "messages": _feedback_thread_messages(raw, actor),
+    }
+
+
+def _find_feedback_record(items: list[Any], feedback_id: str) -> dict[str, Any] | None:
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id") or "") == str(feedback_id):
+            return item
+    return None
 
 
 def _normalize_source_item(raw: Any) -> dict[str, Any] | None:
@@ -374,6 +479,54 @@ def _delete_conversation_sources(uid: str, notebook_id: str) -> None:
         del bucket[str(notebook_id)]
         db[uid] = bucket
         _save_notebook_sources_db(db)
+
+
+def _source_file_ids(items: list[dict[str, Any]] | None) -> list[str]:
+    out: list[str] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        file_id = str(item.get("fileId") or item.get("serverFileId") or "").strip()
+        if file_id:
+            out.append(file_id)
+    return out
+
+
+def _count_user_source_file_refs(uid: str, file_id: str, *, exclude_notebook_id: str = "") -> int:
+    file_id = str(file_id or "").strip()
+    if not file_id:
+        return 0
+    bucket = _get_user_notebook_sources(uid)
+    refs = 0
+    for notebook_id, items in bucket.items():
+        if exclude_notebook_id and str(notebook_id) == str(exclude_notebook_id):
+            continue
+        if not isinstance(items, list):
+            continue
+        refs += sum(1 for candidate in _source_file_ids(items) if candidate == file_id)
+    return refs
+
+
+def _delete_uploaded_file_record(file_id: str, *, expected_user_id: str = "") -> bool:
+    safe_id = str(file_id or "").strip()
+    if not safe_id:
+        return False
+    path = (UPLOAD_DIR / safe_id).resolve()
+    if not str(path).startswith(str(UPLOAD_DIR)):
+        return False
+    meta = _load_file_meta()
+    record = meta.get(safe_id)
+    if expected_user_id and record and str(record.get("user_id") or "") != str(expected_user_id):
+        return False
+    try:
+        if path.exists() and path.is_file():
+            path.unlink()
+    except Exception:
+        return False
+    if safe_id in meta:
+        del meta[safe_id]
+        _save_file_meta(meta)
+    return True
 
 
 def _load_notebook_tombstones_db() -> dict[str, Any]:
@@ -2122,10 +2275,12 @@ async def auth_register_verify(req: RegisterVerifyRequest) -> dict[str, Any]:
 
 @app.post("/api/auth/register", response_model=LoginResponse)
 async def register(req: RegisterRequest) -> LoginResponse:
-    try:
-        upstream_user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
-    except UpstreamAuthError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
+    upstream_user: dict[str, Any] | None = None
+    if (settings.auth_mode or "").lower() == "upstream":
+        try:
+            upstream_user = await asyncio.to_thread(upstream_register, req.phone, req.password, req.display_name or req.name)
+        except UpstreamAuthError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message)
     try:
         user = register_user(
             phone=req.phone,
@@ -2145,7 +2300,7 @@ async def register(req: RegisterRequest) -> LoginResponse:
             user = await asyncio.to_thread(
                 sync_local_user,
                 {
-                    **upstream_user,
+                    **(upstream_user or {}),
                     "phone": req.phone,
                     "display_name": req.display_name or req.name,
                     "name": req.name,
@@ -2265,6 +2420,40 @@ async def admin_users(user: dict[str, Any] = Depends(get_current_user)) -> UserA
     return UserAdminListResponse(items=list_users_for_admin())
 
 
+@app.get("/api/admin/feedback")
+async def admin_feedback_list(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if not bool(user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="仅管理员可查看反馈")
+    db = _load_json_file(FEEDBACK_PATH)
+    items = db.get("items", [])
+    if not isinstance(items, list):
+        items = []
+    normalized = [item for item in (_feedback_item(raw) for raw in items) if item]
+    return {"items": normalized}
+
+
+@app.post("/api/admin/feedback/{feedback_id}/status")
+async def admin_feedback_status_update(
+    feedback_id: str,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if not bool(user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="仅管理员可更新反馈状态")
+    status = _normalize_feedback_status((payload or {}).get("status"))
+    db = _load_json_file(FEEDBACK_PATH)
+    items = db.get("items", [])
+    if not isinstance(items, list):
+        items = []
+    item = _find_feedback_record(items, feedback_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="feedback not found")
+    item["status"] = status
+    item["updatedAt"] = int(time.time() * 1000)
+    _save_json_file(FEEDBACK_PATH, db)
+    return {"ok": True, "id": str(feedback_id), "status": status}
+
+
 @app.get("/api/user/ai-config")
 async def get_ai_config(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
@@ -2302,6 +2491,25 @@ async def save_ai_config(payload: dict[str, Any], user: dict[str, Any] = Depends
     db[uid][provider] = {"api_key": api_key}
     _save_json_file(AI_CONFIG_PATH, db)
     return {"ok": True, "provider": provider, "has_key": True}
+
+
+@app.get("/api/feedback")
+async def list_my_feedback(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    db = _load_json_file(FEEDBACK_PATH)
+    items = db.get("items", [])
+    if not isinstance(items, list):
+        items = []
+    normalized = []
+    for raw in items:
+        item = _feedback_item(raw)
+        if not item:
+            continue
+        owner = raw.get("user") if isinstance(raw, dict) and isinstance(raw.get("user"), dict) else {}
+        if str(owner.get("id") or "") != uid:
+            continue
+        normalized.append(item)
+    return {"items": normalized}
 
 
 @app.post("/api/feedback")
@@ -2362,6 +2570,7 @@ async def submit_feedback(
     record = {
         "id": uuid.uuid4().hex,
         "createdAt": int(time.time() * 1000),
+        "updatedAt": int(time.time() * 1000),
         "message": message,
         "context": context,
         "attachments": attachments,
@@ -2370,12 +2579,97 @@ async def submit_feedback(
             "id": str(user.get("id") or ""),
             "username": str(user.get("username") or ""),
             "display_name": str(user.get("display_name") or ""),
+            "is_admin": bool(user.get("is_admin")),
         },
+        "messages": [],
     }
     items.insert(0, record)
     db["items"] = items[:1000]
     _save_json_file(FEEDBACK_PATH, db)
     return {"ok": True, "id": record["id"], "attachments": attachments}
+
+
+@app.post("/api/feedback/{feedback_id}/messages")
+async def append_feedback_message(
+    feedback_id: str,
+    request: Request,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    message = ""
+    attachments: list[dict[str, Any]] = []
+    content_type = str(request.headers.get("content-type") or "").lower()
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        message = str(form.get("message") or "").strip()
+        raw_files = [item for item in form.getlist("images") if hasattr(item, "filename") and hasattr(item, "read")]
+        if len(raw_files) > FEEDBACK_MAX_IMAGES:
+            raise HTTPException(status_code=422, detail=f"反馈图片最多上传 {FEEDBACK_MAX_IMAGES} 张")
+        for file in raw_files:
+            filename = str(file.filename or "").strip()
+            if not filename:
+                continue
+            image_type = str(file.content_type or "").strip().lower()
+            if image_type and image_type not in FEEDBACK_ALLOWED_IMAGE_TYPES:
+                raise HTTPException(status_code=422, detail="反馈图片仅支持 PNG、JPG、WebP、GIF、BMP")
+            content = await file.read()
+            if not content:
+                continue
+            if len(content) > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail=f"反馈图片过大，单张最大 {settings.max_upload_mb}MB")
+            attachments.append(
+                _store_upload_bytes(
+                    content=content,
+                    filename=filename,
+                    content_type=image_type or "application/octet-stream",
+                    source="feedback_reply",
+                    user=user,
+                )
+            )
+    else:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=422, detail="反馈留言格式不正确")
+        message = str(payload.get("message") or "").strip()
+
+    if not message and not attachments:
+        raise HTTPException(status_code=422, detail="请填写留言内容，或上传图片附件")
+
+    db = _load_json_file(FEEDBACK_PATH)
+    items = db.get("items", [])
+    if not isinstance(items, list):
+        items = []
+    record = _find_feedback_record(items, feedback_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="feedback not found")
+    owner = record.get("user") if isinstance(record.get("user"), dict) else {}
+    is_admin = bool(user.get("is_admin"))
+    if not is_admin and str(owner.get("id") or "") != str(user.get("id") or ""):
+        raise HTTPException(status_code=403, detail="你无权回复这条反馈")
+
+    messages = record.get("messages")
+    if not isinstance(messages, list):
+        messages = []
+    messages.append(
+        {
+            "id": uuid.uuid4().hex,
+            "createdAt": int(time.time() * 1000),
+            "message": message,
+            "senderRole": "admin" if is_admin else "user",
+            "attachments": attachments,
+            "user": {
+                "id": str(user.get("id") or ""),
+                "username": str(user.get("username") or ""),
+                "display_name": str(user.get("display_name") or ""),
+                "is_admin": is_admin,
+            },
+        }
+    )
+    record["messages"] = messages
+    record["updatedAt"] = int(time.time() * 1000)
+    if is_admin and str(record.get("status") or "new") == "new":
+        record["status"] = "processing"
+    _save_json_file(FEEDBACK_PATH, db)
+    return {"ok": True, "item": _feedback_item(record)}
 
 
 def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
@@ -2500,6 +2794,8 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
 @app.delete("/api/notebooks/{notebook_id}")
 async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    linked_sources = _get_conversation_sources(uid, notebook_id)
+    file_ids = sorted(set(_source_file_ids(linked_sources)))
     db = _load_json_file(NOTEBOOKS_PATH)
     items = db.get(uid, [])
     if not isinstance(items, list):
@@ -2510,7 +2806,17 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
     _save_json_file(NOTEBOOKS_PATH, db)
     _delete_conversation_sources(uid, notebook_id)
     _set_notebook_tombstone(uid, notebook_id, int(time.time() * 1000))
-    return {"ok": True, "deleted": before - len(items)}
+    deleted_files = 0
+    kept_files: list[str] = []
+    for file_id in file_ids:
+        if _count_user_source_file_refs(uid, file_id, exclude_notebook_id=str(notebook_id)) > 0:
+            kept_files.append(file_id)
+            continue
+        if _delete_uploaded_file_record(file_id, expected_user_id=uid):
+            deleted_files += 1
+        else:
+            kept_files.append(file_id)
+    return {"ok": True, "deleted": before - len(items), "deleted_file_count": deleted_files, "kept_file_ids": kept_files}
 
 
 @app.get("/api/notebooks/{notebook_id}/sources")
@@ -3249,7 +3555,7 @@ async def get_file(file_id: str, user: dict[str, Any] = Depends(get_current_user
         raise HTTPException(status_code=404, detail="file not found")
 
     meta = _load_file_meta().get(file_id)
-    if meta and meta.get("user_id") != user.get("id"):
+    if meta and meta.get("user_id") != user.get("id") and not bool(user.get("is_admin")):
         raise HTTPException(status_code=403, detail="forbidden")
 
     return FileResponse(path=str(p), filename=p.name)

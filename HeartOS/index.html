@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NoteAI</title>
-<script src="./deploy-config.server.example.js"></script>
-<!-- <script src="./deploy-config.local.example.js"></script> -->
+<script src="./deploy-config.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -862,6 +861,68 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .feedback-image-card{border-color:#dde6f4;border-radius:16px;box-shadow:0 10px 24px rgba(15,23,42,.05);}
 .feedback-image-card img{height:104px;}
 .feedback-image-card-info{padding:10px 12px 12px;}
+.feedback-page-shell{flex:1;min-height:0;display:grid;grid-template-columns:320px minmax(0,1fr);background:#f8fafc;}
+.feedback-page-sidebar{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--border);background:#fff;}
+.feedback-page-sidehead{padding:22px 20px 18px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:14px;}
+.feedback-page-title{font-size:24px;font-weight:800;color:#0f172a;letter-spacing:-.04em;}
+.feedback-page-sub{font-size:13px;color:#64748b;line-height:1.7;}
+.feedback-page-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.feedback-page-mode{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.feedback-page-chip{height:34px;padding:0 13px;border-radius:999px;border:1px solid #d8e1ef;background:#fff;color:#475569;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+.feedback-page-chip.active{background:#eef4ff;border-color:#bfd3ff;color:#2856c2;}
+.feedback-page-list{flex:1;overflow:auto;padding:14px;}
+.feedback-page-item{padding:14px 14px 13px;border:1px solid #dde6f4;border-radius:16px;background:#fff;box-shadow:var(--sh0);cursor:pointer;transition:all .15s;}
+.feedback-page-item + .feedback-page-item{margin-top:10px;}
+.feedback-page-item:hover{transform:translateY(-1px);box-shadow:var(--sh1);}
+.feedback-page-item.active{border-color:#9ab7ff;box-shadow:0 0 0 3px rgba(47,99,217,.10);}
+.feedback-page-item-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.feedback-page-item-title{font-size:14px;font-weight:800;color:#132238;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.feedback-page-item-meta{margin-top:8px;font-size:12px;color:#7b879a;line-height:1.6;}
+.feedback-page-item-preview{margin-top:10px;font-size:12px;color:#5b677b;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.feedback-page-main{display:flex;flex-direction:column;min-height:0;}
+.feedback-page-mainhead{padding:18px 24px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.feedback-page-mainbody{flex:1;min-height:0;overflow:auto;padding:24px;}
+.feedback-ticket-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start;}
+.feedback-ticket-card{border:1px solid #dde6f4;border-radius:22px;background:#fff;box-shadow:var(--sh0);}
+.feedback-ticket-section{padding:20px 22px;}
+.feedback-ticket-section + .feedback-ticket-section{border-top:1px solid #edf2f7;}
+.feedback-ticket-label{font-size:12px;font-weight:800;color:#7c8aa5;text-transform:uppercase;letter-spacing:.08em;}
+.feedback-ticket-heading{margin-top:8px;font-size:26px;font-weight:800;color:#0f172a;line-height:1.25;letter-spacing:-.04em;}
+.feedback-ticket-submeta{margin-top:8px;font-size:13px;color:#64748b;line-height:1.7;}
+.feedback-ticket-thread{display:flex;flex-direction:column;gap:12px;}
+.feedback-ticket-thread-item{padding:14px 16px;border-radius:16px;background:#fff;border:1px solid #e4ebf5;}
+.feedback-ticket-thread-item.is-admin{border-color:#c7d8ff;background:#f6f9ff;}
+.feedback-ticket-thread-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.feedback-ticket-thread-role{font-size:13px;font-weight:800;color:#1e3a8a;}
+.feedback-ticket-thread-role.admin{color:#2856c2;}
+.feedback-ticket-thread-role.user{color:#0f172a;}
+.feedback-ticket-thread-time{font-size:12px;color:#7c8aa5;}
+.feedback-ticket-thread-body{font-size:13px;color:#475569;line-height:1.7;white-space:pre-wrap;word-break:break-word;}
+.feedback-ticket-thread-empty{padding:18px;border:1px dashed #d8e2ef;border-radius:16px;background:#fbfdff;font-size:13px;color:#7c8aa5;line-height:1.8;}
+.feedback-ticket-reply{display:flex;flex-direction:column;gap:14px;}
+.feedback-ticket-reply textarea{width:100%;min-height:120px;border:1px solid #dbe4f1;border-radius:16px;padding:14px 16px;font:inherit;color:#142033;background:#fff;resize:vertical;outline:none;}
+.feedback-ticket-replybar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.feedback-ticket-replynote{font-size:12px;color:#6b7a90;line-height:1.7;}
+.feedback-ticket-thread-attachments{margin-top:12px;}
+.feedback-ticket-side{display:flex;flex-direction:column;gap:14px;}
+.feedback-ticket-sidecard{padding:18px;border:1px solid #dde6f4;border-radius:20px;background:#fff;box-shadow:var(--sh0);}
+.feedback-ticket-sidegrid{display:grid;grid-template-columns:1fr;gap:10px;}
+.feedback-ticket-sideitem{padding:11px 12px;border-radius:14px;background:#f8fafc;border:1px solid #e8eef6;}
+.feedback-ticket-sideitem label{display:block;font-size:11px;font-weight:800;color:#7c8aa5;}
+.feedback-ticket-sideitem strong{display:block;margin-top:4px;font-size:13px;color:#0f172a;word-break:break-word;}
+.feedback-admin-status-badge{display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:700;}
+.feedback-admin-status-badge.is-new{background:#eff6ff;color:#3158b8;}
+.feedback-admin-status-badge.is-processing{background:#fff7ed;color:#c56b12;}
+.feedback-admin-status-badge.is-resolved{background:#ecfdf3;color:#15803d;}
+.feedback-admin-select{width:100%;height:36px;border:1px solid #d7deeb;border-radius:12px;padding:0 10px;background:#fff;font:inherit;color:var(--text);}
+.feedback-admin-attachment-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.feedback-admin-attachment{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#fff;}
+.feedback-admin-attachment-preview{display:flex;align-items:center;justify-content:center;min-height:110px;background:#f8fafc;font-size:12px;color:#7c8aa5;text-align:center;padding:10px;}
+.feedback-admin-attachment-preview img{display:block;width:100%;height:110px;object-fit:cover;cursor:pointer;}
+.feedback-admin-attachment-meta{padding:10px 12px 12px;}
+.feedback-admin-attachment-name{font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.feedback-admin-attachment-size{margin-top:4px;font-size:11px;color:#7c8aa5;}
+.feedback-center-empty{padding:18px;border:1px dashed #d8e2ef;border-radius:16px;background:#fbfdff;font-size:13px;color:#7c8aa5;line-height:1.8;}
 .account-shell{display:flex;flex-direction:column;gap:18px;}
 .account-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:18px 20px;border-radius:20px;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#111827 100%);color:#fff;box-shadow:0 20px 50px rgba(15,23,42,.18);}
 .account-hero-copy{display:flex;flex-direction:column;gap:8px;min-width:0;}
@@ -886,6 +947,9 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
   .feedback-upload-card,.account-hero{flex-direction:column;}
   .account-grid{grid-template-columns:1fr;}
   .account-hero-actions{justify-content:flex-start;}
+  .feedback-page-shell{grid-template-columns:1fr;}
+  .feedback-page-sidebar{min-height:280px;max-height:42vh;}
+  .feedback-ticket-grid{grid-template-columns:1fr;}
 }
 </style>
 </head>
@@ -898,7 +962,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="auth-particle"></div><div class="auth-particle"></div><div class="auth-particle"></div>
     <div class="auth-particle"></div><div class="auth-particle"></div><div class="auth-particle"></div>
   </div>
-  <div class="auth-card auth-login">
+  <div class="auth-card">
     <div class="auth-visual">
       <div class="auth-brand">
         <div class="auth-brand-mark">
@@ -934,10 +998,10 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <div class="auth-step-line"></div>
         <div class="auth-step" id="authStepItem2"><span class="auth-step-dot">2</span><span>完善资料</span></div>
       </div>
-      <div class="auth-step-pane active" id="authStepPane1">
+      <div class="auth-step-pane" id="authStepPane1">
         <div class="auth-row">
-          <label>手机号 / 账号</label>
-          <input id="authPhone" placeholder="请输入手机号或管理员账号" autocomplete="tel-national" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
+          <label>手机号</label>
+          <input id="authPhone" placeholder="请输入手机号" autocomplete="tel-national" oninput="resetAuthRegisterVerification()" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
         </div>
         <div class="auth-row auth-hidden" id="authCodeWrap">
           <label>短信验证码</label>
@@ -949,7 +1013,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <div class="auth-row">
           <label>密码</label>
           <div class="auth-password-field">
-            <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
+            <input id="authPassword" type="password" placeholder="请输入密码" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitAuthLogin()" />
             <button class="auth-password-toggle" id="authPasswordToggle" type="button" aria-label="显示密码" aria-pressed="false" onclick="toggleAuthPasswordVisibility()"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
           <div class="auth-help auth-hidden" id="authPasswordHelp">注册密码需至少 6 位，并同时包含字母和数字。</div>
@@ -1023,7 +1087,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     </div>
     <div class="tb-spacer"></div>
     <div class="tb-actions">
-      <button class="tb-btn" type="button" onclick="openFeedbackModal()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 反馈</button>
+      <button class="tb-btn" type="button" onclick="openFeedbackCenterModal()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 反馈中心</button>
       <div class="avatar" id="homeUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
     </div>
   </div>
@@ -1067,7 +1131,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="tb-spacer"></div>
     <div class="tb-actions">
       <button class="tb-btn primary" onclick="startNewNotebook()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 创建对话</button>
-      <button class="tb-btn" type="button" onclick="openFeedbackModal()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 反馈</button>
+      <button class="tb-btn" type="button" onclick="openFeedbackCenterModal()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 反馈中心</button>
       <div class="avatar" id="nbUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
     </div>
   </div>
@@ -1143,6 +1207,42 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <div class="result-content" id="resultContent" style="display:none;"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="page" id="feedbackPage">
+  <div class="topbar">
+    <div class="logo" onclick="goHome()">
+      <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="7" fill="url(#lg3)"/><defs><linearGradient id="lg3" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stop-color="#2563eb"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs><path d="M6 9h16M6 13h12M6 17h13M6 21h9" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="logo-brand">HeartOS</span>
+    </div>
+    <span class="tb-sep"></span>
+    <div class="logo-brand" style="font-size:15px;font-weight:700;">反馈中心</div>
+    <div class="tb-spacer"></div>
+    <div class="tb-actions">
+      <button class="tb-btn" type="button" onclick="goHome()">返回首页</button>
+      <div class="avatar" id="feedbackUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
+    </div>
+  </div>
+  <div class="feedback-page-shell">
+    <aside class="feedback-page-sidebar">
+      <div class="feedback-page-sidehead">
+        <div>
+          <div class="feedback-page-title">反馈中心</div>
+          <div class="feedback-page-sub">按工单方式查看反馈列表、处理状态和沟通记录。普通用户只会看到自己的工单，管理员可切换查看全部。</div>
+        </div>
+        <div class="feedback-page-actions">
+          <button class="tb-btn primary" type="button" onclick="startFeedbackDraft()">新建反馈</button>
+          <button class="tb-btn" type="button" onclick="refreshFeedbackPage()">刷新</button>
+        </div>
+        <div class="feedback-page-mode" id="feedbackPageModeBar"></div>
+      </div>
+      <div class="feedback-page-list" id="feedbackPageList"></div>
+    </aside>
+    <section class="feedback-page-main">
+      <div class="feedback-page-mainhead" id="feedbackPageMainHead"></div>
+      <div class="feedback-page-mainbody" id="feedbackPageDetail"></div>
+    </section>
   </div>
 </div>
 
@@ -1306,7 +1406,14 @@ let summaryRequestSeq = 0;
 let summaryInFlight = false;
 let queuedSummaryRequest = null;
 let feedbackSubmitting = false;
+let feedbackReplySubmitting = false;
 let feedbackAttachments = [];
+let myFeedbackRecords = [];
+let adminFeedbackRecords = [];
+let feedbackPageMode = 'mine';
+let feedbackPageSelectedId = '';
+let feedbackPageDrafting = false;
+const feedbackAttachmentPreviewUrls = new Map();
 const FEEDBACK_MAX_IMAGES = 4;
 const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
 
@@ -1439,28 +1546,20 @@ function renderHome(){
   g.innerHTML = h;
   persistNotebookSummaryCache();
 }
-function showHomeLanding(usePushState){
-  var home = document.getElementById('homePage');
-  var notebook = document.getElementById('nbPage');
-  if(home) home.classList.add('active');
-  if(notebook) notebook.classList.remove('active');
-  renderHome();
-  if(!__heartosHistoryReady){
-    history.replaceState({page:'home'}, '', '#conversations');
-    __heartosHistoryReady = true;
-  }else if(usePushState && (!history.state || history.state.page !== 'home')){
-    history.pushState({page:'home'}, '', '#conversations');
-  }else{
-    history.replaceState({page:'home'}, '', '#conversations');
-  }
-}
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
 function goHome(){
   __nbOpenRequestSeq++;
   setNotebookOpeningState('');
   setNotebookDetailLoadingState('');
   if(busy || activeStudioTask) cancelActiveChatWork();
-  showHomeLanding(true);
+  document.getElementById('homePage').classList.add('active');
+  document.getElementById('nbPage').classList.remove('active');
+  var fp = document.getElementById('feedbackPage');
+  if(fp) fp.classList.remove('active');
+  renderHome();
+  if(__heartosHistoryReady && (!history.state || history.state.page !== 'home')){
+    history.pushState({page:'home'}, '', '#conversations');
+  }
 }
 
 function todayText(){
@@ -1499,7 +1598,6 @@ async function loadNotebooksFromServer(){
   const out = await resp.json().catch(function(){ return {items:[]}; });
   const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
   notebooks = items;
-  pruneNotebookDetailCaches(items.map(function(item){ return item && item.id; }));
   __nbLoaded = true;
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
@@ -1615,16 +1713,19 @@ async function deleteNotebook(id, evt){
     const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' });
     if(!resp.ok) throw new Error('删除对话失败');
     try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
-  if(loadLastOpenedNotebookId() === String(id)) clearLastOpenedNotebookId();
+    if(loadLastOpenedNotebookId() === String(id)) clearLastOpenedNotebookId();
     notebooks = notebooks.filter(n => n.id !== id);
     persistNotebookSummaryCache();
     pruneNotebookDetailCaches(notebooks.map(function(item){ return item && item.id; }));
     if(curNb && curNb.id === id){
       curNb = null;
       sources = [];
+      window.sources = sources;
       msgs = [];
+      chatEvents = [];
       analysisFiles = [];
-      showHomeLanding(false);
+      window.__heartosLastImageSource = null;
+      goHome();
     }else{
       renderHome();
     }
@@ -1805,6 +1906,52 @@ function persistNotebookLocally(nb){
   writeLocalJson(notebookDetailCacheKey(payload.id), { savedAt: Date.now(), item: payload });
 }
 
+function normalizeSourceForPersistence(src){
+  if(!src) return null;
+  const normalized = {
+    id: Number(src.id) || 0,
+    name: String(src.name || '未命名来源'),
+    type: String(src.type || fileExtension(src.name || '') || 'file').toLowerCase(),
+    checked: src.checked !== false,
+    content: typeof src.content === 'string' ? src.content : '',
+    imageDataUrl: typeof src.imageDataUrl === 'string' ? src.imageDataUrl : null,
+    fileId: src.fileId ? String(src.fileId) : '',
+    serverFileId: src.serverFileId ? String(src.serverFileId) : '',
+    fileUrl: src.fileUrl ? String(src.fileUrl) : ''
+  };
+  if(src.mime) normalized.mime = String(src.mime);
+  if(src.sampleRate != null && src.sampleRate !== '') normalized.sampleRate = src.sampleRate;
+  if(src.meta && typeof src.meta === 'object') normalized.meta = src.meta;
+  if(src.analysisMeta && typeof src.analysisMeta === 'object') normalized.analysisMeta = src.analysisMeta;
+  if(src.derivedFrom != null && src.derivedFrom !== '') normalized.derivedFrom = src.derivedFrom;
+  if(src.serverPath) normalized.serverPath = String(src.serverPath);
+  return normalized;
+}
+
+function normalizeSourcesForPersistence(list){
+  return (Array.isArray(list) ? list : []).map(normalizeSourceForPersistence).filter(Boolean);
+}
+
+function syncLastImageSourceReference(){
+  const all = Array.isArray(sources) ? sources.filter(Boolean) : [];
+  if(!all.length){
+    window.__heartosLastImageSource = null;
+    return;
+  }
+  const currentId = window.__heartosLastImageSource && window.__heartosLastImageSource.id != null
+    ? String(window.__heartosLastImageSource.id)
+    : '';
+  if(currentId){
+    const matched = all.find(function(src){ return String(src.id) === currentId; });
+    if(matched){
+      window.__heartosLastImageSource = matched;
+      return;
+    }
+  }
+  const fallback = all.slice().reverse().find(canUseAsImageToolSource) || null;
+  window.__heartosLastImageSource = fallback;
+}
+
 function scheduleSaveCurrentNotebook(immediate){
   if(!curNb || !__nbLoaded) return;
   const target = curNb;
@@ -1821,6 +1968,26 @@ function scheduleSaveCurrentNotebook(immediate){
   };
   if(immediate) run();
   else __nbSaveTimers.set(id, setTimeout(run, 300));
+}
+
+function scheduleSaveCurrentNotebookSources(immediate, nb){
+  const target = nb || curNb;
+  if(!target || !__nbLoaded) return;
+  syncCurrentNotebookState();
+  persistNotebookLocally(target);
+  const id = String(target.id || '');
+  if(!id) return;
+  const activeTimer = __nbSourceSaveTimers.get(id);
+  if(activeTimer){
+    clearTimeout(activeTimer);
+    __nbSourceSaveTimers.delete(id);
+  }
+  const run = function(){
+    __nbSourceSaveTimers.delete(id);
+    enqueueNotebookSourceSave(target).catch(reportNotebookSaveError);
+  };
+  if(immediate) run();
+  else __nbSourceSaveTimers.set(id, setTimeout(run, 180));
 }
 
 function buildNotebookPayload(nb){
@@ -1853,15 +2020,6 @@ async function persistNotebookPayload(payload){
   if(!resp.ok) throw new Error('保存笔记失败');
 }
 
-async function persistNotebookSourcesPayload(notebookId, items){
-  const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(String(notebookId)) + '/sources', {
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ items: normalizeSourcesForPersistence(items) })
-  });
-  if(!resp.ok) throw new Error('保存来源失败');
-}
-
 function enqueueNotebookSave(nb){
   const payload = buildNotebookPayload(nb);
   if(!payload) return Promise.resolve();
@@ -1877,17 +2035,13 @@ function enqueueNotebookSave(nb){
   return next;
 }
 
-function reportNotebookSaveError(){
-  showToast('对话保存失败，请检查网络后重试');
-}
-
 function enqueueNotebookSourceSave(nb){
-  if(!nb || !nb.id) return Promise.resolve();
-  const id = String(nb.id);
-  const items = normalizeSourcesForPersistence(nb.sources);
+  const payload = buildNotebookPayload(nb);
+  if(!payload) return Promise.resolve();
+  const id = payload.id;
   const previous = __nbSourceSaveQueues.get(id) || Promise.resolve();
   const next = previous.catch(function(){}).then(function(){
-    return persistNotebookSourcesPayload(id, items);
+    return persistNotebookPayload(payload);
   });
   __nbSourceSaveQueues.set(id, next);
   next.finally(function(){
@@ -1896,23 +2050,8 @@ function enqueueNotebookSourceSave(nb){
   return next;
 }
 
-function scheduleSaveCurrentNotebookSources(immediate){
-  if(!curNb || !__nbLoaded) return;
-  const target = curNb;
-  const id = String(target.id);
-  const activeTimer = __nbSourceSaveTimers.get(id);
-  if(activeTimer){
-    clearTimeout(activeTimer);
-    __nbSourceSaveTimers.delete(id);
-  }
-  const run = function(){
-    __nbSourceSaveTimers.delete(id);
-    enqueueNotebookSourceSave(target).catch(function(){
-      showToast('来源保存失败，请检查网络后重试');
-    });
-  };
-  if(immediate) run();
-  else __nbSourceSaveTimers.set(id, setTimeout(run, 250));
+function reportNotebookSaveError(){
+  showToast('对话保存失败，请检查网络后重试');
 }
 
 async function saveNotebook(nb){
@@ -1922,12 +2061,13 @@ async function saveNotebook(nb){
 
 function syncCurrentNotebookState(){
   if(!curNb) return;
-  curNb.sources = normalizeSourcesForPersistence(sources);
+  curNb.sources = Array.isArray(sources) ? sources : [];
   curNb.msgs = Array.isArray(msgs) ? msgs : [];
   curNb.events = Array.isArray(chatEvents) ? chatEvents : [];
   curNb.analysisFiles = Array.isArray(analysisFiles) ? analysisFiles : [];
   curNb.srcs = curNb.sources.length;
   window.sources = sources;
+  syncLastImageSourceReference();
 }
 
 function flushCurrentNotebookToLocalCache(){
@@ -2147,55 +2287,6 @@ function writeLocalJson(key, value){
   }
 }
 
-function pruneNotebookDetailCaches(validIds){
-  const keep = new Set((Array.isArray(validIds) ? validIds : []).map(function(id){ return String(id || ''); }).filter(Boolean));
-  const prefix = 'heartos_nb_detail_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':';
-  try{
-    Object.keys(localStorage).forEach(function(key){
-      if(String(key).indexOf(prefix) !== 0) return;
-      const notebookId = String(key).slice(prefix.length);
-      if(!keep.has(notebookId)){
-        try{ localStorage.removeItem(key); }catch(_){ }
-      }
-    });
-  }catch(_){ }
-}
-
-function normalizeSourceForPersistence(src){
-  if(!src || typeof src !== 'object') return null;
-  const type = String(src.type || 'file').toLowerCase();
-  const out = {
-    id: Number(src.id) || 0,
-    name: String(src.name || '未命名来源'),
-    type: type,
-    checked: !!src.checked
-  };
-  if(src.fileId) out.fileId = String(src.fileId);
-  if(src.serverFileId) out.serverFileId = String(src.serverFileId);
-  if(src.fileUrl) out.fileUrl = String(src.fileUrl);
-  if(src.sampleRate != null && Number.isFinite(Number(src.sampleRate))) out.sampleRate = Number(src.sampleRate);
-  if(src.sampleRateSource) out.sampleRateSource = String(src.sampleRateSource);
-  if(src.generatedBy) out.generatedBy = String(src.generatedBy);
-  if(src.source) out.source = String(src.source);
-  if(src.sourceName) out.sourceName = String(src.sourceName);
-  if(src.parentSourceId != null) out.parentSourceId = String(src.parentSourceId);
-  if(src.__fromDigitize) out.__fromDigitize = true;
-  if(src.__fromEcgomics) out.__fromEcgomics = true;
-  if(src.__fromReconstruct) out.__fromReconstruct = true;
-  const hasServerFile = !!(out.fileId || out.serverFileId);
-  if(typeof src.content === 'string' && (!hasServerFile || ['csv','tsv','txt','xml','json','md','url'].includes(type))){
-    out.content = String(src.content).slice(0, 200000);
-  }
-  if(typeof src.imageDataUrl === 'string' && /^data:image\//i.test(src.imageDataUrl) && !hasServerFile){
-    out.imageDataUrl = String(src.imageDataUrl);
-  }
-  return out;
-}
-
-function normalizeSourcesForPersistence(items){
-  return (Array.isArray(items) ? items : []).map(normalizeSourceForPersistence).filter(Boolean);
-}
-
 function notebookSummarySnapshot(nb){
   if(!nb) return null;
   const srcCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
@@ -2243,11 +2334,24 @@ function loadNotebookDetailFromLocal(id){
   return normalizeNotebookItem(cached.item, true);
 }
 
+function pruneNotebookDetailCaches(activeIds){
+  const keep = new Set((Array.isArray(activeIds) ? activeIds : []).filter(Boolean).map(function(id){
+    return notebookDetailCacheKey(id);
+  }));
+  try{
+    const prefix = 'heartos_nb_detail_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':';
+    for(let i = localStorage.length - 1; i >= 0; i -= 1){
+      const key = localStorage.key(i);
+      if(!key || key.indexOf(prefix) !== 0) continue;
+      if(!keep.has(key)) localStorage.removeItem(key);
+    }
+  }catch(_){ }
+}
+
 function hydrateNotebookSummariesFromLocal(){
   const cachedItems = loadNotebookSummariesFromLocal();
   if(!cachedItems.length) return false;
   notebooks = cachedItems;
-  pruneNotebookDetailCaches(cachedItems.map(function(item){ return item && item.id; }));
   __nbLoaded = true;
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
@@ -2264,18 +2368,6 @@ function refreshHomeIfVisible(){
   if(home && home.classList.contains('active')) renderHome();
 }
 
-async function flushNotebookPersistenceBeforeExit(){
-  if(curNb && __nbLoaded){
-    syncCurrentNotebookState();
-    scheduleSaveCurrentNotebook(true);
-    scheduleSaveCurrentNotebookSources(true);
-  }
-  const waits = [];
-  __nbSaveQueues.forEach(function(p){ waits.push(p); });
-  __nbSourceSaveQueues.forEach(function(p){ waits.push(p); });
-  if(waits.length) await Promise.allSettled(waits);
-}
-
 function setNotebookOpeningState(id){
   __nbOpeningId = id ? String(id) : '';
   refreshHomeIfVisible();
@@ -2287,18 +2379,21 @@ function setNotebookDetailLoadingState(id){
 
 function applyNotebookToWorkspace(nb){
   curNb = nb || null;
-  sources = normalizeSourcesForPersistence(curNb && curNb.sources);
+  sources = Array.isArray(curNb && curNb.sources) ? curNb.sources : [];
   window.sources = sources;
   msgs = Array.isArray(curNb && curNb.msgs) ? curNb.msgs : [];
   chatEvents = Array.isArray(curNb && curNb.events) ? curNb.events : [];
   analysisFiles = Array.isArray(curNb && curNb.analysisFiles) ? curNb.analysisFiles : [];
   document.getElementById('nbPageTitle').textContent = (curNb && curNb.title) ? curNb.title : 'New Conversation';
   if(curNb && curNb.id) persistLastOpenedNotebookId(curNb.id);
+  syncLastImageSourceReference();
 }
 
 function openNotebookShell(){
   document.getElementById('homePage').classList.remove('active');
   document.getElementById('nbPage').classList.add('active');
+  var fp = document.getElementById('feedbackPage');
+  if(fp) fp.classList.remove('active');
   var _switchMl = document.getElementById('msgsList');
   var _switchCe = document.getElementById('chatEmpty');
   if(_switchMl) _switchMl.innerHTML = '';
@@ -2520,7 +2615,7 @@ async function sourceDataUrl(src){
       }catch(_){ resolve(''); }
     });
   }
-  const fileId = sourceServerFileId(src);
+  const fileId = src.fileId || src.serverFileId || '';
   if(fileId){
     try{
       const ctrl = new AbortController();
@@ -2538,34 +2633,19 @@ async function sourceDataUrl(src){
       }
     }catch(_){ }
   }
-  try{
-    const blob = await fetchSourceRemoteBlob(src);
-    if(blob){
-      return await new Promise(resolve=>{
-        const r = new FileReader();
-        r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
-        r.onerror = () => resolve('');
-        r.readAsDataURL(blob);
-      });
-    }
-  }catch(_){ }
   return '';
 }
 
 async function sourceObjectUrl(src){
   if(!src) return '';
   if(isBlobLike(src.fileObj)) return URL.createObjectURL(src.fileObj);
-  const fileId = sourceServerFileId(src);
+  const fileId = src.fileId || src.serverFileId || '';
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
       if(resp.ok) return URL.createObjectURL(await resp.blob());
     }catch(_){ }
   }
-  try{
-    const blob = await fetchSourceRemoteBlob(src);
-    if(blob) return URL.createObjectURL(blob);
-  }catch(_){ }
   return '';
 }
 
@@ -2612,7 +2692,7 @@ async function readTextFromSource(src){
   }
   // 本地无 fileObj 时优先返回已缓存内容，避免网络请求挂起
   if(src.content) return String(src.content);
-  const fileId = sourceServerFileId(src);
+  const fileId = src.fileId || src.serverFileId || '';
   if(fileId){
     try{
       const ctrl = new AbortController();
@@ -2622,53 +2702,7 @@ async function readTextFromSource(src){
       if(resp.ok) return await resp.text();
     }catch(_){ }
   }
-  try{
-    const blob = await fetchSourceRemoteBlob(src);
-    if(blob && typeof blob.text === 'function') return await blob.text();
-  }catch(_){ }
   return '';
-}
-
-function sourceServerFileId(src){
-  if(!src) return '';
-  const directId = String(src.fileId || src.serverFileId || '').trim();
-  if(directId) return directId;
-  const rawUrl = String(src.fileUrl || src.url || src.remoteUrl || src.imageUrl || '').trim();
-  if(!rawUrl) return '';
-  try{
-    const parsed = new URL(rawUrl, window.location.href);
-    const match = parsed.pathname.match(/\/api\/files\/([^/?#]+)/i);
-    if(match && match[1]){
-      const derived = decodeURIComponent(String(match[1]));
-      if(derived){
-        src.fileId = derived;
-        src.serverFileId = derived;
-        return derived;
-      }
-    }
-  }catch(_){ }
-  return '';
-}
-
-async function fetchSourceRemoteBlob(src){
-  if(!src) return null;
-  const rawUrl = String(src.fileUrl || src.url || src.remoteUrl || src.imageUrl || '').trim();
-  if(!rawUrl) return null;
-  const ctrl = new AbortController();
-  const tm = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 10000);
-  try{
-    const resp = await fetch(rawUrl, {
-      method:'GET',
-      headers: authHeaders(),
-      signal: ctrl.signal
-    });
-    if(!resp.ok) return null;
-    return await resp.blob();
-  }catch(_){
-    return null;
-  }finally{
-    clearTimeout(tm);
-  }
 }
 
 function isImageLikeSource(src){
@@ -2900,7 +2934,6 @@ function runSummarySourceTool(type, sourceId){
     updateCiSrc();
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
-    scheduleSaveCurrentNotebookSources(false);
   }
   return runStudio(type);
 }
@@ -3531,21 +3564,30 @@ async function deleteSource(id, evt){
   const src = sources[idx];
   if(!confirm(`确认删除来源：${src.name} ？`)) return;
 
-  try{
-    // optional backend delete if source has server file id
-    const fileId = src.fileId || src.serverFileId || '';
-    if(fileId){
-      await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'DELETE' });
+  const fileId = src.fileId || src.serverFileId || '';
+  if(fileId){
+    try{
+      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'DELETE' });
+      if(!resp.ok && resp.status !== 404){
+        let msg = '删除来源文件失败';
+        try{
+          const out = await resp.json().catch(function(){ return {}; });
+          if(out && out.detail) msg = String(out.detail);
+        }catch(_){ }
+        throw new Error(msg);
+      }
+    }catch(e){
+      showToast('删除失败：' + (e && e.message ? e.message : '来源文件未能彻底删除'));
+      return;
     }
-  }catch(_){
-    // backend delete failure should not block local removal
   }
 
   sources.splice(idx, 1);
+  syncLastImageSourceReference();
   if(curNb) curNb.srcs = sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(false);
+  scheduleSaveCurrentNotebookSources(true);
   renderSrcs();
   updateCiSrc();
   renderChat();
@@ -3559,30 +3601,49 @@ async function deleteSelectedSources(evt){
   if(!selected.length) return;
   if(!confirm(`确认删除已选择的 ${selected.length} 个来源？`)) return;
 
-  const selectedIds = new Set(selected.map(s => s.id));
-  const fileIds = Array.from(new Set(selected
-    .map(s => s.fileId || s.serverFileId || '')
-    .filter(Boolean)
-    .map(String)));
-  await Promise.all(fileIds.map(async fileId => {
-    try{
-      await apiFetch('/api/files/' + encodeURIComponent(fileId), { method:'DELETE' });
-    }catch(_){
-      // Backend cleanup failure should not block removing selected local entries.
+  const removableIds = new Set();
+  const failedNames = [];
+  for(const src of selected){
+    const fileId = String(src.fileId || src.serverFileId || '');
+    if(!fileId){
+      removableIds.add(src.id);
+      continue;
     }
-  }));
-
-  sources = sources.filter(s => !selectedIds.has(s.id));
+    try{
+      const resp = await apiFetch('/api/files/' + encodeURIComponent(fileId), { method:'DELETE' });
+      if(!resp.ok && resp.status !== 404){
+        let msg = '';
+        try{
+          const out = await resp.json().catch(function(){ return {}; });
+          msg = out && out.detail ? String(out.detail) : '';
+        }catch(_){ }
+        throw new Error(msg || '来源文件未能彻底删除');
+      }
+      removableIds.add(src.id);
+    }catch(_){
+      failedNames.push(src.name || '未命名来源');
+    }
+  }
+  if(!removableIds.size){
+    showToast('删除失败：所选来源文件未能彻底删除');
+    return;
+  }
+  sources = sources.filter(s => !removableIds.has(s.id));
   window.sources = sources;
+  syncLastImageSourceReference();
   if(curNb) curNb.srcs = sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(false);
+  scheduleSaveCurrentNotebookSources(true);
   renderSrcs();
   updateCiSrc();
   renderChat();
   renderStudio();
-  showToast(`已移除 ${selected.length} 个来源`);
+  if(failedNames.length){
+    showToast(`已删除 ${removableIds.size} 个来源，${failedNames.length} 个删除失败`);
+  }else{
+    showToast(`已移除 ${removableIds.size} 个来源`);
+  }
 }
 
 async function openHandEcgFromSource(id, evt){
@@ -4095,7 +4156,9 @@ function canUseAsImageToolSource(src){
 }
 
 function imageToolInputErrorMessage(toolName){
-  const action = toolName === '手动数字化' ? '打开手动数字化' : '执行自动数字化';
+  const action = toolName === '手动数字化'
+    ? '打开手动数字化'
+    : (toolName === '准心风险评估' || toolName === '准心评估智能体' ? '执行准心风险评估' : '执行自动数字化');
   return action + '仅支持心电图图片或 PDF（PDF 将转换第 1 页）。CSV、XML、JSON 和文本信号不能执行数字化；如果来源已经是波形数据，请直接选择“ECG 心电组学”或“ECG 信号补全”。';
 }
 
@@ -4159,7 +4222,6 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
   const picked = Array.isArray(sourcesToList) ? sourcesToList.filter(Boolean) : [];
   const hasImage = picked.some(canUseAsImageToolSource);
   const isWaveTool = toolName === 'ECG 心电组学' || toolName === 'ECG 信号补全';
-  const allImageLike = !!picked.length && picked.every(canUseAsImageToolSource);
   if(message === '__single_unchecked_candidate__' && picked.length === 1){
     const src = picked[0];
     const actionTool = toolActionNameByToolName(toolName);
@@ -4230,44 +4292,20 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
       ]
     };
   }
-  if(toolName === '自动数字化'){
-    return {
-      title: '自动数字化暂时不能开始',
-      intro: '当前勾选来源里没有可处理的心电图图片/PDF，或部分文件暂时无法转换，所以这次还不能启动批量数字化。',
-      supportText: '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；可同时勾选多张图片/PDF 批量启动自动数字化。',
-      steps: [
-        { title:'先看当前来源类型', desc:'请确认勾选的是心电图图片/PDF，而不是 CSV、XML、JSON 或普通文本。' },
-        { title:'保留可处理图片', desc:'可以同时勾选多张心电图图片/PDF；系统会按顺序批量处理。' },
-        { title:'重新启动自动数字化', desc:'如仍有失败文件，可重新上传更清晰的图片/PDF 后再试。' }
-      ],
-      actions: [
-        { label:'去上传文件', kind:'primary', action:'upload' },
-        { label:'我知道了', kind:'ghost', action:'close' }
-      ]
-    };
-  }
-  if(toolName === '手动数字化' && allImageLike && picked.length > 1){
-    return {
-      title: '手动数字化一次只能处理 1 张图片',
-      intro: '你当前勾选了多张心电图图片。手动数字化需要逐张处理，请先只保留 1 张图片后再开始。',
-      supportText: '支持 JPG、PNG、BMP、TIFF、WebP 或 PDF；手动数字化单次仅支持 1 个来源。',
-      steps: [],
-      hideList: true,
-      actions: [
-        { label:'我去重新选择', kind:'primary', action:'close' },
-        { label:'改用自动数字化', kind:'secondary', action:'run:ecgsmart' }
-      ]
-    };
-  }
-  const target = toolName === '手动数字化' ? '手动数字化' : '自动数字化';
+  const target = toolName === '手动数字化'
+    ? '手动数字化'
+    : (toolName === '准心风险评估' || toolName === '准心评估智能体' ? '准心风险评估' : '自动数字化');
+  const supportText = target === '准心风险评估'
+    ? '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个图片/PDF 来源启动准心风险评估。'
+    : '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个来源启动数字化。';
   return {
     title: target + '暂时不能开始',
     intro: '当前勾选来源不是可识别的心电图图片/PDF，且' + target + '一次只能基于 1 个图片/PDF 来源启动。按下面 3 步操作即可继续。',
-    supportText: '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个来源启动数字化。',
+    supportText: supportText,
     steps: [
       { title:'先看当前来源类型', desc:'你现在选中的来源不是图片/PDF，或者文件内容损坏。' },
       { title:'重新选择图片/PDF', desc:'点击“去上传文件”，上传清晰的心电图图片或 PDF。' },
-      { title:'重新启动数字化', desc:'只勾选 1 个图片/PDF 来源后，再次启动' + target + '。' }
+      { title:target === '准心风险评估' ? '重新启动评估' : '重新启动数字化', desc:'只勾选 1 个图片/PDF 来源后，再次启动' + target + '。' }
     ],
     actions: [
       { label:'去上传文件', kind:'primary', action:'upload' },
@@ -4512,21 +4550,18 @@ async function convertPdfSourceToImageDataUrl(src){
     const arr = new Uint8Array(raw.length);
     for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
     pdfBytes = arr.buffer;
-  }else if(sourceServerFileId(src)){
+  }else if(src.fileId || src.serverFileId){
     try{
-      const fileId = sourceServerFileId(src);
+      const fileId = src.fileId || src.serverFileId;
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
       if(resp && resp.ok){
         pdfBytes = await (await resp.blob()).arrayBuffer();
       }
     }catch(_){ }
   }else{
-    try{
-      const blob = await fetchSourceRemoteBlob(src);
-      if(blob) pdfBytes = await blob.arrayBuffer();
-    }catch(_){ }
+    return '';
   }
-  const fileIdForBackend = sourceServerFileId(src);
+  const fileIdForBackend = src.fileId || src.serverFileId || '';
   if(!pdfBytes && !fileIdForBackend) return '';
 
   try{
@@ -4550,7 +4585,7 @@ async function convertPdfSourceToImageDataUrl(src){
 async function convertPdfSourceToImageDataUrlBackend(src, pdfBytes, frontErr){
   try{
     const fd = new FormData();
-    const fileId = sourceServerFileId(src);
+    const fileId = src && (src.fileId || src.serverFileId || '');
     if(fileId){
       fd.append('file_id', String(fileId));
     }else if(isBlobLike(src && src.fileObj)){
@@ -4609,20 +4644,6 @@ async function ensureEcgImageSource(src){
     });
     if(dataUrl){
       src.imageDataUrl = await normalizeToolImageDataUrl(dataUrl);
-      return src;
-    }
-  }
-  if(canUseAsImageToolSource(src) && !isPdfSource(src)){
-    const fetchedImageDataUrl = await sourceDataUrl(src);
-    if(fetchedImageDataUrl && String(fetchedImageDataUrl).indexOf('data:image') === 0){
-      src.imageDataUrl = await normalizeToolImageDataUrl(fetchedImageDataUrl);
-      const imageName = String(src.name || 'ecg_image.png');
-      const fetchedImageFile = dataUrlToFile(src.imageDataUrl, imageName);
-      if(fetchedImageFile) src.fileObj = fetchedImageFile;
-      if(!src.type && fetchedImageFile && fetchedImageFile.type){
-        const mimeExt = String(fetchedImageFile.type || '').split('/')[1] || '';
-        if(mimeExt) src.type = mimeExt.toLowerCase();
-      }
       return src;
     }
   }
@@ -5569,32 +5590,6 @@ function appendConversationPlanBubble(resp, userText){
   finishRichChatTurn(userText, html);
 }
 
-function appendConversationPlanPopover(resp, userText){
-  var meta = (resp && resp.meta && typeof resp.meta === 'object') ? resp.meta : {};
-  var headline = String(meta.headline || '我整理了几个处理选项');
-  var body = String(meta.body || resp.message || '');
-  var options = Array.isArray(meta.options) ? meta.options.filter(Boolean) : [];
-  var renderedOptions = options.length
-    ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">' + options.map(function(opt){
-        var action = String(opt.action || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        var btnClass = opt.kind === 'primary' ? 'mo-btn confirm' : 'mo-btn';
-        return '<button class="' + btnClass + '" onclick="runConversationGuidedAction(\'' + action + '\')" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:12px 14px;border-radius:14px;">'
-          + '<span style="display:block;min-width:0;">'
-          + '<span style="display:block;font-size:14px;font-weight:800;color:var(--text);line-height:1.4;">' + esc(String(opt.title || '方案')) + '</span>'
-          + '</span>'
-          + '<span style="flex-shrink:0;font-size:16px;line-height:1;color:var(--text3);">›</span>'
-          + '</button>';
-      }).join('') + '</div>'
-    : '';
-  var html = '<div class="ai-av">AI</div><div class="ai-body">' +
-    '<div style="max-width:520px;border:1px solid #dbe3f1;border-radius:16px;background:#ffffff;padding:12px;box-shadow:0 6px 18px rgba(15,23,42,.05);">' +
-    '<div style="font-size:17px;font-weight:800;color:var(--text);line-height:1.3;">' + esc(headline) + '</div>' +
-    '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-top:4px;">' + esc(body) + '</div>' +
-    renderedOptions +
-    '</div></div>';
-  finishRichChatTurn(userText, html);
-}
-
 function conversationConfirmLabel(intent){
   return ({
     zhunxin_risk_assess: '开始准心评估',
@@ -5816,11 +5811,8 @@ async function routeByLLM(userText){
 function requestedStudioToolFromChat(text){
   const q = String(text || '').trim();
   if(!q) return '';
-  const asksCapabilityQuestion = /(?:可以|可不可以|能不能|能否|是否可以).{0,12}(?:自动数字化|手动数字化|数字化|分析|提取|补全|重建|评估).{0,6}(?:吗|\?|？)/i.test(q)
-    || /(?:自动数字化|手动数字化|数字化|分析|提取|补全|重建|评估).{0,12}(?:可以|可不可以|能不能|能否).{0,6}(?:吗|\?|？)/i.test(q);
   const asksAboutTool = /(?:什么是|是什么|原理|介绍|说明|解释|解读|结果|能否|是否|支持吗|怎么|如何|有哪些|方法|流程|要求|区别|差别|不同|用途)/i.test(q);
   const asksToRun = /(?:帮我|请|开始|进行|执行|运行|处理|生成|提取|补全|重建|数字化)/i.test(q);
-  if(asksCapabilityQuestion) return '';
   if(asksAboutTool) return '';
   if(!asksToRun) return '';
   if(/(?:准心|风险评估|胸痛模型)/i.test(q) && /(?:心电|ECG|心电图|风险)/i.test(q)) return 'zhunxin';
@@ -5923,11 +5915,7 @@ async function sendMsg(){
         return;
       }
       if(out && out.type === 'plan_options'){
-        if(out.meta && out.meta.presentation === 'popover'){
-          appendConversationPlanPopover(out, q);
-        }else{
-          appendConversationPlanBubble(out, q);
-        }
+        appendConversationPlanBubble(out, q);
         return;
       }
       if(out && out.type === 'ask_missing'){
@@ -6850,12 +6838,21 @@ window.addEventListener('popstate', function(evt){
     if(nb) openNb(st.id, false);
     return;
   }
+  if(st.page === 'feedback'){
+    feedbackPageMode = ((getAuthUser() || {}).is_admin ? (feedbackPageMode || 'mine') : 'mine');
+    feedbackPageSelectedId = st.id ? String(st.id) : '';
+    feedbackPageDrafting = !feedbackPageSelectedId;
+    openFeedbackPage(false);
+    return;
+  }
   if(busy || activeStudioTask) cancelActiveChatWork();
   __nbOpenRequestSeq++;
   setNotebookOpeningState('');
   setNotebookDetailLoadingState('');
   document.getElementById('homePage').classList.add('active');
   document.getElementById('nbPage').classList.remove('active');
+  var fp = document.getElementById('feedbackPage');
+  if(fp) fp.classList.remove('active');
   renderHome();
 });
 
@@ -7294,7 +7291,7 @@ async function readCsvTextFromSource(src){
   if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
-  const fileId = sourceServerFileId(src);
+  const fileId = src.fileId || src.serverFileId || '';
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
@@ -7304,13 +7301,6 @@ async function readCsvTextFromSource(src){
       }
     }catch(_){ }
   }
-  try{
-    const blob = await fetchSourceRemoteBlob(src);
-    if(blob && typeof blob.text === 'function'){
-      const txt = await blob.text();
-      if(txt && txt.indexOf(',') >= 0) return txt;
-    }
-  }catch(_){ }
   return String(src.content||'');
 }
 
@@ -7769,7 +7759,7 @@ async function readXmlTextFromSource(src){
   if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
-  const fileId = sourceServerFileId(src);
+  const fileId = src.fileId || src.serverFileId || '';
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
@@ -7779,13 +7769,6 @@ async function readXmlTextFromSource(src){
       }
     }catch(_){ }
   }
-  try{
-    const blob = await fetchSourceRemoteBlob(src);
-    if(blob && typeof blob.text === 'function'){
-      const txt = await blob.text();
-      if(txt && txt.indexOf('<') >= 0 && txt.indexOf('>') >= 0) return txt;
-    }
-  }catch(_){ }
   const c = String(src.content||'').trim();
   if(c && c.indexOf('<') >= 0 && c.indexOf('>') >= 0) return c;
   return '';
@@ -8686,7 +8669,7 @@ async function ddr(e){
   e.preventDefault();
   document.getElementById('umoDrop').classList.remove('drag');
   const files = await droppedSourceFiles(e.dataTransfer);
-  if(files.length) importSourceFiles(files);
+  if(files.length) await importSourceFiles(files);
 }
 
 const SOURCE_IMPORT_EXTENSIONS = new Set(['xml','pdf','png','jpg','jpeg','bmp','tif','tiff','gif','webp','csv','tsv','json','txt','md']);
@@ -8909,7 +8892,7 @@ async function persistSourceFileIfNeeded(srcObj, rawFile){
     srcObj.fileUrl = out.url || out.fileUrl || '';
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(false);
-    scheduleSaveCurrentNotebookSources(false);
+    scheduleSaveCurrentNotebookSources(true);
     return true;
   }catch(_){
     return false;
@@ -8925,9 +8908,7 @@ function appendSourceRecord(name,type,content,imageDataUrl,rawFile){
   const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null};
   sources.push(srcObj);
   window.sources = sources;
-  if(srcObj.imageDataUrl || (srcObj.fileObj && /^image\//i.test(String(srcObj.fileObj.type||'')))){
-    window.__heartosLastImageSource = srcObj;
-  }
+  syncLastImageSourceReference();
   return srcObj;
 }
 
@@ -8939,7 +8920,7 @@ function finalizeSourceImport(imported){
   if(curNb) curNb.srcs=sources.length;
   syncCurrentNotebookState();
   scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(false);
+  scheduleSaveCurrentNotebookSources(true);
   renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
 }
 
@@ -9094,12 +9075,19 @@ if(!aiConfig.model) aiConfig.model = 'glm-4-flash';
 aiConfig.key = '';
 let aiServerKeyState = {};
 function resolveBackendBaseUrl(){
-  var raw = window.HEARTOS_BACKEND_BASE_URL || localStorage.getItem('heartos_backend_base');
-  var normalized = String(raw || '').replace(/\/+$/,'');
+  var manualOverride = '';
+  try{ manualOverride = String(localStorage.getItem('heartos_backend_base_override') || '').replace(/\/+$/,''); }catch(_){}
+  var configured = String(window.HEARTOS_BACKEND_BASE_URL || '').replace(/\/+$/,'');
+  var normalized = manualOverride || configured;
+  var host = String((window.location && window.location.hostname) || '').toLowerCase();
+  var isLocalHost = host === '127.0.0.1' || host === 'localhost' || host === '';
+  if(isLocalHost && !manualOverride && (!normalized || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(normalized))){
+    normalized = 'http://127.0.0.1:9010';
+  }
   if(normalized === 'http://127.0.0.1:9000' || normalized === 'http://localhost:9000'){
     normalized = normalized.replace(':9000', ':9010');
-    try{ localStorage.setItem('heartos_backend_base', normalized); }catch(_){}
   }
+  try{ localStorage.removeItem('heartos_backend_base'); }catch(_){}
   return normalized;
 }
 
@@ -9137,7 +9125,7 @@ function updateUserAvatarUI(){
     txt = base.slice(0,1).toUpperCase();
     tip = (u.name || u.display_name || u.phone || u.username || 'User') + '（点击查看账号）';
   }
-  ['homeUserAvatar','nbUserAvatar'].forEach(function(id){
+  ['homeUserAvatar','nbUserAvatar','feedbackUserAvatar'].forEach(function(id){
     var el = document.getElementById(id);
     if(!el) return;
     el.textContent = txt;
@@ -9304,6 +9292,15 @@ function buildFeedbackFormHtml(){
     + '</form>';
 }
 
+function buildFeedbackCenterComposerHtml(){
+  return '<form class="feedback-panel" onsubmit="submitFeedback(event, true)" onpaste="handleFeedbackPaste(event)">'
+    + '<div class="feedback-compose"><div class="feedback-field"><label for="feedbackMessage">新反馈</label><textarea id="feedbackMessage" maxlength="5000" placeholder="描述一下问题，支持直接粘贴截图。"></textarea></div></div>'
+    + '<div class="feedback-upload-card"><div class="feedback-upload-copy"><div class="feedback-upload-title">图片附件</div><div class="feedback-upload-desc">可粘贴截图，或手动添加图片</div></div><div class="feedback-upload-actions"><label class="feedback-upload-btn" for="feedbackImages">添加图片</label><input id="feedbackImages" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple onchange="handleFeedbackImageSelect(this)" style="display:none"><div class="feedback-upload-meta">最多 ' + FEEDBACK_MAX_IMAGES + ' 张</div></div></div>'
+    + '<div id="feedbackImageList" class="feedback-image-list compact"></div>'
+    + '<div class="feedback-actions"><button id="feedbackSubmitBtn" class="primary" type="submit">提交反馈</button></div>'
+    + '</form>';
+}
+
 function openFeedbackModal(){
   resetFeedbackDraft();
   ensureSystemModal(
@@ -9317,7 +9314,7 @@ function openFeedbackModal(){
   renderFeedbackImageList();
 }
 
-async function submitFeedback(evt){
+async function submitFeedback(evt, reopenCenter){
   if(evt) evt.preventDefault();
   if(feedbackSubmitting) return;
   var messageEl = document.getElementById('feedbackMessage');
@@ -9336,8 +9333,11 @@ async function submitFeedback(evt){
   try{
     var fd = new FormData();
     fd.append('message', message);
+    var pageName = 'home';
+    if(document.getElementById('feedbackPage') && document.getElementById('feedbackPage').classList.contains('active')) pageName = 'feedback';
+    else if(document.getElementById('nbPage') && document.getElementById('nbPage').classList.contains('active')) pageName = 'notebook';
     fd.append('context', JSON.stringify({
-      page: document.getElementById('nbPage') && document.getElementById('nbPage').classList.contains('active') ? 'notebook' : 'home',
+      page: pageName,
       notebookId: curNb && curNb.id ? curNb.id : '',
       sourceCount: Array.isArray(sources) ? sources.length : 0,
       messageCount: Array.isArray(msgs) ? msgs.length : 0
@@ -9356,6 +9356,10 @@ async function submitFeedback(evt){
     closeSystemModal('feedbackModal');
     resetFeedbackDraft();
     showToast('反馈已提交，感谢你的帮助');
+    if(reopenCenter){
+      feedbackPageDrafting = false;
+      await openFeedbackPage(true);
+    }
   }catch(e){
     showToast('反馈提交失败：' + (e && e.message ? e.message : '请稍后重试'));
   }finally{
@@ -9364,6 +9368,350 @@ async function submitFeedback(evt){
       submitBtn.disabled = false;
       submitBtn.textContent = '提交反馈';
     }
+  }
+}
+
+function feedbackStatusMeta(status){
+  var key = String(status || 'new').toLowerCase();
+  if(key === 'processing') return { key:key, label:'处理中' };
+  if(key === 'resolved') return { key:key, label:'已解决' };
+  return { key:'new', label:'待处理' };
+}
+
+function formatFeedbackCreatedAt(ts){
+  var num = Number(ts || 0);
+  if(!num) return '未知时间';
+  try{ return new Date(num).toLocaleString(); }catch(_){ return '未知时间'; }
+}
+
+function explainFeedbackLoadError(message){
+  var text = String(message || '').trim();
+  if(!text) return '请稍后重试';
+  if(/Method Not Allowed/i.test(text)){
+    return '当前连接到的后端版本过旧，不支持反馈中心列表。请确认前端读取的是 deploy-config.js，并重启 9010 后端。';
+  }
+  if(/Failed to fetch|NetworkError/i.test(text)){
+    return '当前无法连接反馈服务。请确认 9010 后端已启动，且前后端地址一致。';
+  }
+  return text;
+}
+
+function cleanupFeedbackPreviewUrls(){
+  feedbackAttachmentPreviewUrls.forEach(function(url){
+    if(url){
+      try{ URL.revokeObjectURL(url); }catch(_){}
+    }
+  });
+  feedbackAttachmentPreviewUrls.clear();
+}
+
+function feedbackPreviewKey(feedbackId, attachmentId){
+  return String(feedbackId || '') + ':' + String(attachmentId || '');
+}
+
+async function ensureFeedbackAttachmentPreview(feedbackId, attachment){
+  if(!attachment || !attachment.fileUrl) return '';
+  var key = feedbackPreviewKey(feedbackId, attachment.id || attachment.name || '');
+  if(feedbackAttachmentPreviewUrls.has(key)) return feedbackAttachmentPreviewUrls.get(key) || '';
+  try{
+    var resp = await fetch(String(attachment.fileUrl), { headers: authHeaders() });
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    var blob = await resp.blob();
+    var objectUrl = URL.createObjectURL(blob);
+    feedbackAttachmentPreviewUrls.set(key, objectUrl);
+    return objectUrl;
+  }catch(_){
+    feedbackAttachmentPreviewUrls.set(key, '');
+    return '';
+  }
+}
+
+function feedbackPageItems(){
+  if(feedbackPageMode === 'all' && (getAuthUser() || {}).is_admin){
+    return Array.isArray(adminFeedbackRecords) ? adminFeedbackRecords : [];
+  }
+  return Array.isArray(myFeedbackRecords) ? myFeedbackRecords : [];
+}
+
+function feedbackPageSelectedItem(){
+  return feedbackPageItems().find(function(item){ return String(item.id) === String(feedbackPageSelectedId); }) || null;
+}
+
+function feedbackItemTitle(item){
+  var text = item && item.message ? String(item.message).trim() : '';
+  return text ? text.slice(0, 40) : '未命名工单';
+}
+
+function feedbackThreadMessages(item){
+  return Array.isArray(item && item.messages) ? item.messages : [];
+}
+
+function feedbackThreadRoleText(msg){
+  var me = getAuthUser() || {};
+  var actor = msg && msg.user ? msg.user : {};
+  if(String(actor.id || '') && String(actor.id || '') === String(me.user_id || '')) return '我';
+  return String(msg && msg.senderRole || '') === 'admin' ? '管理员' : ((actor.display_name || actor.username || '用户'));
+}
+
+function buildFeedbackPageModeBar(){
+  var u = getAuthUser() || {};
+  var html = '<button class="feedback-page-chip' + (feedbackPageMode === 'mine' ? ' active' : '') + '" type="button" onclick="switchFeedbackPageMode(\'mine\')">我的工单</button>';
+  if(u.is_admin) html += '<button class="feedback-page-chip' + (feedbackPageMode === 'all' ? ' active' : '') + '" type="button" onclick="switchFeedbackPageMode(\'all\')">全部工单</button>';
+  return html;
+}
+
+function renderFeedbackPageList(){
+  var host = document.getElementById('feedbackPageList');
+  var modeBar = document.getElementById('feedbackPageModeBar');
+  if(modeBar) modeBar.innerHTML = buildFeedbackPageModeBar();
+  if(!host) return;
+  var rows = feedbackPageItems();
+  if(!rows.length){
+    host.innerHTML = '<div class="feedback-center-empty">当前还没有反馈记录。点击上方“新建反馈”创建第一条工单。</div>';
+    return;
+  }
+  host.innerHTML = rows.map(function(item){
+    var meta = feedbackStatusMeta(item.status);
+    return '<div class="feedback-page-item' + (String(item.id) === String(feedbackPageSelectedId) && !feedbackPageDrafting ? ' active' : '') + '" onclick="selectFeedbackPageItem(\'' + escapeHtml(item.id) + '\')">'
+      + '<div class="feedback-page-item-top"><div class="feedback-page-item-title">' + escapeHtml(feedbackItemTitle(item)) + '</div><span class="feedback-admin-status-badge is-' + escapeHtml(meta.key) + '">' + escapeHtml(meta.label) + '</span></div>'
+      + '<div class="feedback-page-item-meta">' + escapeHtml(formatFeedbackCreatedAt(item.updatedAt || item.createdAt)) + '</div>'
+      + '<div class="feedback-page-item-preview">' + escapeHtml(item.message || '未填写文字，仅提交了图片附件。') + '</div></div>';
+  }).join('');
+}
+
+function buildFeedbackThreadAttachments(feedbackId, msg, prefix){
+  var attachments = Array.isArray(msg && msg.attachments) ? msg.attachments : [];
+  if(!attachments.length) return '';
+  return '<div class="feedback-ticket-thread-attachments"><div class="feedback-admin-attachment-list">' + attachments.map(function(att, idx){
+    var isImage = /^image\//i.test(String(att.contentType || ''));
+    var previewId = prefix + '-' + escapeHtml(String(feedbackId || '') + '-' + String(msg.id || idx) + '-' + idx);
+    return '<div class="feedback-admin-attachment"><div class="feedback-admin-attachment-preview" id="' + previewId + '">' + (isImage ? '加载图片预览中…' : '非图片附件') + '</div><div class="feedback-admin-attachment-meta"><div class="feedback-admin-attachment-name">' + escapeHtml(att.name || '附件') + '</div><div class="feedback-admin-attachment-size">' + escapeHtml(formatFeedbackFileSize(att.size)) + '</div></div></div>';
+  }).join('') + '</div></div>';
+}
+
+function buildFeedbackThread(item){
+  var rows = feedbackThreadMessages(item);
+  if(!rows.length) return '<div class="feedback-ticket-thread-empty">当前工单还没有留言，右侧可以直接补充更多场景和操作步骤。</div>';
+  return '<div class="feedback-ticket-thread">' + rows.map(function(msg){
+    var role = String(msg && msg.senderRole || '') === 'admin' ? 'admin' : 'user';
+    var cls = 'feedback-ticket-thread-item' + (role === 'admin' ? ' is-admin' : '');
+    return '<div class="' + cls + '"><div class="feedback-ticket-thread-head"><span class="feedback-ticket-thread-role ' + role + '">' + escapeHtml(feedbackThreadRoleText(msg)) + '</span><span class="feedback-ticket-thread-time">' + escapeHtml(formatFeedbackCreatedAt(msg.createdAt)) + '</span></div><div class="feedback-ticket-thread-body">' + escapeHtml(msg.message || '仅补充了图片附件。') + '</div>' + buildFeedbackThreadAttachments(item.id, msg, 'feedbackThreadAttachmentPreview') + '</div>';
+  }).join('') + '</div>';
+}
+
+function buildFeedbackReplyComposer(item){
+  var isAdminView = !!((getAuthUser() || {}).is_admin && feedbackPageMode === 'all');
+  return '<form class="feedback-ticket-reply" onsubmit="submitFeedbackReply(event, \'' + escapeHtml(item.id) + '\')">'
+    + '<textarea id="feedbackReplyMessage" maxlength="5000" placeholder="' + escapeHtml(isAdminView ? '继续追问问题场景、复现步骤或处理结论。' : '继续补充场景、复现步骤，或回复管理员的问题。') + '"></textarea>'
+    + '<div class="feedback-upload-card"><div class="feedback-upload-copy"><div class="feedback-upload-title">图片附件</div><div class="feedback-upload-desc">可继续补充截图，帮助确认问题场景</div></div><div class="feedback-upload-actions"><label class="feedback-upload-btn" for="feedbackImages">添加图片</label><input id="feedbackImages" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple onchange="handleFeedbackImageSelect(this)" style="display:none"><div class="feedback-upload-meta">最多 ' + FEEDBACK_MAX_IMAGES + ' 张</div></div></div>'
+    + '<div id="feedbackImageList" class="feedback-image-list compact"></div>'
+    + '<div class="feedback-ticket-replybar"><div class="feedback-ticket-replynote">' + escapeHtml(isAdminView ? '管理员回复会直接留在这条工单里，普通用户只能看到自己的工单。' : '只有你和管理员能看到这条工单里的留言记录。') + '</div><button id="feedbackReplySubmitBtn" class="tb-btn primary" type="submit">发送回复</button></div></form>';
+}
+
+function buildFeedbackPageMainHead(){
+  var u = getAuthUser() || {};
+  var selected = feedbackPageSelectedItem();
+  if(feedbackPageDrafting || !selected){
+    return '<div><strong>新建反馈</strong><div class="feedback-page-sub">把问题、截图和场景描述整理成一条新工单提交。</div></div><div class="feedback-page-actions">' + (u.is_admin ? '<button class="tb-btn" type="button" onclick="switchFeedbackPageMode(\'all\')">查看全部工单</button>' : '') + '</div>';
+  }
+  var meta = feedbackStatusMeta(selected.status);
+  return '<div><strong>' + escapeHtml(feedbackItemTitle(selected)) + '</strong><div class="feedback-page-sub">创建于 ' + escapeHtml(formatFeedbackCreatedAt(selected.createdAt)) + ' · 最近更新 ' + escapeHtml(formatFeedbackCreatedAt(selected.updatedAt || selected.createdAt)) + '</div></div><div class="feedback-page-actions"><span class="feedback-admin-status-badge is-' + escapeHtml(meta.key) + '">' + escapeHtml(meta.label) + '</span></div>';
+}
+
+function buildFeedbackPageDetail(){
+  var selected = feedbackPageSelectedItem();
+  if(feedbackPageDrafting || !selected){
+    return '<div class="feedback-ticket-grid"><div class="feedback-ticket-card"><div class="feedback-ticket-section"><div class="feedback-ticket-label">创建工单</div><div class="feedback-ticket-heading">提交一个新的问题</div><div class="feedback-ticket-submeta">尽量把页面、操作步骤、是否可复现等信息写清楚。提交后，这条工单就会进入右侧详情区，后续留言也会接在同一条工单里。</div></div><div class="feedback-ticket-section">' + buildFeedbackCenterComposerHtml() + '</div></div><div class="feedback-ticket-side"><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">使用说明</div><div class="feedback-ticket-thread-empty" style="margin-top:10px;">普通用户只能看到自己的工单；管理员切到“全部工单”后，才能查看所有人的反馈并继续回复。</div></div></div></div>';
+  }
+  var meta = feedbackStatusMeta(selected.status);
+  var statusControl = '';
+  if((getAuthUser() || {}).is_admin && feedbackPageMode === 'all'){
+    statusControl = '<div class="feedback-ticket-sideitem"><label>处理状态</label><strong style="margin-bottom:8px;">' + escapeHtml(meta.label) + '</strong><select class="feedback-admin-select" onchange="updateAdminFeedbackStatus(\'' + escapeHtml(selected.id) + '\', this)"><option value="new"' + (meta.key === 'new' ? ' selected' : '') + '>待处理</option><option value="processing"' + (meta.key === 'processing' ? ' selected' : '') + '>处理中</option><option value="resolved"' + (meta.key === 'resolved' ? ' selected' : '') + '>已解决</option></select></div>';
+  }
+  return '<div class="feedback-ticket-grid"><div class="feedback-ticket-card"><div class="feedback-ticket-section"><div class="feedback-ticket-label">工单概览</div><div class="feedback-ticket-heading">' + escapeHtml(feedbackItemTitle(selected)) + '</div><div class="feedback-ticket-submeta">提交于 ' + escapeHtml(formatFeedbackCreatedAt(selected.createdAt)) + ' · 当前状态 ' + escapeHtml(meta.label) + '</div></div><div class="feedback-ticket-section"><div class="feedback-ticket-label">沟通记录</div><div style="margin-top:14px;">' + buildFeedbackThread(selected) + '</div></div><div class="feedback-ticket-section"><div class="feedback-ticket-label">继续留言</div><div style="margin-top:14px;">' + buildFeedbackReplyComposer(selected) + '</div></div></div><aside class="feedback-ticket-side"><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">工单信息</div><div class="feedback-ticket-sidegrid" style="margin-top:12px;">' + statusControl + '<div class="feedback-ticket-sideitem"><label>提交页面</label><strong>' + escapeHtml((selected.context && selected.context.page) || '-') + '</strong></div><div class="feedback-ticket-sideitem"><label>会话 ID</label><strong>' + escapeHtml((selected.context && selected.context.notebookId) || '-') + '</strong></div><div class="feedback-ticket-sideitem"><label>来源数</label><strong>' + escapeHtml(String((selected.context && selected.context.sourceCount) || 0)) + '</strong></div><div class="feedback-ticket-sideitem"><label>消息数</label><strong>' + escapeHtml(String((selected.context && selected.context.messageCount) || 0)) + '</strong></div><div class="feedback-ticket-sideitem"><label>提交人</label><strong>' + escapeHtml(((selected.user && (selected.user.display_name || selected.user.username)) || '-')) + '</strong></div></div></div><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">权限说明</div><div class="feedback-ticket-thread-empty" style="margin-top:10px;">普通用户只能查看自己的反馈；管理员切到“全部工单”后，才能查看所有人的工单并继续回复。</div></div></aside></div>';
+}
+
+function renderFeedbackPage(){
+  var head = document.getElementById('feedbackPageMainHead');
+  var detail = document.getElementById('feedbackPageDetail');
+  renderFeedbackPageList();
+  if(head) head.innerHTML = buildFeedbackPageMainHead();
+  if(detail) detail.innerHTML = buildFeedbackPageDetail();
+  renderFeedbackImageList();
+}
+
+async function hydrateFeedbackPagePreviews(){
+  var selected = feedbackPageSelectedItem();
+  if(selected && !feedbackPageDrafting){
+    var rows = feedbackThreadMessages(selected);
+    for(var i=0;i<rows.length;i++){
+      var msg = rows[i];
+      var attachments = Array.isArray(msg && msg.attachments) ? msg.attachments : [];
+      for(var j=0;j<attachments.length;j++){
+        var att = attachments[j];
+        if(!/^image\//i.test(String(att && att.contentType || ''))) continue;
+        var host = document.getElementById('feedbackThreadAttachmentPreview-' + selected.id + '-' + msg.id + '-' + j);
+        if(!host) continue;
+        host.textContent = '加载图片预览中…';
+        var previewUrl = await ensureFeedbackAttachmentPreview(selected.id, att);
+        if(previewUrl) host.innerHTML = '<img src="' + escapeHtml(previewUrl) + '" alt="' + escapeHtml(att.name || '反馈附件') + '" onclick="openChatImageZoom(\'' + escapeHtml(previewUrl) + '\')">';
+        else host.textContent = '图片预览失败';
+      }
+    }
+  }
+}
+
+async function refreshCurrentUserProfile(){
+  var token = getAuthToken();
+  if(!token) return getAuthUser();
+  try{
+    var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
+    if(!r.ok) return getAuthUser();
+    var me = await r.json().catch(function(){ return null; });
+    if(!me) return getAuthUser();
+    setAuthSession(token, {
+      user_id: me.user_id,
+      username: me.username,
+      phone: me.phone,
+      display_name: me.display_name,
+      name: me.name,
+      organization: me.organization,
+      department: me.department,
+      title: me.title,
+      user_type: me.user_type,
+      use_case: me.use_case,
+      email: me.email,
+      is_admin: !!me.is_admin
+    });
+    __authMeCheckedAt = Date.now();
+    return getAuthUser();
+  }catch(_){
+    return getAuthUser();
+  }
+}
+
+function startFeedbackDraft(){
+  feedbackPageDrafting = true;
+  feedbackPageSelectedId = '';
+  resetFeedbackDraft();
+  renderFeedbackPage();
+}
+
+function selectFeedbackPageItem(id){
+  feedbackPageSelectedId = String(id || '');
+  feedbackPageDrafting = false;
+  resetFeedbackDraft();
+  renderFeedbackPage();
+  hydrateFeedbackPagePreviews().catch(function(){});
+  if(__heartosHistoryReady){
+    history.pushState({page:'feedback', id:feedbackPageSelectedId}, '', '#feedback');
+  }
+}
+
+function switchFeedbackPageMode(mode){
+  feedbackPageMode = mode === 'all' && (getAuthUser() || {}).is_admin ? 'all' : 'mine';
+  feedbackPageSelectedId = '';
+  feedbackPageDrafting = false;
+  resetFeedbackDraft();
+  refreshFeedbackPage();
+}
+
+async function refreshFeedbackPage(){
+  cleanupFeedbackPreviewUrls();
+  var user = await refreshCurrentUserProfile();
+  var mineResp = await apiFetch('/api/feedback', { method:'GET' });
+  var mineOut = await mineResp.json().catch(function(){ return {}; });
+  if(!mineResp.ok) throw new Error(mineOut.detail || '读取失败');
+  myFeedbackRecords = Array.isArray(mineOut.items) ? mineOut.items : [];
+  if(user && user.is_admin){
+    var adminResp = await apiFetch('/api/admin/feedback', { method:'GET' });
+    var adminOut = await adminResp.json().catch(function(){ return {}; });
+    adminFeedbackRecords = adminResp.ok && Array.isArray(adminOut.items) ? adminOut.items : [];
+  }else{
+    adminFeedbackRecords = [];
+    feedbackPageMode = 'mine';
+  }
+  var rows = feedbackPageItems();
+  if(!feedbackPageDrafting && feedbackPageSelectedId && !rows.some(function(item){ return String(item.id) === String(feedbackPageSelectedId); })){
+    feedbackPageSelectedId = rows.length ? String(rows[0].id) : '';
+  }
+  if(!feedbackPageDrafting && !feedbackPageSelectedId && rows.length){
+    feedbackPageSelectedId = String(rows[0].id);
+  }
+  renderFeedbackPage();
+  hydrateFeedbackPagePreviews().catch(function(){});
+}
+
+async function openFeedbackPage(pushHistory){
+  if(pushHistory !== false) pushHistory = true;
+  document.getElementById('homePage').classList.remove('active');
+  document.getElementById('nbPage').classList.remove('active');
+  document.getElementById('feedbackPage').classList.add('active');
+  updateUserAvatarUI();
+  try{
+    await refreshFeedbackPage();
+  }catch(e){
+    var list = document.getElementById('feedbackPageList');
+    var detail = document.getElementById('feedbackPageDetail');
+    if(list) list.innerHTML = '<div class="feedback-center-empty">反馈列表加载失败，请稍后刷新重试。</div>';
+    if(detail) detail.innerHTML = '<div class="feedback-center-empty">暂时无法读取反馈记录：' + escapeHtml(explainFeedbackLoadError(e && e.message ? e.message : '')) + '</div>';
+  }
+  if(pushHistory && __heartosHistoryReady){
+    history.pushState({page:'feedback', id:feedbackPageDrafting ? '' : feedbackPageSelectedId}, '', '#feedback');
+  }
+}
+
+async function openFeedbackCenterModal(){
+  return openFeedbackPage(true);
+}
+
+async function submitFeedbackReply(evt, feedbackId){
+  if(evt) evt.preventDefault();
+  if(feedbackReplySubmitting) return;
+  var input = document.getElementById('feedbackReplyMessage');
+  var submitBtn = document.getElementById('feedbackReplySubmitBtn');
+  var message = (input && input.value || '').trim();
+  if(!message && !feedbackAttachments.length){
+    showToast('请填写回复内容，或上传图片附件');
+    return;
+  }
+  feedbackReplySubmitting = true;
+  if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = '发送中…'; }
+  try{
+    var fd = new FormData();
+    fd.append('message', message);
+    feedbackAttachments.forEach(function(item){
+      if(item && item.file) fd.append('images', item.file, item.file.name || 'feedback-reply-image.png');
+    });
+    var resp = await apiFetch('/api/feedback/' + encodeURIComponent(String(feedbackId)) + '/messages', { method:'POST', body: fd });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || ('HTTP ' + resp.status));
+    resetFeedbackDraft();
+    if(input) input.value = '';
+    await refreshFeedbackPage();
+    showToast('留言已发送');
+  }catch(e){
+    showToast('发送失败：' + (e && e.message ? e.message : '请稍后重试'));
+  }finally{
+    feedbackReplySubmitting = false;
+    if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = '发送回复'; }
+  }
+}
+
+async function updateAdminFeedbackStatus(feedbackId, selectEl){
+  var nextStatus = String(selectEl && selectEl.value || 'new');
+  try{
+    var resp = await apiFetch('/api/admin/feedback/' + encodeURIComponent(String(feedbackId)) + '/status', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: nextStatus })
+    });
+    var out = await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) throw new Error(out.detail || '更新失败');
+    await refreshFeedbackPage();
+    showToast('反馈状态已更新');
+  }catch(e){
+    showToast('更新反馈状态失败：' + (e && e.message ? e.message : '请稍后重试'));
   }
 }
 
@@ -9393,9 +9741,11 @@ const AUTH_USE_CASE_OPTIONS = ['临床辅助','科研分析','教学演示','产
 function setAppAuthed(authed){
   var hp = document.getElementById('homePage');
   var np = document.getElementById('nbPage');
+  var fp = document.getElementById('feedbackPage');
   var gate = document.getElementById('authGate');
   if(hp) hp.style.display = authed ? '' : 'none';
   if(np) np.style.display = authed ? '' : 'none';
+  if(fp) fp.style.display = authed ? '' : 'none';
   if(gate) gate.classList.toggle('auth-hidden', authed);
 }
 
@@ -9650,6 +10000,7 @@ function setAuthModeAndShow(mode){
   var help = document.getElementById('authPasswordHelp');
   var gate = document.getElementById('authGate');
   var phoneInput = document.getElementById('authPhone');
+  var passwordInput = document.getElementById('authPassword');
   var phoneLabel = phoneInput && phoneInput.parentNode ? phoneInput.parentNode.querySelector('label') : null;
   authRegisterStep = 1;
   rows.forEach(function(id){
@@ -9661,6 +10012,7 @@ function setAuthModeAndShow(mode){
   if(pri) pri.textContent = authMode === 'login' ? '登录' : '注册';
   if(phoneLabel) phoneLabel.textContent = authMode === 'login' ? '手机号 / 账号' : '手机号';
   if(phoneInput) phoneInput.placeholder = authMode === 'login' ? '请输入手机号或管理员账号' : '请输入手机号';
+  if(passwordInput) passwordInput.value = '';
   var forgot = document.getElementById('authForgotBtn');
   if(forgot) forgot.classList.toggle('auth-hidden', authMode !== 'login');
   if(card) card.classList.toggle('auth-login', authMode === 'login');
@@ -10039,8 +10391,8 @@ function buildAccountProfileHtml(user){
     + '</form>';
 }
 
-function openAccountModal(){
-  var u = getAuthUser();
+async function openAccountModal(){
+  var u = await refreshCurrentUserProfile();
   if(!u){ setAuthModeAndShow('login'); return; }
   ensureSystemModal('accountModal', '账号中心', '维护个人资料、密码和管理员视图。', buildAccountProfileHtml(u), false);
   openSystemModal('accountModal');
@@ -10145,10 +10497,7 @@ async function openAdminUsersModal(){
   }
 }
 
-async function logoutCurrentUser(){
-  try{
-    await flushNotebookPersistenceBeforeExit();
-  }catch(_){ }
+function logoutCurrentUser(){
   clearAuthSession();
   closeSystemModal('accountModal');
   setAuthModeAndShow('login');
@@ -10501,15 +10850,8 @@ async function loadAuthedAppData(){
 
 async function initAuthBoot(){
   setAppAuthed(false);
-  setAuthModeAndShow('login');
-  var hasToken = !!getAuthToken();
-  if(hasToken){
-    setAuthMsg('已识别登录状态，正在进入首页…', false);
-    setAuthSubmitting(true, '进入中…');
-  }
   try{
     await ensureLogin();
-    setAuthSubmitting(false);
     setAppAuthed(true);
     setAuthMsg('');
     hydrateNotebookSummariesFromLocal();
@@ -10520,12 +10862,11 @@ async function initAuthBoot(){
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     updateUserAvatarUI();
   }catch(e){
-    setAuthSubmitting(false);
     console.warn('[heartos-auth] login skipped', e && e.message ? e.message : e);
     updateUserAvatarUI();
   }
 }
-initAuthBoot();
+setTimeout(initAuthBoot, 100);
 
 updateApiStatus();
 </script>
@@ -12832,31 +13173,3 @@ document.addEventListener('keydown',function(e){
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -783,16 +783,34 @@ def _finalize_upstream_error_message(payload: Any, text: str, fallback: str) -> 
     return message or fallback
 
 
-def _normalize_upstream_user(raw: Any, fallback_username: str) -> tuple[dict[str, Any], str | None]:
-    """从外部接口的响应里抽取出 (user_dict, upstream_token)。
+def _normalize_register_error_message(message: str, account: str) -> str:
+    text = str(message or "").strip()
+    lowered = text.lower()
+    duplicate_markers = (
+        "重复",
+        "已注册",
+        "已存在",
+        "already exists",
+        "already registered",
+        "duplicate",
+        "exists",
+        "taken",
+    )
+    if any(marker in lowered for marker in duplicate_markers):
+        normalized_account = _normalize_phone(account)
+        if normalized_account and normalized_account == str(account or "").strip():
+            return "注册失败，该手机号已注册"
+        return "注册失败，账号已存在"
+    return text or "注册失败，请稍后重试"
 
-    兼容常见字段命名：
-      - token / access_token / accessToken / jwt / authorization
-      - user_id / userId / id / uid
-      - username / user_name / account / name
-      - display_name / displayName / nickname / realName
-      - 外层可能套一层 {code, message, data: {...}}；user 信息可能在 data.user
-    """
+
+def _is_duplicate_register_message(message: str, account: str) -> bool:
+    normalized = _normalize_register_error_message(message, account)
+    return normalized in {"注册失败，该手机号已注册", "注册失败，账号已存在"}
+
+
+def _normalize_upstream_user(raw: Any, fallback_username: str) -> tuple[dict[str, Any], str | None]:
+    """从外部接口的响应里抽取出 (user_dict, upstream_token)。"""
     if not isinstance(raw, dict):
         return {"id": "", "username": fallback_username, "display_name": fallback_username}, None
 
@@ -838,8 +856,6 @@ def _normalize_upstream_user(raw: Any, fallback_username: str) -> tuple[dict[str
         },
         str(upstream_token) if upstream_token else None,
     )
-
-
 def _post_upstream(path: str, body: dict[str, Any]) -> tuple[int, Any, str]:
     base = (settings.auth_upstream_base or "").rstrip("/")
     if not base:
@@ -964,8 +980,6 @@ def _is_upstream_success_payload(data: Any) -> bool:
         except Exception:
             return False
     return True
-
-
 def upstream_register(username: str, password: str, display_name: str | None = None) -> dict[str, Any]:
     body: dict[str, Any] = {"username": username, "password": password}
     if display_name:
@@ -973,12 +987,13 @@ def upstream_register(username: str, password: str, display_name: str | None = N
 
     try:
         status, data, text = _post_upstream(settings.auth_upstream_register_path, body)
-    except UpstreamAuthError:
-        raise UpstreamAuthError(500, "注册失败，用户名重复")
+    except UpstreamAuthError as e:
+        raise UpstreamAuthError(e.status_code, _normalize_register_error_message(e.message, username)) from e
 
     if status >= 400 or not _has_valid_user_payload(data):
-        message = _finalize_upstream_error_message(data, text, "注册失败，用户名重复")
-        raise UpstreamAuthError(500, message)
+        message = _finalize_upstream_error_message(data, text, "注册失败，请稍后重试")
+        status_code = 409 if _is_duplicate_register_message(message, username) else (status or 500)
+        raise UpstreamAuthError(status_code, _normalize_register_error_message(message, username))
 
     user, _upstream_token = _normalize_upstream_user(data, fallback_username=username)
     if not user.get("display_name") and display_name:
