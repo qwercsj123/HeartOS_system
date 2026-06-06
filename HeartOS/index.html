@@ -1472,9 +1472,12 @@ let feedbackPageMineLoading = false;
 let feedbackPageAdminLoading = false;
 let feedbackPageRefreshToken = 0;
 let feedbackPreviewHydrationToken = 0;
+let feedbackPageSyncing = false;
 const feedbackAttachmentPreviewUrls = new Map();
 const FEEDBACK_MAX_IMAGES = 4;
 const FEEDBACK_PREVIEW_CONCURRENCY = 4;
+const FEEDBACK_CACHE_VERSION = 1;
+const FEEDBACK_CACHE_TTL_MS = 10 * 60 * 1000;
 const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
 
 function updateChatSendButton(){
@@ -10019,6 +10022,66 @@ function resetFeedbackDraft(){
   feedbackAttachments = [];
 }
 
+function feedbackSnapshotStorageKey(userId){
+  return 'heartos_feedback_snapshot:' + String(userId || '');
+}
+
+function loadFeedbackSnapshotForUser(user){
+  var u = user || getAuthUser();
+  var userId = String(u && u.user_id || '');
+  if(!userId) return null;
+  try{
+    var raw = localStorage.getItem(feedbackSnapshotStorageKey(userId));
+    if(!raw) return null;
+    var parsed = JSON.parse(raw);
+    if(!parsed || Number(parsed.version || 0) !== FEEDBACK_CACHE_VERSION) return null;
+    if((Date.now() - Number(parsed.cachedAt || 0)) > FEEDBACK_CACHE_TTL_MS) return null;
+    return parsed;
+  }catch(_){
+    return null;
+  }
+}
+
+function persistFeedbackSnapshotForUser(user, mineItems, adminItems){
+  var u = user || getAuthUser();
+  var userId = String(u && u.user_id || '');
+  if(!userId) return;
+  try{
+    localStorage.setItem(feedbackSnapshotStorageKey(userId), JSON.stringify({
+      version: FEEDBACK_CACHE_VERSION,
+      cachedAt: Date.now(),
+      isAdmin: !!(u && u.is_admin),
+      mine: Array.isArray(mineItems) ? mineItems : (Array.isArray(myFeedbackRecords) ? myFeedbackRecords : []),
+      admin: Array.isArray(adminItems) ? adminItems : (Array.isArray(adminFeedbackRecords) ? adminFeedbackRecords : [])
+    }));
+  }catch(_){}
+}
+
+function restoreFeedbackSnapshotFromLocal(){
+  var snapshot = loadFeedbackSnapshotForUser();
+  if(!snapshot) return false;
+  myFeedbackRecords = Array.isArray(snapshot.mine) ? snapshot.mine : [];
+  adminFeedbackRecords = !!snapshot.isAdmin && Array.isArray(snapshot.admin) ? snapshot.admin : [];
+  if(!(getAuthUser() || {}).is_admin && feedbackPageMode === 'all'){
+    feedbackPageMode = 'mine';
+  }
+  syncFeedbackPageSelection();
+  return true;
+}
+
+async function prewarmFeedbackSnapshotInBackground(force){
+  var user = getAuthUser();
+  var token = getAuthToken();
+  if(!user || !token) return;
+  if(!force && loadFeedbackSnapshotForUser(user)) return;
+  try{
+    var minePromise = fetchFeedbackCollection('/api/feedback');
+    var adminPromise = user.is_admin ? fetchFeedbackCollection('/api/admin/feedback') : Promise.resolve([]);
+    var results = await Promise.all([minePromise, adminPromise]);
+    persistFeedbackSnapshotForUser(user, results[0], results[1]);
+  }catch(_){}
+}
+
 function renderFeedbackImageList(){
   var host = document.getElementById('feedbackImageList');
   if(!host) return;
@@ -10441,10 +10504,10 @@ function buildFeedbackPageMainHead(){
     return '<div><strong>全部工单</strong><div class="feedback-page-sub">正在同步管理员视图，先为你准备全部反馈列表。</div></div><div class="feedback-page-actions"><span class="feedback-admin-status-badge is-processing">加载中</span></div>';
   }
   if(feedbackPageDrafting || !selected){
-    return '<div><strong>新建反馈</strong><div class="feedback-page-sub">把问题、截图和场景描述整理成一条新工单提交。</div></div><div class="feedback-page-actions">' + (u.is_admin ? '<button class="tb-btn" type="button" onclick="switchFeedbackPageMode(\'all\')">查看全部工单</button>' : '') + '</div>';
+    return '<div><strong>新建反馈</strong><div class="feedback-page-sub">把问题、截图和场景描述整理成一条新工单提交。' + (feedbackPageSyncing ? ' 当前正在同步最新反馈。' : '') + '</div></div><div class="feedback-page-actions">' + (u.is_admin ? '<button class="tb-btn" type="button" onclick="switchFeedbackPageMode(\'all\')">查看全部工单</button>' : '') + '</div>';
   }
   var meta = feedbackStatusMeta(selected.status);
-  return '<div><strong>' + escapeHtml(feedbackItemTitle(selected)) + '</strong><div class="feedback-page-sub">创建于 ' + escapeHtml(formatFeedbackCreatedAt(selected.createdAt)) + ' · 最近更新 ' + escapeHtml(formatFeedbackCreatedAt(selected.updatedAt || selected.createdAt)) + '</div></div><div class="feedback-page-actions"><span class="feedback-admin-status-badge is-' + escapeHtml(meta.key) + '">' + escapeHtml(meta.label) + '</span></div>';
+  return '<div><strong>' + escapeHtml(feedbackItemTitle(selected)) + '</strong><div class="feedback-page-sub">创建于 ' + escapeHtml(formatFeedbackCreatedAt(selected.createdAt)) + ' · 最近更新 ' + escapeHtml(formatFeedbackCreatedAt(selected.updatedAt || selected.createdAt)) + (feedbackPageSyncing ? ' · 正在同步最新数据' : '') + '</div></div><div class="feedback-page-actions"><span class="feedback-admin-status-badge is-' + escapeHtml(meta.key) + '">' + escapeHtml(meta.label) + '</span></div>';
 }
 
 function buildFeedbackPageDetail(){
@@ -10563,6 +10626,7 @@ async function refreshFeedbackPage(){
   var refreshToken = ++feedbackPageRefreshToken;
   var cachedUser = getAuthUser() || {};
   var cachedAdmin = !!cachedUser.is_admin;
+  feedbackPageSyncing = true;
   feedbackPageMineLoading = true;
   feedbackPageAdminLoading = cachedAdmin;
   if(cachedAdmin && feedbackPageMode === 'all'){
@@ -10582,14 +10646,17 @@ async function refreshFeedbackPage(){
   if(!isAdmin){
     adminFeedbackRecords = [];
     feedbackPageAdminLoading = false;
+    feedbackPageSyncing = false;
     if(feedbackPageMode === 'all') feedbackPageMode = 'mine';
     syncFeedbackPageSelection();
+    persistFeedbackSnapshotForUser(user);
     renderFeedbackPage();
     hydrateFeedbackPagePreviews().catch(function(){});
     return;
   }
 
   syncFeedbackPageSelection();
+  persistFeedbackSnapshotForUser(user);
   renderFeedbackPage();
   hydrateFeedbackPagePreviews().catch(function(){});
 
@@ -10599,14 +10666,18 @@ async function refreshFeedbackPage(){
   }catch(e){
     if(refreshToken !== feedbackPageRefreshToken) return;
     feedbackPageAdminLoading = false;
+    feedbackPageSyncing = false;
     if(feedbackPageMode === 'all') throw e;
     adminFeedbackRecords = [];
     console.warn('[HeartOS] feedback admin list load failed', e);
+    renderFeedbackPage();
     return;
   }
   if(refreshToken !== feedbackPageRefreshToken) return;
   feedbackPageAdminLoading = false;
+  feedbackPageSyncing = false;
   syncFeedbackPageSelection();
+  persistFeedbackSnapshotForUser(user);
   renderFeedbackPage();
   hydrateFeedbackPagePreviews().catch(function(){});
 }
@@ -10629,7 +10700,16 @@ async function openFeedbackPage(pushHistory){
     history.pushState({page:'feedback', id:feedbackPageDrafting ? '' : feedbackPageSelectedId}, '', '#feedback');
   }
   syncSessionRouteFromLocation();
-  renderFeedbackPageLoadingState();
+  feedbackPageSyncing = false;
+  if(restoreFeedbackSnapshotFromLocal()){
+    feedbackPageMineLoading = false;
+    feedbackPageAdminLoading = false;
+    renderFeedbackPage();
+    hydrateFeedbackPagePreviews().catch(function(){});
+    setSessionViewState('loading', 'restore-cache', '正在同步最新反馈…');
+  }else{
+    renderFeedbackPageLoadingState();
+  }
   feedbackPageOpeningPromise = (async function(){
     try{
       await refreshFeedbackPage();
@@ -11147,6 +11227,7 @@ async function submitAuthLogin(){
     setAuthSubmitting(false);
     hydrateNotebookSummariesFromLocal();
     loadAuthedAppData().catch(function(){});
+    prewarmFeedbackSnapshotInBackground(false).catch(function(){});
     if(authReadyResolve){ authReadyResolve(true); authReadyResolve = null; authReadyPromise = null; }
   }catch(e){
     if(tm){ clearTimeout(tm); tm = null; }
@@ -11391,11 +11472,27 @@ function buildAccountProfileHtml(user){
     + '</form>';
 }
 
+function renderAccountModal(user, syncing){
+  var subtitle = syncing ? '正在同步最新账号资料，你可以先查看和编辑当前信息。' : '维护个人资料、密码和管理员视图。';
+  ensureSystemModal('accountModal', '账号中心', subtitle, buildAccountProfileHtml(user), false);
+  openSystemModal('accountModal');
+}
+
 async function openAccountModal(){
+  var cachedUser = getAuthUser();
+  if(cachedUser){
+    renderAccountModal(cachedUser, true);
+    refreshCurrentUserProfile().then(function(nextUser){
+      var modal = document.getElementById('accountModal');
+      if(!modal || !modal.classList.contains('open')) return;
+      if(!nextUser) return;
+      renderAccountModal(nextUser, false);
+    }).catch(function(){});
+    return;
+  }
   var u = await refreshCurrentUserProfile();
   if(!u){ setAuthModeAndShow('login'); return; }
-  ensureSystemModal('accountModal', '账号中心', '维护个人资料、密码和管理员视图。', buildAccountProfileHtml(u), false);
-  openSystemModal('accountModal');
+  renderAccountModal(u, false);
 }
 
 async function submitAccountProfile(evt){
@@ -11970,6 +12067,7 @@ async function initAuthBoot(){
     reconcileVisibleAppPage();
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
+    prewarmFeedbackSnapshotInBackground(false).catch(function(){});
     updateUserAvatarUI();
   }catch(e){
     console.warn('[heartos-auth] login skipped', e && e.message ? e.message : e);
