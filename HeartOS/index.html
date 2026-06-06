@@ -1597,7 +1597,7 @@ function renderHome(){
     <div class="nb-new-icon">＋</div>
     <span style="font-size:14px;font-weight:500;">新建对话</span>
   </div>`;
-  h += notebooks.map(nb => {
+  h += notebooks.filter(function(nb){ return !(nb && nb._draft); }).map(nb => {
     const isLoading = __nbOpeningId === String(nb.id);
     const isPlaceholder = isNotebookBootPlaceholder(nb);
     const fileCount = nb._detailsLoaded ? (Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0)) : Number(nb.srcs || 0);
@@ -1626,6 +1626,7 @@ function goHome(pushHistory){
   setNotebookOpeningState('');
   setNotebookDetailLoadingState('');
   if(busy || activeStudioTask) cancelActiveChatWork();
+  pruneEmptyDraftNotebooks();
   try{
     document.documentElement.classList.remove('heartos-init-notebook');
     document.documentElement.classList.remove('heartos-init-feedback');
@@ -2071,40 +2072,65 @@ async function deleteNotebook(id, evt){
   if(!nb) return;
   if(!confirm('确认删除历史对话：' + (defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title) + '？')) return;
   if(curNb && curNb.id === id && (busy || activeStudioTask)) cancelActiveChatWork();
+  const notebookId = String(id);
+  const wasCurrent = !!(curNb && String(curNb.id) === notebookId);
+  const previousNotebooks = Array.isArray(notebooks) ? notebooks.slice() : [];
+  const previousCurNb = curNb ? JSON.parse(JSON.stringify(curNb)) : null;
+  const previousSources = Array.isArray(sources) ? JSON.parse(JSON.stringify(sources)) : [];
+  const previousMsgs = Array.isArray(msgs) ? JSON.parse(JSON.stringify(msgs)) : [];
+  const previousChatEvents = Array.isArray(chatEvents) ? JSON.parse(JSON.stringify(chatEvents)) : [];
+  const previousAnalysisFiles = Array.isArray(analysisFiles) ? JSON.parse(JSON.stringify(analysisFiles)) : [];
   try{
-    const pendingTimer = __nbSaveTimers.get(String(id));
+    const pendingTimer = __nbSaveTimers.get(notebookId);
     if(pendingTimer){
       clearTimeout(pendingTimer);
-      __nbSaveTimers.delete(String(id));
+      __nbSaveTimers.delete(notebookId);
     }
-    const pendingSourceTimer = __nbSourceSaveTimers.get(String(id));
+    const pendingSourceTimer = __nbSourceSaveTimers.get(notebookId);
     if(pendingSourceTimer){
       clearTimeout(pendingSourceTimer);
-      __nbSourceSaveTimers.delete(String(id));
+      __nbSourceSaveTimers.delete(notebookId);
     }
-    try{ await (__nbSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
-    try{ await (__nbSourceSaveQueues.get(String(id)) || Promise.resolve()); }catch(_){ }
-    const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' });
-    if(!resp.ok) throw new Error('删除对话失败');
+    notebooks = notebooks.filter(n => String(n.id) !== notebookId);
     try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
-    if(loadLastOpenedNotebookId() === String(id)) clearLastOpenedNotebookId();
-    notebooks = notebooks.filter(n => n.id !== id);
     persistNotebookSummaryCache();
     pruneNotebookDetailCaches(notebooks.map(function(item){ return item && item.id; }));
-    if(curNb && curNb.id === id){
-      curNb = null;
-      sources = [];
-      window.sources = sources;
-      msgs = [];
-      chatEvents = [];
-      analysisFiles = [];
-      window.__heartosLastImageSource = null;
+    if(loadLastOpenedNotebookId() === notebookId) clearLastOpenedNotebookId();
+    if(wasCurrent){
+      clearNotebookWorkspace();
       goHome();
     }else{
       renderHome();
     }
+    showToast('对话已移除，正在清理后台数据…');
+    try{ await (__nbSaveQueues.get(notebookId) || Promise.resolve()); }catch(_){ }
+    try{ await (__nbSourceSaveQueues.get(notebookId) || Promise.resolve()); }catch(_){ }
+    const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' });
+    if(!resp.ok) throw new Error('删除对话失败');
     showToast('对话已删除');
   }catch(e){
+    notebooks = previousNotebooks;
+    persistNotebookSummaryCache();
+    if(wasCurrent && previousCurNb){
+      curNb = previousCurNb;
+      sources = previousSources;
+      window.sources = sources;
+      msgs = previousMsgs;
+      chatEvents = previousChatEvents;
+      analysisFiles = previousAnalysisFiles;
+      try{
+        document.getElementById('homePage').classList.remove('active');
+        document.getElementById('feedbackPage').classList.remove('active');
+        document.getElementById('nbPage').classList.add('active');
+      }catch(_){ }
+      renderSrcs();
+      renderChat();
+      renderStudio();
+      updateCiSrc();
+      updateNotebookDebugBadge();
+    }else{
+      renderHome();
+    }
     showToast('删除失败：' + (e && e.message ? e.message : '请稍后重试'));
   }
 }
@@ -2261,6 +2287,7 @@ async function loadAiConfigFromServer(){
 
 function persistNotebookLocally(nb){
   if(!nb) return;
+  if(nb._draft) return;
   const payload = {
     id: String(nb.id),
     title: nb.title || 'New Conversation',
@@ -2333,7 +2360,33 @@ function serializeNotebookSources(list){
 }
 
 function canPersistNotebookState(nb){
-  return !!(nb && nb.id && nb._detailsLoaded && !isNotebookBootPlaceholder(nb));
+  return !!(nb && nb.id && nb._detailsLoaded && !isNotebookBootPlaceholder(nb) && !nb._draft);
+}
+
+function notebookHasMeaningfulContent(nb){
+  if(!nb) return false;
+  if(Array.isArray(nb.sources) && nb.sources.length) return true;
+  if(Array.isArray(nb.msgs) && nb.msgs.length) return true;
+  if(Array.isArray(nb.events) && nb.events.length) return true;
+  if(Array.isArray(nb.analysisFiles) && nb.analysisFiles.length) return true;
+  if(nb.sumHtml || nb.suggHtml) return true;
+  return false;
+}
+
+function finalizeDraftNotebook(nb){
+  if(!nb || !nb._draft) return nb;
+  if(!notebookHasMeaningfulContent(nb)) return nb;
+  nb._draft = false;
+  nb.updatedAt = Number(nb.updatedAt || Date.now());
+  persistNotebookLocally(nb);
+  renderHome();
+  return nb;
+}
+
+function pruneEmptyDraftNotebooks(){
+  notebooks = (Array.isArray(notebooks) ? notebooks : []).filter(function(nb){
+    return !(nb && nb._draft && !notebookHasMeaningfulContent(nb));
+  });
 }
 
 function commitCurrentSourceState(options){
@@ -2341,6 +2394,7 @@ function commitCurrentSourceState(options){
   syncLastImageSourceReference();
   if(curNb) curNb.srcs = Array.isArray(sources) ? sources.length : 0;
   syncCurrentNotebookState();
+  if(curNb) finalizeDraftNotebook(curNb);
   if(settings.saveNotebook !== false){
     scheduleSaveCurrentNotebook(!!settings.saveNotebookImmediate);
   }
@@ -2611,10 +2665,9 @@ async function confirmNewNb(){
   const icons = ['📔','📗','📘','📙','📒','📓','🗂️'];
   const colors = ['#e8f0fe','#e6f4ea','#fce8ff','#fff8e1','#fde8e8','#f0f4f9','#fff3e0'];
   const idx = notebooks.length % icons.length;
-  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, msgCount:0, date:todayText(), sources:[], msgs:[], events:[], analysisFiles:[], updatedAt:0, _detailsLoaded:true};
+  const nb = {id: String(Date.now()), title, icon: icons[idx], color: colors[idx], srcs:0, msgCount:0, date:todayText(), sources:[], msgs:[], events:[], analysisFiles:[], updatedAt:0, _detailsLoaded:true, _draft:true};
   notebooks.unshift(nb);
   renderHome();
-  try{ await saveNotebook(nb); }catch(_){}
   closeMo('nbnMo');
   // Open notebook AND immediately show upload modal
   openNb(nb.id, true);
@@ -2919,6 +2972,7 @@ function writeLocalJson(key, value){
 function notebookSummarySnapshot(nb){
   if(!nb) return null;
   if(isNotebookBootPlaceholder(nb)) return null;
+  if(nb._draft) return null;
   const srcCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
   const messageCount = Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0);
   return {
@@ -2953,6 +3007,7 @@ function loadNotebookSummariesFromLocal(){
 
 function persistNotebookDetailCache(nb){
   if(isNotebookBootPlaceholder(nb)) return;
+  if(nb && nb._draft) return;
   const payload = buildNotebookPayload(nb, { stampUpdatedAt:false });
   if(!payload || !payload.id) return;
   writeLocalJson(notebookDetailCacheKey(payload.id), {
@@ -3308,6 +3363,24 @@ async function sourceDataUrl(src){
       }
     }catch(_){ }
   }
+  const fileUrl = src.fileUrl ? String(src.fileUrl) : '';
+  if(fileUrl){
+    try{
+      const ctrl = new AbortController();
+      const tm = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 10000);
+      const resp = await fetch(fileUrl, { headers: authHeaders(), signal: ctrl.signal });
+      clearTimeout(tm);
+      if(resp.ok){
+        const blob = await resp.blob();
+        return await new Promise(resolve=>{
+          const r = new FileReader();
+          r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
+          r.onerror = () => resolve('');
+          r.readAsDataURL(blob);
+        });
+      }
+    }catch(_){ }
+  }
   return '';
 }
 
@@ -3318,6 +3391,13 @@ async function sourceObjectUrl(src){
   if(fileId){
     try{
       const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
+      if(resp.ok) return URL.createObjectURL(await resp.blob());
+    }catch(_){ }
+  }
+  const fileUrl = src.fileUrl ? String(src.fileUrl) : '';
+  if(fileUrl){
+    try{
+      const resp = await fetch(fileUrl, { headers: authHeaders() });
       if(resp.ok) return URL.createObjectURL(await resp.blob());
     }catch(_){ }
   }
@@ -5302,6 +5382,17 @@ async function ensureEcgImageSource(src){
     }
     return src;
   }
+  if(!src.imageDataUrl && !isBlobLike(src.fileObj)){
+    const remoteDataUrl = await sourceDataUrl(src);
+    if(remoteDataUrl && String(remoteDataUrl).indexOf('data:image') === 0){
+      src.imageDataUrl = await normalizeToolImageDataUrl(remoteDataUrl);
+      const remoteName = String(src.name || 'ecg_image.png').replace(/\.pdf$/i, '.png');
+      const remoteFile = dataUrlToFile(src.imageDataUrl, remoteName);
+      if(remoteFile) src.fileObj = remoteFile;
+      if(!src.type || String(src.type).toLowerCase() === 'pdf') src.type = 'png';
+      return src;
+    }
+  }
   if(isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type||''))){
     const dataUrl = await new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -6646,6 +6737,7 @@ function appendAI(text, _noRecord){
   if(!_noRecord){
     msgs.push({role:'assistant', kind:'chat', type:'text', content:text, createdAt:Date.now()});
     syncCurrentNotebookState();
+    if(curNb) finalizeDraftNotebook(curNb);
     scheduleSaveCurrentNotebook(false);
   }
 }
@@ -6666,6 +6758,7 @@ function appendUser(text, _noRecord){
   if(!_noRecord){
     msgs.push({role:'user', kind:'chat', content:text, createdAt:Date.now()});
     syncCurrentNotebookState();
+    if(curNb) finalizeDraftNotebook(curNb);
     scheduleSaveCurrentNotebook(false);
   }
 }
@@ -6686,6 +6779,7 @@ function pushRichMsg(msg){
   if(msg && !msg.createdAt) msg.createdAt = Date.now();
   msgs.push(msg);
   syncCurrentNotebookState();
+  if(curNb) finalizeDraftNotebook(curNb);
   scheduleSaveCurrentNotebook(false);
 }
 
@@ -9719,6 +9813,7 @@ async function finalizeSourceImport(imported, nb){
   const latest = imported[imported.length - 1];
   window.__heartosJustAddedSourceId = latest.id;
   window.__heartosJustImportedSourceIds = imported.map(function(src){ return src.id; });
+  if(targetNotebook) finalizeDraftNotebook(targetNotebook);
   if(targetNotebook && targetNotebook.id){
     const idx = notebooks.findIndex(function(item){ return item && String(item.id) === String(targetNotebook.id); });
     if(idx >= 0) notebooks[idx] = targetNotebook;
