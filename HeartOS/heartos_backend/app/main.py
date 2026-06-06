@@ -74,6 +74,7 @@ from .schemas import (
 
 APP_VERSION = "1.4.1"
 PLATFORM_NAME = "HeartOS"
+LEGACY_PLACEHOLDER_NOTEBOOK_IDS = {"boot"}
 DEFAULT_CHAT_SYSTEM = (
     "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 心电组学、信号补全和心电数据分析。"
     "当用户询问“你是谁”“你是做什么的”时，请优先使用这句身份介绍，并围绕 HeartOS 的心电相关能力展开回答；"
@@ -450,7 +451,53 @@ def _save_notebook_sources_db(payload: dict[str, Any]) -> None:
     _save_json_file(NOTEBOOK_SOURCES_PATH, payload)
 
 
+def _is_placeholder_notebook_id(notebook_id: Any) -> bool:
+    return str(notebook_id or "").strip() in LEGACY_PLACEHOLDER_NOTEBOOK_IDS
+
+
+def _purge_legacy_placeholder_notebooks(uid: str) -> None:
+    safe_uid = str(uid or "")
+    if not safe_uid:
+        return
+
+    notebooks_db = _load_json_file(NOTEBOOKS_PATH)
+    notebook_items = notebooks_db.get(safe_uid, [])
+    if isinstance(notebook_items, list):
+        cleaned_items = [
+            item for item in notebook_items
+            if not (isinstance(item, dict) and _is_placeholder_notebook_id(item.get("id")))
+        ]
+        if len(cleaned_items) != len(notebook_items):
+            notebooks_db[safe_uid] = cleaned_items
+            _save_json_file(NOTEBOOKS_PATH, notebooks_db)
+
+    sources_db = _load_notebook_sources_db()
+    source_bucket = sources_db.get(safe_uid, {})
+    if isinstance(source_bucket, dict):
+        removed = False
+        for notebook_id in list(source_bucket.keys()):
+            if _is_placeholder_notebook_id(notebook_id):
+                del source_bucket[notebook_id]
+                removed = True
+        if removed:
+            sources_db[safe_uid] = source_bucket
+            _save_notebook_sources_db(sources_db)
+
+    tombstones_db = _load_notebook_tombstones_db()
+    tombstone_bucket = tombstones_db.get(safe_uid, {})
+    if isinstance(tombstone_bucket, dict):
+        removed = False
+        for notebook_id in list(tombstone_bucket.keys()):
+            if _is_placeholder_notebook_id(notebook_id):
+                del tombstone_bucket[notebook_id]
+                removed = True
+        if removed:
+            tombstones_db[safe_uid] = tombstone_bucket
+            _save_notebook_tombstones_db(tombstones_db)
+
+
 def _get_user_notebook_sources(uid: str) -> dict[str, list[dict[str, Any]]]:
+    _purge_legacy_placeholder_notebooks(uid)
     db = _load_notebook_sources_db()
     bucket = db.get(uid, {})
     return bucket if isinstance(bucket, dict) else {}
@@ -538,6 +585,7 @@ def _save_notebook_tombstones_db(payload: dict[str, Any]) -> None:
 
 
 def _get_user_notebook_tombstones(uid: str) -> dict[str, int]:
+    _purge_legacy_placeholder_notebooks(uid)
     db = _load_notebook_tombstones_db()
     bucket = db.get(uid, {})
     return bucket if isinstance(bucket, dict) else {}
@@ -2715,6 +2763,7 @@ def _notebook_summary(raw: dict[str, Any], source_count: int | None = None) -> d
 @app.get("/api/notebooks")
 async def list_notebooks(summary_only: bool = False, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
     db = _load_json_file(NOTEBOOKS_PATH)
     items = db.get(uid, [])
     if not isinstance(items, list):
@@ -2737,6 +2786,9 @@ async def list_notebooks(summary_only: bool = False, user: dict[str, Any] = Depe
 @app.get("/api/notebooks/{notebook_id}")
 async def get_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
+    if _is_placeholder_notebook_id(notebook_id):
+        raise HTTPException(status_code=404, detail="notebook not found")
     db = _load_json_file(NOTEBOOKS_PATH)
     items = db.get(uid, [])
     if not isinstance(items, list):
@@ -2758,10 +2810,13 @@ async def get_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_curr
 @app.post("/api/notebooks")
 async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
     raw_payload = payload if isinstance(payload, dict) else {}
     raw_sources = raw_payload.get("sources")
     source_items = [src for src in (_normalize_source_item(raw) for raw in raw_sources) if src] if isinstance(raw_sources, list) else []
     item = _normalize_notebook_item(payload if isinstance(payload, dict) else {})
+    if _is_placeholder_notebook_id(item["id"]):
+        raise HTTPException(status_code=422, detail="placeholder notebook id is not allowed")
 
     db = _load_json_file(NOTEBOOKS_PATH)
     items = db.get(uid, [])
@@ -2794,6 +2849,9 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
 @app.delete("/api/notebooks/{notebook_id}")
 async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
+    if _is_placeholder_notebook_id(notebook_id):
+        return {"ok": True, "deleted": 0, "deleted_file_count": 0, "kept_file_ids": []}
     linked_sources = _get_conversation_sources(uid, notebook_id)
     file_ids = sorted(set(_source_file_ids(linked_sources)))
     db = _load_json_file(NOTEBOOKS_PATH)
@@ -2822,6 +2880,9 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
 @app.get("/api/notebooks/{notebook_id}/sources")
 async def get_notebook_sources(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
+    if _is_placeholder_notebook_id(notebook_id):
+        return {"items": []}
     return {"items": _get_conversation_sources(uid, notebook_id)}
 
 
@@ -2832,6 +2893,9 @@ async def replace_notebook_sources(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
+    if _is_placeholder_notebook_id(notebook_id):
+        raise HTTPException(status_code=422, detail="placeholder notebook id is not allowed")
     raw_items = payload.get("items") if isinstance(payload, dict) else []
     if not isinstance(raw_items, list):
         raise HTTPException(status_code=422, detail="items must be a list")

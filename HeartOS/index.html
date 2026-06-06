@@ -5,6 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NoteAI</title>
 <script src="./deploy-config.js"></script>
+<script>
+(function(){
+  try{
+    var token = localStorage.getItem('heartos_auth_token') || '';
+    if(!token) return;
+    var root = document.documentElement;
+    var hash = String(location.hash || '');
+    root.classList.add('heartos-has-session');
+    root.classList.remove('heartos-init-home','heartos-init-notebook','heartos-init-feedback');
+    if(hash.indexOf('#feedback') === 0){
+      root.classList.add('heartos-init-feedback');
+    }else if(hash.indexOf('#conversation-') === 0){
+      root.classList.add('heartos-init-notebook');
+    }else{
+      root.classList.add('heartos-init-home');
+    }
+  }catch(_){}
+})();
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -56,7 +75,6 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .tb-btn:hover{background:var(--bg2);border-color:var(--border);color:var(--text);}
 .tb-btn.primary{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(47,99,217,.16);}
 .tb-btn.primary:hover{background:#2856c2;}
-
 /* HOME */
 .home-content{flex:1;overflow-y:auto;padding:40px 56px;max-width:1200px;margin:0 auto;width:100%;}
 .home-filter{display:flex;align-items:center;gap:8px;margin-bottom:32px;flex-wrap:wrap;}
@@ -114,6 +132,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .pib.active{background:var(--accent-light);color:var(--accent);}
 .add-src-btn{margin:12px 12px 10px;padding:0 14px;height:40px;border-radius:16px;border:1px solid var(--accent-mid);background:var(--accent-light);color:var(--accent);font-size:13px;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s;font-weight:600;box-shadow:var(--sh0);}
 .add-src-btn:hover{background:#e8f0ff;border-color:#a9c1ff;}
+.add-src-btn[disabled]{cursor:not-allowed;opacity:.5;background:#f8fafc;border-color:#d0d5dd;color:#98a2b3;box-shadow:none;}
+.add-src-btn[disabled]:hover{background:#f8fafc;border-color:#d0d5dd;}
 .srcs-list{flex:1;overflow-y:auto;padding:6px 8px;scrollbar-width:thin;scrollbar-color:var(--bg4) transparent;}
 .source-mini-rail{display:none;flex:1;flex-direction:column;align-items:center;gap:8px;padding:10px 7px;overflow-y:auto;}
 .source-mini-add,.source-mini-item{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--sh0);transition:all .15s;}
@@ -1272,20 +1292,21 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div id="umoDefault">
       <!-- Drop zone -->
       <div class="umo-drop" id="umoDrop"
-        onclick="document.getElementById('fileIn').click()"
+        onclick="pickSourceFiles()"
         ondragover="dov(event)" ondrop="ddr(event)" ondragleave="ddl(event)">
         <div style="font-size:16px;color:var(--text3);margin-bottom:6px;">拖放文件或文件夹</div>
         <div class="umo-drop-sub">支持 XML、PDF、图片、CSV、TSV、JSON 与 TXT/MD</div>
       </div>
-      <input type="file" id="fileIn" style="display:none" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.gif,.webp,.csv,.tsv,.json,.txt,.md" onchange="onFileSelect(event)">
-      <input type="file" id="folderIn" style="display:none" multiple webkitdirectory directory onchange="onFolderSelect(event)">
+      <input type="file" id="fileIn" style="display:none" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.gif,.webp,.csv,.tsv,.json,.txt,.md">
+      <input type="file" id="folderIn" style="display:none" multiple webkitdirectory directory>
 
       <!-- Method buttons -->
       <div class="umo-methods">
-        <button class="umo-method" onclick="document.getElementById('fileIn').click()">⬆️ 选择文件</button>
-        <button class="umo-method" onclick="document.getElementById('folderIn').click()">📁 选择文件夹</button>
+        <button class="umo-method" onclick="pickSourceFiles()">⬆️ 选择文件</button>
+        <button class="umo-method" onclick="pickSourceFolder()">📁 选择文件夹</button>
         <button class="umo-method" onclick="showUmoSub('text')">📋 添加文本备注</button>
       </div>
+      <div id="umoSelectedInfo" style="display:none;margin-top:10px;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid #dbe4f0;font-size:13px;color:#475467;"></div>
     </div>
 
     <!-- Sub panels -->
@@ -1385,9 +1406,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 
 <script>
 // ======================== STATE ========================
-let notebooks = [
-  {id:'boot',title:'加载中…',icon:'📔',color:'#e8f0fe',srcs:0,date:'今天'},
-];
+const HEARTOS_BUILD_MARKER = 'SRCFIX-20260606-01';
+let notebooks = [];
 let curNb = null;
 let sources = [];
 let msgs = [];
@@ -1411,6 +1431,29 @@ let __nbOpenRequestSeq = 0;
 let __nbOpeningId = '';
 let __nbHydratingDetails = false;
 let __nbDetailLoadingId = '';
+let __notebookListReady = false;
+const HEARTOS_SESSION_STATE_VERSION = 1;
+let heartosSessionState = {
+  version: HEARTOS_SESSION_STATE_VERSION,
+  route: { page:'home', notebookId:'', feedbackId:'' },
+  view: { status:'idle', loadingStage:'', message:'' },
+  workspace: {
+    activeNotebookId:'',
+    activeNotebookTitle:'',
+    selectedStudioCard:'',
+    sourcePanelCollapsed:false,
+    studioPanelCollapsed:false
+  },
+  sync: { lastSavedAt:0, lastSyncedAt:0, dirty:false, pendingTasks:[] }
+};
+
+function applyBuildMarker(){
+  return HEARTOS_BUILD_MARKER;
+}
+
+function updateNotebookDebugBadge(){
+  return HEARTOS_BUILD_MARKER;
+}
 let __initialUploadPromptShown = false;
 window.__heartosJustAddedSourceId = null;
 let summaryRequestSeq = 0;
@@ -1424,8 +1467,14 @@ let adminFeedbackRecords = [];
 let feedbackPageMode = 'mine';
 let feedbackPageSelectedId = '';
 let feedbackPageDrafting = false;
+let feedbackPageOpeningPromise = null;
+let feedbackPageMineLoading = false;
+let feedbackPageAdminLoading = false;
+let feedbackPageRefreshToken = 0;
+let feedbackPreviewHydrationToken = 0;
 const feedbackAttachmentPreviewUrls = new Map();
 const FEEDBACK_MAX_IMAGES = 4;
+const FEEDBACK_PREVIEW_CONCURRENCY = 4;
 const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
 
 function updateChatSendButton(){
@@ -1532,18 +1581,28 @@ function isAbortLikeError(e){
 function renderHome(){
   const g = document.getElementById('nbGrid');
   if(!g) return;
+  if(!__notebookListReady){
+    g.innerHTML = `<div class="nb-card nb-inner loading" style="display:flex;align-items:center;justify-content:center;min-height:220px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--text3);font-size:13px;">
+        <div class="spin"></div>
+        <span>正在加载对话列表…</span>
+      </div>
+    </div>`;
+    return;
+  }
   let h = `<div class="nb-card nb-new-card nb-inner" onclick="startNewNotebook()">
     <div class="nb-new-icon">＋</div>
     <span style="font-size:14px;font-weight:500;">新建对话</span>
   </div>`;
   h += notebooks.map(nb => {
     const isLoading = __nbOpeningId === String(nb.id);
+    const isPlaceholder = isNotebookBootPlaceholder(nb);
     const fileCount = nb._detailsLoaded ? (Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0)) : Number(nb.srcs || 0);
     const msgCount = nb._detailsLoaded ? (Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0)) : Number(nb.msgCount || 0);
     const title = defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title;
     if(title && title !== nb.title) nb.title = title;
-    return `<div class="nb-card nb-inner ${isLoading ? 'loading' : ''}" onclick="openNb('${escAttr(nb.id)}', false)">
-      <button class="nb-menu" onclick="toggleNotebookMenu('${escAttr(nb.id)}', event)">⋮</button>
+    return `<div class="nb-card nb-inner ${isLoading ? 'loading' : ''} ${isPlaceholder ? 'loading' : ''}" onclick="${isPlaceholder ? '' : ("openNb('" + escAttr(nb.id) + "', false)")}">
+      ${isPlaceholder ? '' : `<button class="nb-menu" onclick="toggleNotebookMenu('${escAttr(nb.id)}', event)">⋮</button>`}
       <div class="nb-menu-pop" id="nbMenu-${escAttr(nb.id)}" onclick="event.stopPropagation()">
         <button onclick="renameNotebook('${escAttr(nb.id)}', event)">✎ 修改标题</button>
         <button class="danger" onclick="deleteNotebook('${escAttr(nb.id)}', event)">🗑 删除</button>
@@ -1558,7 +1617,8 @@ function renderHome(){
   persistNotebookSummaryCache();
 }
 function setFtab(el){ document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); }
-function goHome(){
+function goHome(pushHistory){
+  if(pushHistory !== false) pushHistory = true;
   __nbOpenRequestSeq++;
   setNotebookOpeningState('');
   setNotebookDetailLoadingState('');
@@ -1573,9 +1633,11 @@ function goHome(){
   var fp = document.getElementById('feedbackPage');
   if(fp) fp.classList.remove('active');
   renderHome();
-  if(__heartosHistoryReady && (!history.state || history.state.page !== 'home')){
+  if(pushHistory && __heartosHistoryReady && (!history.state || history.state.page !== 'home')){
     history.pushState({page:'home'}, '', '#conversations');
   }
+  syncSessionRouteFromLocation();
+  setSessionViewState('ready', '', '');
 }
 
 function todayText(){
@@ -1641,17 +1703,6 @@ function restoreNotebookRouteFromLocation(){
   if(curNb && String(curNb.id) === routeNotebookId && nbPage && nbPage.classList.contains('active')){
     return true;
   }
-  let matched = notebooks.find(function(item){ return String(item.id) === routeNotebookId; });
-  if(!matched){
-    const cachedDetail = loadNotebookDetailFromLocal(routeNotebookId);
-    if(cachedDetail){
-      notebooks = [cachedDetail].concat((Array.isArray(notebooks) ? notebooks : []).filter(function(item){
-        return String(item && item.id) !== routeNotebookId;
-      }));
-      matched = cachedDetail;
-    }
-  }
-  if(!matched) return false;
   openNb(routeNotebookId, false);
   return true;
 }
@@ -1663,6 +1714,146 @@ function restoreFeedbackRouteFromLocation(){
   feedbackPageDrafting = !routeFeedbackId;
   openFeedbackPage(false);
   return true;
+}
+
+function shouldRestoreLastOpenedNotebookFromLocation(){
+  const hash = String(location.hash || '');
+  if(!hash || hash === '#conversations') return false;
+  if(hash.indexOf('#feedback') === 0) return false;
+  return hash.indexOf('#conversation-') === 0;
+}
+
+function resolveNotebookRouteTitle(notebookId){
+  const safeId = String(notebookId || '');
+  if(!safeId) return '正在恢复对话…';
+  const matched = (Array.isArray(notebooks) ? notebooks : []).find(function(item){
+    return item && String(item.id) === safeId;
+  });
+  if(matched && matched.title) return String(matched.title);
+  if(
+    heartosSessionState &&
+    heartosSessionState.workspace &&
+    String(heartosSessionState.workspace.activeNotebookId || '') === safeId &&
+    heartosSessionState.workspace.activeNotebookTitle
+  ){
+    return String(heartosSessionState.workspace.activeNotebookTitle);
+  }
+  return '正在恢复对话…';
+}
+
+function renderNotebookRestoreShell(notebookId, options){
+  const settings = options || {};
+  const safeId = String(notebookId || '');
+  const title = settings.title || resolveNotebookRouteTitle(safeId);
+  const pseudo = normalizeNotebookItem({
+    id: safeId || 'restoring',
+    title: title,
+    date: todayText(),
+    srcs: 0,
+    msgCount: 0
+  }, false);
+  setNotebookOpeningState(safeId);
+  setNotebookDetailLoadingState(safeId);
+  applyNotebookToWorkspace(pseudo);
+  openNotebookShell();
+  setNotebookOpeningState('');
+  setSessionViewState('loading', settings.stage || 'restore-cache', settings.message || '正在恢复对话内容…');
+}
+
+function renderFeedbackRouteShell(){
+  try{
+    document.documentElement.classList.remove('heartos-init-home');
+    document.documentElement.classList.remove('heartos-init-notebook');
+    document.documentElement.classList.add('heartos-init-feedback');
+  }catch(_){ }
+  document.getElementById('homePage').classList.remove('active');
+  document.getElementById('nbPage').classList.remove('active');
+  document.getElementById('feedbackPage').classList.add('active');
+  renderFeedbackPageLoadingState();
+  setSessionViewState('loading', 'boot', '正在加载反馈记录…');
+}
+
+function reconcileVisibleAppPage(){
+  const root = document.documentElement;
+  const nbPage = document.getElementById('nbPage');
+  const homePage = document.getElementById('homePage');
+  const notebookVisible = !!(nbPage && nbPage.classList.contains('active')) || root.classList.contains('heartos-init-notebook');
+  const homeVisible = !!(homePage && homePage.classList.contains('active')) || root.classList.contains('heartos-init-home');
+  const route = currentRouteStateFromLocation();
+  syncSessionRouteFromLocation();
+  if(route.page === 'feedback'){
+    renderFeedbackRouteShell();
+    return;
+  }
+  if(route.page === 'notebook'){
+    if(
+      curNb &&
+      String(curNb.id || '') === String(route.notebookId || '') &&
+      curNb._detailsLoaded &&
+      String(__nbDetailLoadingId || '') !== String(route.notebookId || '')
+    ){
+      updateNotebookDebugBadge();
+      return;
+    }
+    if(restoreNotebookRouteFromLocation()) return;
+    renderNotebookRestoreShell(route.notebookId, {
+      stage:'boot',
+      message:'正在恢复对话、来源和分析结果…'
+    });
+    return;
+  }
+  if(curNb && curNb.id && !notebookVisible && !homeVisible){
+    updateNotebookDebugBadge();
+    return;
+  }
+  if(notebookVisible || homeVisible){
+    goHome(false);
+  }else{
+    updateNotebookDebugBadge();
+  }
+}
+
+function isNotebookBootPlaceholder(nb){
+  return !!(nb && String(nb.id || '') === 'boot');
+}
+
+function clearNotebookWorkspace(){
+  curNb = null;
+  sources = [];
+  window.sources = sources;
+  msgs = [];
+  chatEvents = [];
+  analysisFiles = [];
+  window.__heartosLastImageSource = null;
+  updateSourceEntryAvailability();
+}
+
+async function ensureActiveNotebookReadyForSources(){
+  if(!curNb || !curNb.id){
+    showToast('请先进入一个对话后再添加来源');
+    return null;
+  }
+  if(isNotebookBootPlaceholder(curNb)){
+    showToast('对话仍在加载，请稍候再添加来源');
+    return null;
+  }
+  if(curNb._detailsLoaded && String(__nbDetailLoadingId || '') !== String(curNb.id || '')){
+    return curNb;
+  }
+  try{
+    const loaded = await ensureNotebookDetailLoaded(curNb.id);
+    if(loaded && curNb && String(curNb.id) === String(loaded.id)){
+      applyNotebookToWorkspace(loaded);
+      renderSrcs();
+      renderChat();
+      renderStudio();
+      updateCiSrc();
+    }
+    return loaded || curNb;
+  }catch(_){
+    showToast('当前对话仍在加载，请稍后重试');
+    return null;
+  }
 }
 
 function normalizeNotebookItem(it, detailsLoaded){
@@ -1690,6 +1881,34 @@ function normalizeNotebookItem(it, detailsLoaded){
   };
 }
 
+function notebookSourceCount(nb){
+  if(!nb) return 0;
+  if(Array.isArray(nb.sources)) return nb.sources.length;
+  return Number(nb.srcs || 0);
+}
+
+function notebookMessageCount(nb){
+  if(!nb) return 0;
+  if(Array.isArray(nb.msgs)) return nb.msgs.length;
+  return Number(nb.msgCount || 0);
+}
+
+function shouldUseCachedNotebookDetail(summaryNb, cachedDetail){
+  if(!cachedDetail || !cachedDetail._detailsLoaded) return false;
+  if(!summaryNb) return true;
+  const summaryUpdatedAt = Number((summaryNb && summaryNb.updatedAt) || 0);
+  const cachedUpdatedAt = Number((cachedDetail && cachedDetail.updatedAt) || 0);
+  const summarySourceCount = notebookSourceCount(summaryNb);
+  const cachedSourceCount = notebookSourceCount(cachedDetail);
+  const summaryMessageCount = notebookMessageCount(summaryNb);
+  const cachedMessageCount = notebookMessageCount(cachedDetail);
+  if(summaryUpdatedAt && cachedUpdatedAt && cachedUpdatedAt < summaryUpdatedAt) return false;
+  if(summarySourceCount > cachedSourceCount) return false;
+  if(summaryMessageCount > cachedMessageCount) return false;
+  if(!defaultNotebookTitle(summaryNb.title) && defaultNotebookTitle(cachedDetail.title)) return false;
+  return true;
+}
+
 async function loadNotebooksFromServer(){
   const resp = await apiFetch('/api/notebooks?summary_only=true', { method:'GET' });
   if(!resp.ok) throw new Error('加载笔记失败');
@@ -1697,6 +1916,7 @@ async function loadNotebooksFromServer(){
   const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
   notebooks = items;
   __nbLoaded = true;
+  __notebookListReady = true;
   renderHome();
   if(__preferHomeAfterFreshLogin){
     __preferHomeAfterFreshLogin = false;
@@ -1715,7 +1935,9 @@ async function loadNotebooksFromServer(){
     hydrateNotebookDetailsInBackground();
     return;
   }
-  if(!restoreNotebookRouteFromLocation() && !curNb){
+  const hasRealCurrentNotebook = !!(curNb && !isNotebookBootPlaceholder(curNb));
+  if(!restoreNotebookRouteFromLocation() && !hasRealCurrentNotebook){
+    clearNotebookWorkspace();
     document.getElementById('homePage').classList.add('active');
     document.getElementById('nbPage').classList.remove('active');
     document.getElementById('feedbackPage').classList.remove('active');
@@ -1740,10 +1962,45 @@ function ensureNotebookDetailLoaded(id){
   if(inflight) return inflight;
   const request = loadNotebookDetail(safeId).then(function(full){
     const idx = notebooks.findIndex(function(item){ return String(item.id) === safeId; });
-    if(idx >= 0) notebooks[idx] = full;
-    persistNotebookDetailCache(full);
+    const current = idx >= 0 ? notebooks[idx] : null;
+    const currentUpdatedAt = Number((current && current.updatedAt) || 0);
+    const fullUpdatedAt = Number((full && full.updatedAt) || 0);
+    const currentSourceCount = Array.isArray(current && current.sources)
+      ? current.sources.length
+      : Number((current && current.srcs) || 0);
+    const fullSourceCount = Array.isArray(full && full.sources)
+      ? full.sources.length
+      : Number((full && full.srcs) || 0);
+    const currentMessageCount = Array.isArray(current && current.msgs)
+      ? current.msgs.length
+      : Number((current && current.msgCount) || 0);
+    const fullMessageCount = Array.isArray(full && full.msgs)
+      ? full.msgs.length
+      : Number((full && full.msgCount) || 0);
+    const currentLooksStale = !!(
+      current &&
+      (
+        currentSourceCount < fullSourceCount ||
+        currentMessageCount < fullMessageCount ||
+        (!defaultNotebookTitle(full.title) && defaultNotebookTitle(current.title))
+      )
+    );
+    const keepCurrent = !!(
+      current &&
+      current._detailsLoaded &&
+      !currentLooksStale &&
+      (
+        currentUpdatedAt > fullUpdatedAt ||
+        (currentUpdatedAt === fullUpdatedAt && currentSourceCount >= fullSourceCount && currentMessageCount >= fullMessageCount)
+      )
+    );
+    if(!keepCurrent){
+      if(idx >= 0) notebooks[idx] = full;
+      else notebooks.unshift(full);
+      persistNotebookDetailCache(full);
+    }
     refreshHomeIfVisible();
-    return full;
+    return keepCurrent ? current : full;
   }).finally(function(){
     if(__nbDetailInflight.get(safeId) === request) __nbDetailInflight.delete(safeId);
   });
@@ -2007,7 +2264,7 @@ function persistNotebookLocally(nb){
     icon: nb.icon || '📔',
     color: nb.color || '#e8f0fe',
     date: nb.date || todayText(),
-    sources: normalizeSourcesForPersistence(nb.sources),
+    sources: normalizeSourcesForPersistence(nb.sources, { forLocalCache:true }),
     msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
     events: Array.isArray(nb.events) ? nb.events : [],
     analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
@@ -2017,18 +2274,37 @@ function persistNotebookLocally(nb){
   };
   if(!nb.updatedAt) nb.updatedAt = payload.updatedAt;
   persistNotebookSummaryCache();
-  writeLocalJson(notebookDetailCacheKey(payload.id), { savedAt: Date.now(), item: payload });
+  const ok = writeLocalJson(notebookDetailCacheKey(payload.id), { savedAt: Date.now(), item: payload });
+  markSessionSyncState({ lastSavedAt: Date.now(), dirty:true });
+  if(!ok){
+    try{ console.warn('[heartos-cache] notebook detail cache write failed', payload.id); }catch(_){}
+  }
 }
 
-function normalizeSourceForPersistence(src){
+const HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT = 120000;
+const HEARTOS_LOCAL_CACHE_MAX_IMAGE_DATA_URL = 240000;
+
+function normalizeSourceForPersistence(src, options){
   if(!src) return null;
+  const opts = options || {};
+  const forLocalCache = !!opts.forLocalCache;
+  const hasRemoteFile = !!(src.fileId || src.serverFileId || src.fileUrl);
+  let content = typeof src.content === 'string' ? src.content : '';
+  let imageDataUrl = typeof src.imageDataUrl === 'string' ? src.imageDataUrl : null;
+  if(forLocalCache){
+    if(hasRemoteFile) imageDataUrl = null;
+    else if(imageDataUrl && imageDataUrl.length > HEARTOS_LOCAL_CACHE_MAX_IMAGE_DATA_URL) imageDataUrl = null;
+    if(content && content.length > HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT){
+      content = content.slice(0, HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT) + '\n...[truncated for local cache]';
+    }
+  }
   const normalized = {
     id: Number(src.id) || 0,
     name: String(src.name || '未命名来源'),
     type: String(src.type || fileExtension(src.name || '') || 'file').toLowerCase(),
     checked: src.checked !== false,
-    content: typeof src.content === 'string' ? src.content : '',
-    imageDataUrl: typeof src.imageDataUrl === 'string' ? src.imageDataUrl : null,
+    content: content,
+    imageDataUrl: imageDataUrl,
     fileId: src.fileId ? String(src.fileId) : '',
     serverFileId: src.serverFileId ? String(src.serverFileId) : '',
     fileUrl: src.fileUrl ? String(src.fileUrl) : ''
@@ -2043,7 +2319,53 @@ function normalizeSourceForPersistence(src){
 }
 
 function normalizeSourcesForPersistence(list){
-  return (Array.isArray(list) ? list : []).map(normalizeSourceForPersistence).filter(Boolean);
+  const options = arguments[1] || {};
+  return (Array.isArray(list) ? list : []).map(function(src){
+    return normalizeSourceForPersistence(src, options);
+  }).filter(Boolean);
+}
+
+function serializeNotebookSources(list){
+  return normalizeSourcesForPersistence(list);
+}
+
+function canPersistNotebookState(nb){
+  return !!(nb && nb.id && nb._detailsLoaded && !isNotebookBootPlaceholder(nb));
+}
+
+function commitCurrentSourceState(options){
+  const settings = options || {};
+  syncLastImageSourceReference();
+  if(curNb) curNb.srcs = Array.isArray(sources) ? sources.length : 0;
+  syncCurrentNotebookState();
+  if(settings.saveNotebook !== false){
+    scheduleSaveCurrentNotebook(!!settings.saveNotebookImmediate);
+  }
+  if(settings.saveSources !== false){
+    scheduleSaveCurrentNotebookSources(!!settings.saveSourcesImmediate);
+  }
+  if(settings.renderUi !== false){
+    renderSrcs();
+    updateCiSrc();
+    renderChat();
+    if(settings.renderStudio !== false) renderStudio();
+  }
+}
+
+async function persistNotebookStateNow(nb){
+  const target = nb || curNb;
+  if(!canPersistNotebookState(target)) throw new Error('当前对话详情尚未加载完成，已阻止覆盖保存');
+  if(target === curNb) syncCurrentNotebookState();
+  else syncNotebookStateFor(target);
+  persistNotebookLocally(target);
+  await enqueueNotebookSave(target);
+}
+
+async function persistNotebookAndSourcesNow(nb){
+  const target = nb || curNb;
+  if(!target) return;
+  await persistNotebookStateNow(target);
+  await enqueueNotebookSourceSave(target);
 }
 
 function syncLastImageSourceReference(){
@@ -2067,7 +2389,7 @@ function syncLastImageSourceReference(){
 }
 
 function scheduleSaveCurrentNotebook(immediate){
-  if(!curNb || !__nbLoaded) return;
+  if(!curNb || !__nbLoaded || !canPersistNotebookState(curNb)) return;
   const target = curNb;
   const id = String(target.id);
   persistNotebookLocally(target);
@@ -2086,8 +2408,9 @@ function scheduleSaveCurrentNotebook(immediate){
 
 function scheduleSaveCurrentNotebookSources(immediate, nb){
   const target = nb || curNb;
-  if(!target || !__nbLoaded) return;
-  syncCurrentNotebookState();
+  if(!target || !__nbLoaded || !canPersistNotebookState(target)) return;
+  if(target === curNb) syncCurrentNotebookState();
+  else syncNotebookStateFor(target);
   persistNotebookLocally(target);
   const id = String(target.id || '');
   if(!id) return;
@@ -2104,10 +2427,14 @@ function scheduleSaveCurrentNotebookSources(immediate, nb){
   else __nbSourceSaveTimers.set(id, setTimeout(run, 180));
 }
 
-function buildNotebookPayload(nb){
-  if(!nb) return null;
-  nb.updatedAt = Date.now();
-  const serializedSources = serializeNotebookSources(nb.sources);
+function buildNotebookPayload(nb, options){
+  if(!canPersistNotebookState(nb)) return null;
+  const settings = options || {};
+  const stampUpdatedAt = settings.stampUpdatedAt !== false;
+  const updatedAt = stampUpdatedAt
+    ? Date.now()
+    : Number(nb.updatedAt || Date.now());
+  if(stampUpdatedAt || !nb.updatedAt) nb.updatedAt = updatedAt;
   const payload = {
     id: String(nb.id),
     title: nb.title || 'New Conversation',
@@ -2120,7 +2447,7 @@ function buildNotebookPayload(nb){
     analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
     sumHtml: nb.sumHtml || '',
     suggHtml: nb.suggHtml || '',
-    updatedAt: nb.updatedAt
+    updatedAt: updatedAt
   };
   persistNotebookLocally(nb);
   return payload;
@@ -2133,6 +2460,7 @@ async function persistNotebookPayload(payload){
     body: JSON.stringify(payload)
   });
   if(!resp.ok) throw new Error('保存笔记失败');
+  markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
 }
 
 async function persistNotebookSourcesPayload(notebookId, items){
@@ -2143,10 +2471,11 @@ async function persistNotebookSourcesPayload(notebookId, items){
     body: JSON.stringify({ items: Array.isArray(items) ? items : [] })
   });
   if(!resp.ok) throw new Error('保存来源失败');
+  markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
 }
 
 function enqueueNotebookSourceSave(nb){
-  if(!nb || !nb.id) return Promise.resolve();
+  if(!canPersistNotebookState(nb)) return Promise.resolve();
   const notebookId = String(nb.id);
   const items = serializeNotebookSources(nb.sources);
   const previous = __nbSourceSaveQueues.get(notebookId) || Promise.resolve();
@@ -2178,6 +2507,33 @@ function persistNotebookSourcesKeepalive(nb){
   }catch(_){ }
 }
 
+function persistNotebookKeepalive(nb){
+  if(!nb || !nb.id || !getAuthToken() || !canPersistNotebookState(nb)) return;
+  try{
+    const updatedAt = Date.now();
+    nb.updatedAt = updatedAt;
+    const payload = {
+      id: String(nb.id),
+      title: nb.title || 'New Conversation',
+      icon: nb.icon || '📔',
+      color: nb.color || '#e8f0fe',
+      date: nb.date || todayText(),
+      msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
+      events: Array.isArray(nb.events) ? nb.events : [],
+      analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
+      sumHtml: nb.sumHtml || '',
+      suggHtml: nb.suggHtml || '',
+      updatedAt: updatedAt
+    };
+    fetch(apiUrl('/api/notebooks'), {
+      method:'POST',
+      headers: authHeaders({'Content-Type':'application/json'}),
+      body: JSON.stringify(payload),
+      keepalive: true
+    }).catch(function(){});
+  }catch(_){ }
+}
+
 function enqueueNotebookSave(nb){
   const payload = buildNotebookPayload(nb);
   if(!payload) return Promise.resolve();
@@ -2193,21 +2549,6 @@ function enqueueNotebookSave(nb){
   return next;
 }
 
-function enqueueNotebookSourceSave(nb){
-  const payload = buildNotebookPayload(nb);
-  if(!payload) return Promise.resolve();
-  const id = payload.id;
-  const previous = __nbSourceSaveQueues.get(id) || Promise.resolve();
-  const next = previous.catch(function(){}).then(function(){
-    return persistNotebookPayload(payload);
-  });
-  __nbSourceSaveQueues.set(id, next);
-  next.finally(function(){
-    if(__nbSourceSaveQueues.get(id) === next) __nbSourceSaveQueues.delete(id);
-  }).catch(function(){});
-  return next;
-}
-
 function reportNotebookSaveError(){
   showToast('对话保存失败，请检查网络后重试');
 }
@@ -2217,13 +2558,25 @@ async function saveNotebook(nb){
   return enqueueNotebookSave(nb);
 }
 
+function syncNotebookStateFor(nb, state){
+  if(!nb) return nb;
+  var nextState = state || {};
+  nb.sources = Array.isArray(nextState.sources) ? nextState.sources : (Array.isArray(nb.sources) ? nb.sources : []);
+  nb.msgs = Array.isArray(nextState.msgs) ? nextState.msgs : (Array.isArray(nb.msgs) ? nb.msgs : []);
+  nb.events = Array.isArray(nextState.events) ? nextState.events : (Array.isArray(nb.events) ? nb.events : []);
+  nb.analysisFiles = Array.isArray(nextState.analysisFiles) ? nextState.analysisFiles : (Array.isArray(nb.analysisFiles) ? nb.analysisFiles : []);
+  nb.srcs = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
+  return nb;
+}
+
 function syncCurrentNotebookState(){
   if(!curNb) return;
-  curNb.sources = Array.isArray(sources) ? sources : [];
-  curNb.msgs = Array.isArray(msgs) ? msgs : [];
-  curNb.events = Array.isArray(chatEvents) ? chatEvents : [];
-  curNb.analysisFiles = Array.isArray(analysisFiles) ? analysisFiles : [];
-  curNb.srcs = curNb.sources.length;
+  syncNotebookStateFor(curNb, {
+    sources: Array.isArray(sources) ? sources : [],
+    msgs: Array.isArray(msgs) ? msgs : [],
+    events: Array.isArray(chatEvents) ? chatEvents : [],
+    analysisFiles: Array.isArray(analysisFiles) ? analysisFiles : []
+  });
   window.sources = sources;
   syncLastImageSourceReference();
 }
@@ -2282,19 +2635,45 @@ function maybeAppendRefreshInterruptionNotice(){
 }
 
 async function openNb(id, autoUpload=false){
-  if(curNb && curNb.id !== id && (busy || activeStudioTask)) cancelActiveChatWork();
-  let nextNb = notebooks.find(n=>n.id===id) || notebooks[0];
+  const explicitId = String(id || '');
+  if(explicitId === 'boot'){
+    showToast('对话列表仍在加载，请稍候再试');
+    return;
+  }
+  if(curNb && curNb.id !== explicitId && (busy || activeStudioTask)) cancelActiveChatWork();
+  let nextNb = explicitId
+    ? (Array.isArray(notebooks) ? notebooks.find(function(n){ return String(n && n.id) === explicitId; }) : null)
+    : ((Array.isArray(notebooks) && notebooks.length) ? notebooks[0] : null);
+  const fallbackCacheCandidate = explicitId ? loadNotebookDetailFromLocal(explicitId) : null;
+  if(!nextNb && fallbackCacheCandidate){
+    nextNb = fallbackCacheCandidate;
+  }
+  if(!nextNb && explicitId){
+    nextNb = normalizeNotebookItem({
+      id: explicitId,
+      title: resolveNotebookRouteTitle(explicitId),
+      date: todayText(),
+      srcs: 0,
+      msgCount: 0
+    }, false);
+  }
   if(!nextNb){ goHome(); return; }
   const requestSeq = ++__nbOpenRequestSeq;
-  const cacheCandidate = !nextNb._detailsLoaded ? loadNotebookDetailFromLocal(nextNb.id) : null;
-  const usedLocalDetail = !!cacheCandidate;
-  if(cacheCandidate){
+  const cacheCandidate = !nextNb._detailsLoaded ? (fallbackCacheCandidate || loadNotebookDetailFromLocal(nextNb.id)) : null;
+  const canUseCachedDetail = shouldUseCachedNotebookDetail(nextNb, cacheCandidate);
+  const usedLocalDetail = !!canUseCachedDetail;
+  if(canUseCachedDetail){
     nextNb = cacheCandidate;
     const cachedIndex = notebooks.findIndex(function(item){ return item.id === nextNb.id; });
     if(cachedIndex >= 0) notebooks[cachedIndex] = nextNb;
+  }else if(cacheCandidate && nextNb && nextNb.id){
+    try{ localStorage.removeItem(notebookDetailCacheKey(nextNb.id)); }catch(_){ }
   }
   setNotebookOpeningState(nextNb.id);
   setNotebookDetailLoadingState(nextNb._detailsLoaded ? '' : nextNb.id);
+  if(!nextNb._detailsLoaded){
+    setSessionViewState('loading', 'restore-cache', '正在恢复对话、来源和分析结果…');
+  }
   applyNotebookToWorkspace(nextNb);
   openNotebookShell();
   maybeAppendRefreshInterruptionNotice();
@@ -2302,9 +2681,11 @@ async function openNb(id, autoUpload=false){
   if(__heartosHistoryReady && (!history.state || history.state.page !== 'notebook' || history.state.id !== curNb.id)){
     history.pushState({page:'notebook', id:curNb.id}, '', notebookRouteHash(curNb.id));
   }
+  syncSessionRouteFromLocation();
   if(autoUpload) setTimeout(()=>openUploadModal(), 200);
   if(nextNb._detailsLoaded && !usedLocalDetail){
     setNotebookDetailLoadingState('');
+    setSessionViewState('ready', '', '');
     return;
   }
   try{
@@ -2317,6 +2698,8 @@ async function openNb(id, autoUpload=false){
     renderStudio();
     updateCiSrc();
     maybeAppendRefreshInterruptionNotice();
+    setSessionViewState('ready', '', '');
+    markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
   }catch(_){
     if(requestSeq !== __nbOpenRequestSeq) return;
     setNotebookDetailLoadingState('');
@@ -2324,7 +2707,29 @@ async function openNb(id, autoUpload=false){
     renderChat();
     renderStudio();
     maybeAppendRefreshInterruptionNotice();
-    showToast('历史对话加载失败，请刷新后重试');
+    const hasLocalFallback = !!(usedLocalDetail || (curNb && curNb._detailsLoaded));
+    const ce = document.getElementById('chatEmpty');
+    const ml = document.getElementById('msgsList');
+    if(!hasLocalFallback && ce && ml){
+      ce.innerHTML=`<div class="chat-empty">
+        <div class="chat-empty-icon">⚠️</div>
+        <h3>对话加载失败</h3>
+        <p>暂时无法读取这个对话的历史内容，请稍后刷新重试。</p>
+      </div>`;
+      ml.innerHTML='';
+      const srcEl = document.getElementById('srcsList');
+      if(srcEl){
+        srcEl.innerHTML=`<div class="empty-srcs">
+          <div class="empty-srcs-icon">⚠️</div>
+          <p>历史来源加载失败，请稍后刷新重试。</p>
+        </div>`;
+      }
+      showResultPlaceholder('历史分析结果加载失败，请稍后刷新重试。');
+      setSessionViewState('error', 'fetch-server', '对话加载失败');
+    }else{
+      setSessionViewState('partial', 'fetch-server', '已显示本地缓存，云端同步失败');
+    }
+    showToast(hasLocalFallback ? '已显示本地缓存，云端同步失败' : '历史对话加载失败，请刷新后重试');
   }
 }
 
@@ -2379,6 +2784,64 @@ function notebookCacheUserKey(){
   return String((u && (u.user_id || u.username)) || 'guest');
 }
 
+function sessionStateKey(){
+  return 'heartos_session_state:' + HEARTOS_SESSION_STATE_VERSION + ':' + notebookCacheUserKey();
+}
+
+function currentRouteStateFromLocation(){
+  if(isFeedbackRouteHash()){
+    return { page:'feedback', notebookId:'', feedbackId: feedbackIdFromHash() || '' };
+  }
+  const notebookId = notebookIdFromHash();
+  if(notebookId){
+    return { page:'notebook', notebookId:String(notebookId), feedbackId:'' };
+  }
+  return { page:'home', notebookId:'', feedbackId:'' };
+}
+
+function loadSessionState(){
+  const cached = readLocalJson(sessionStateKey());
+  if(!cached || typeof cached !== 'object') return heartosSessionState;
+  heartosSessionState = Object.assign({}, heartosSessionState, cached, {
+    route: Object.assign({}, heartosSessionState.route, cached.route || {}),
+    view: Object.assign({}, heartosSessionState.view, cached.view || {}),
+    workspace: Object.assign({}, heartosSessionState.workspace, cached.workspace || {}),
+    sync: Object.assign({}, heartosSessionState.sync, cached.sync || {})
+  });
+  return heartosSessionState;
+}
+
+function persistSessionState(){
+  heartosSessionState.version = HEARTOS_SESSION_STATE_VERSION;
+  writeLocalJson(sessionStateKey(), heartosSessionState);
+}
+
+function syncSessionRouteFromLocation(){
+  heartosSessionState.route = currentRouteStateFromLocation();
+  persistSessionState();
+}
+
+function setSessionViewState(status, loadingStage, message){
+  heartosSessionState.view = {
+    status: String(status || 'idle'),
+    loadingStage: String(loadingStage || ''),
+    message: String(message || '')
+  };
+  persistSessionState();
+}
+
+function setSessionWorkspaceState(patch){
+  const nextPatch = patch || {};
+  heartosSessionState.workspace = Object.assign({}, heartosSessionState.workspace, nextPatch);
+  persistSessionState();
+}
+
+function markSessionSyncState(patch){
+  const nextPatch = patch || {};
+  heartosSessionState.sync = Object.assign({}, heartosSessionState.sync, nextPatch);
+  persistSessionState();
+}
+
 function notebookSummaryCacheKey(){
   return 'heartos_nb_summary_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey();
 }
@@ -2396,13 +2859,18 @@ function notebookInterruptedTaskKey(){
 }
 
 function persistLastOpenedNotebookId(id){
-  if(!id) return false;
+  if(!id || isNotebookBootPlaceholder({ id:id })) return false;
   return writeLocalJson(notebookLastOpenedKey(), { id: String(id), savedAt: Date.now() });
 }
 
 function loadLastOpenedNotebookId(){
   const cached = readLocalJson(notebookLastOpenedKey());
-  return cached && cached.id ? String(cached.id) : '';
+  const id = cached && cached.id ? String(cached.id) : '';
+  if(isNotebookBootPlaceholder({ id:id })){
+    clearLastOpenedNotebookId();
+    return '';
+  }
+  return id;
 }
 
 function clearLastOpenedNotebookId(){
@@ -2447,6 +2915,7 @@ function writeLocalJson(key, value){
 
 function notebookSummarySnapshot(nb){
   if(!nb) return null;
+  if(isNotebookBootPlaceholder(nb)) return null;
   const srcCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
   const messageCount = Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0);
   return {
@@ -2474,11 +2943,14 @@ function persistNotebookSummaryCache(){
 function loadNotebookSummariesFromLocal(){
   const cached = readLocalJson(notebookSummaryCacheKey());
   const items = Array.isArray(cached && cached.items) ? cached.items : [];
-  return items.map(function(item){ return normalizeNotebookItem(item, false); });
+  return items
+    .filter(function(item){ return !isNotebookBootPlaceholder(item); })
+    .map(function(item){ return normalizeNotebookItem(item, false); });
 }
 
 function persistNotebookDetailCache(nb){
-  const payload = buildNotebookPayload(nb);
+  if(isNotebookBootPlaceholder(nb)) return;
+  const payload = buildNotebookPayload(nb, { stampUpdatedAt:false });
   if(!payload || !payload.id) return;
   writeLocalJson(notebookDetailCacheKey(payload.id), {
     savedAt: Date.now(),
@@ -2487,8 +2959,13 @@ function persistNotebookDetailCache(nb){
 }
 
 function loadNotebookDetailFromLocal(id){
+  if(isNotebookBootPlaceholder({ id:id })) return null;
   const cached = readLocalJson(notebookDetailCacheKey(id));
   if(!cached || !cached.item) return null;
+  if(isNotebookBootPlaceholder(cached.item)){
+    try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
+    return null;
+  }
   return normalizeNotebookItem(cached.item, true);
 }
 
@@ -2511,12 +2988,11 @@ function hydrateNotebookSummariesFromLocal(){
   if(!cachedItems.length) return false;
   notebooks = cachedItems;
   __nbLoaded = true;
-  document.getElementById('homePage').classList.add('active');
-  document.getElementById('nbPage').classList.remove('active');
-  renderHome();
-  if(!__heartosHistoryReady){
-    history.replaceState({page:'home'}, '', '#conversations');
-    __heartosHistoryReady = true;
+  __notebookListReady = true;
+  const home = document.getElementById('homePage');
+  const root = document.documentElement;
+  if((home && home.classList.contains('active')) || root.classList.contains('heartos-init-home')){
+    renderHome();
   }
   return true;
 }
@@ -2533,6 +3009,8 @@ function setNotebookOpeningState(id){
 
 function setNotebookDetailLoadingState(id){
   __nbDetailLoadingId = id ? String(id) : '';
+  updateSourceEntryAvailability();
+  updateNotebookDebugBadge();
 }
 
 function applyNotebookToWorkspace(nb){
@@ -2544,7 +3022,29 @@ function applyNotebookToWorkspace(nb){
   analysisFiles = Array.isArray(curNb && curNb.analysisFiles) ? curNb.analysisFiles : [];
   document.getElementById('nbPageTitle').textContent = (curNb && curNb.title) ? curNb.title : 'New Conversation';
   if(curNb && curNb.id) persistLastOpenedNotebookId(curNb.id);
+  setSessionWorkspaceState({
+    activeNotebookId: curNb && curNb.id ? String(curNb.id) : '',
+    activeNotebookTitle: curNb && curNb.title ? String(curNb.title) : '',
+    selectedStudioCard: currentStudioCardType || '',
+    sourcePanelCollapsed: !!sourcePanelCollapsed,
+    studioPanelCollapsed: !!studioPanelCollapsed
+  });
   syncLastImageSourceReference();
+  updateSourceEntryAvailability();
+  updateNotebookDebugBadge();
+}
+
+function canEditNotebookSources(nb){
+  return !!(nb && nb.id && !isNotebookBootPlaceholder(nb) && nb._detailsLoaded && String(__nbDetailLoadingId || '') !== String(nb.id || ''));
+}
+
+function updateSourceEntryAvailability(){
+  const addBtn = document.querySelector('.add-src-btn');
+  const enabled = canEditNotebookSources(curNb);
+  if(addBtn){
+    addBtn.disabled = !enabled;
+    addBtn.title = enabled ? '添加来源' : '请等待当前对话加载完成后再添加来源';
+  }
 }
 
 function openNotebookShell(){
@@ -2567,6 +3067,7 @@ function openNotebookShell(){
   renderChat();
   renderStudio();
   updateCiSrc();
+  syncSessionRouteFromLocation();
 }
 
 function saveNotebookColumnWidths(widths){
@@ -2644,12 +3145,14 @@ function initNotebookResizers(){
 
 function toggleSourcePanel(){
   sourcePanelCollapsed = !sourcePanelCollapsed;
+  setSessionWorkspaceState({ sourcePanelCollapsed: !!sourcePanelCollapsed });
   syncPanelCollapseState();
   renderSourceMiniRail();
 }
 
 function toggleStudioPanel(){
   studioPanelCollapsed = !studioPanelCollapsed;
+  setSessionWorkspaceState({ studioPanelCollapsed: !!studioPanelCollapsed });
   syncPanelCollapseState();
   renderStudioMiniRail();
 }
@@ -2729,8 +3232,18 @@ function fileIco(t){
   const cls={pdf:'pdf',txt:'txt',md:'md',url:'url',png:'img',jpg:'img',jpeg:'img',bmp:'img',tiff:'img',docx:'txt'}[t]||'default';
   return `<span class="src-ico ${cls}">${labels[t]||t.toUpperCase().slice(0,3)}</span>`;
 }
-function toggleAll(){const a=sources.every(s=>s.checked);sources.forEach(s=>s.checked=!a);renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);scheduleSaveCurrentNotebookSources(false);}
-function togSrc(id, evt){if(evt) evt.stopPropagation();const s=sources.find(x=>x.id===id);if(s){s.checked=!s.checked;renderSrcs();updateCiSrc();syncCurrentNotebookState();scheduleSaveCurrentNotebook(false);scheduleSaveCurrentNotebookSources(false);}}
+function toggleAll(){
+  const allChecked = sources.every(function(s){ return s.checked; });
+  sources.forEach(function(s){ s.checked = !allChecked; });
+  commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:false });
+}
+function togSrc(id, evt){
+  if(evt) evt.stopPropagation();
+  const s = sources.find(function(x){ return x.id === id; });
+  if(!s) return;
+  s.checked = !s.checked;
+  commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:false });
+}
 function handleSourceRowClick(id, evt){
   const target = evt && evt.target ? evt.target : null;
   if(target){
@@ -2757,11 +3270,7 @@ function renameSource(id, evt){
   const next = prompt('输入新的来源名称：', src.name || '');
   if(!next) return;
   src.name = cleanPlainName(next);
-  syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(false);
-  renderSrcs();
-  renderChat();
+  commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:false, renderStudio:false });
   showToast('来源已重命名');
 }
 
@@ -3746,15 +4255,7 @@ async function deleteSource(id, evt){
   }
 
   sources.splice(idx, 1);
-  syncLastImageSourceReference();
-  if(curNb) curNb.srcs = sources.length;
-  syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(true);
-  renderSrcs();
-  updateCiSrc();
-  renderChat();
-  renderStudio();
+  commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:true });
   showToast('来源已移除');
 }
 
@@ -3793,15 +4294,7 @@ async function deleteSelectedSources(evt){
   }
   sources = sources.filter(s => !removableIds.has(s.id));
   window.sources = sources;
-  syncLastImageSourceReference();
-  if(curNb) curNb.srcs = sources.length;
-  syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(true);
-  renderSrcs();
-  updateCiSrc();
-  renderChat();
-  renderStudio();
+  commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:true });
   if(failedNames.length){
     showToast(`已删除 ${removableIds.size} 个来源，${failedNames.length} 个删除失败`);
   }else{
@@ -3825,16 +4318,6 @@ async function openHandEcgFromSource(id, evt){
 }
 
 // ======================== CHAT ========================
-function sourceKindLabel(src){
-  const t = String((src && src.type) || '').toLowerCase();
-  if(t === 'pdf') return 'PDF 文件';
-  if(['png','jpg','jpeg','bmp','tiff','webp'].includes(t)) return '图像文件';
-  if(['csv','tsv'].includes(t)) return '时序数据';
-  if(t === 'xml') return 'XML 数据';
-  if(['txt','text'].includes(t)) return '文本文件';
-  return (t ? t.toUpperCase() : '来源文件');
-}
-
 function sourceSizeLabel(src){
   const f = src && src.fileObj;
   const size = f && typeof f.size === 'number' ? f.size : 0;
@@ -4384,6 +4867,8 @@ function promptUncheckedSourceForTool(toolName, candidates){
 function buildToolErrorPlan(toolName, sourcesToList, message){
   const picked = Array.isArray(sourcesToList) ? sourcesToList.filter(Boolean) : [];
   const hasImage = picked.some(canUseAsImageToolSource);
+  const imageCompatible = picked.filter(canUseAsImageToolSource);
+  const incompatiblePicked = picked.filter(function(src){ return !canUseAsImageToolSource(src); });
   const isWaveTool = toolName === 'ECG 心电组学' || toolName === 'ECG 信号补全';
   if(message === '__single_unchecked_candidate__' && picked.length === 1){
     const src = picked[0];
@@ -4458,6 +4943,22 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
   const target = toolName === '手动数字化'
     ? '手动数字化'
     : (toolName === '准心风险评估' || toolName === '准心评估智能体' ? '准心风险评估' : '自动数字化');
+  if(!incompatiblePicked.length && imageCompatible.length > 1){
+    return {
+      title: target + '一次只能处理 1 个来源',
+      intro: '你当前勾选了 ' + imageCompatible.length + ' 个可识别的图片/PDF 来源。' + target + ' 一次只能基于 1 个来源启动，所以这次不是文件格式错误，而是选择数量过多。',
+      supportText: '请只保留 1 个最想处理的图片/PDF 来源勾选，再重新启动' + target + '。如果需要批量处理，建议逐个文件依次分析。',
+      steps: [
+        { title:'先取消多余勾选', desc:'在左侧来源列表里，只保留 1 个图片/PDF 来源处于勾选状态。' },
+        { title:'确认本次处理对象', desc:'优先选择最清晰、最完整的那一张图片或 PDF。' },
+        { title:'重新启动工具', desc:'只勾选 1 个来源后，再次启动' + target + '。' }
+      ],
+      hideList: true,
+      actions: [
+        { label:'我知道了', kind:'primary', action:'close' }
+      ]
+    };
+  }
   const supportText = target === '准心风险评估'
     ? '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个图片/PDF 来源启动准心风险评估。'
     : '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个来源启动数字化。';
@@ -6995,28 +7496,25 @@ document.addEventListener('click', function(){
 });
 
 window.addEventListener('popstate', function(evt){
-  const st = evt.state || {};
-  if(st.page === 'notebook' && st.id){
-    const nb = notebooks.find(n => n.id === st.id);
-    if(nb) openNb(st.id, false);
+  const routeNotebookId = notebookIdFromHash();
+  if(routeNotebookId){
+    const nb = notebooks.find(function(n){ return String(n.id) === String(routeNotebookId); });
+    if(nb){
+      openNb(routeNotebookId, false);
+      return;
+    }
+    if(restoreNotebookRouteFromLocation()) return;
+    goHome(false);
     return;
   }
-  if(st.page === 'feedback'){
+  if(isFeedbackRouteHash()){
     feedbackPageMode = ((getAuthUser() || {}).is_admin ? (feedbackPageMode || 'mine') : 'mine');
-    feedbackPageSelectedId = st.id ? String(st.id) : '';
+    feedbackPageSelectedId = feedbackIdFromHash() || '';
     feedbackPageDrafting = !feedbackPageSelectedId;
     openFeedbackPage(false);
     return;
   }
-  if(busy || activeStudioTask) cancelActiveChatWork();
-  __nbOpenRequestSeq++;
-  setNotebookOpeningState('');
-  setNotebookDetailLoadingState('');
-  document.getElementById('homePage').classList.add('active');
-  document.getElementById('nbPage').classList.remove('active');
-  var fp = document.getElementById('feedbackPage');
-  if(fp) fp.classList.remove('active');
-  renderHome();
+  goHome(false);
 });
 
 const studioRichMap = {
@@ -7349,6 +7847,7 @@ function renderStudioMiniRail(){
 
 function updateStudioActive(type){
   currentStudioCardType = type || '';
+  setSessionWorkspaceState({ selectedStudioCard: currentStudioCardType || '' });
   studioCards.forEach(c=>{
     document.getElementById('sc-'+c.id)?.classList.toggle('active-card', c.id===type);
   });
@@ -8785,13 +9284,71 @@ function saveResult(){
 }
 // ======================== UPLOAD ========================
 let sourceImportBusy = false;
+let sourceImportBindingsReady = false;
 
-function openUploadModal(){
+function updateSelectedImportInfo(files, label){
+  const box = document.getElementById('umoSelectedInfo');
+  if(!box) return;
+  const list = Array.from(files || []).filter(Boolean);
+  if(!list.length){
+    box.style.display = 'none';
+    box.textContent = '';
+    return;
+  }
+  const names = list.slice(0, 3).map(function(file){
+    return importedSourceName(file) || file.name || '未命名文件';
+  });
+  const prefix = label || '已选择文件';
+  const suffix = list.length > names.length ? (' 等 ' + list.length + ' 个文件') : '';
+  box.textContent = prefix + '：' + names.join('，') + suffix;
+  box.style.display = '';
+}
+
+function clearSelectedImportInfo(){
+  updateSelectedImportInfo([], '');
+}
+
+function initializeSourceImportBindings(){
+  if(sourceImportBindingsReady) return;
+  const fileIn = document.getElementById('fileIn');
+  const folderIn = document.getElementById('folderIn');
+  if(fileIn){
+    fileIn.addEventListener('change', function(event){
+      void onFileSelect(event);
+    });
+  }
+  if(folderIn){
+    folderIn.addEventListener('change', function(event){
+      void onFolderSelect(event);
+    });
+  }
+  sourceImportBindingsReady = true;
+}
+
+async function openUploadModal(){
+  const readyNotebook = await ensureActiveNotebookReadyForSources();
+  if(!readyNotebook) return;
+  initializeSourceImportBindings();
   document.getElementById('umoDefault').style.display='';
   document.getElementById('progWrap').style.display='none';
   clearImportIssues();
+  clearSelectedImportInfo();
   hideUmoSub();
   openMo('uploadMo');
+}
+async function pickSourceFiles(){
+  const readyNotebook = await ensureActiveNotebookReadyForSources();
+  if(!readyNotebook) return;
+  initializeSourceImportBindings();
+  const input = document.getElementById('fileIn');
+  if(input) input.click();
+}
+async function pickSourceFolder(){
+  const readyNotebook = await ensureActiveNotebookReadyForSources();
+  if(!readyNotebook) return;
+  initializeSourceImportBindings();
+  const input = document.getElementById('folderIn');
+  if(input) input.click();
 }
 function showUmoSub(id){
   ['text'].forEach(k=>{
@@ -8808,23 +9365,31 @@ function hideUmoSub(){
   document.getElementById('umoDefault').style.display='';
 }
 async function submitText(){
+  const readyNotebook = await ensureActiveNotebookReadyForSources();
+  if(!readyNotebook) return;
   const text = document.getElementById('textIn').value.trim();
   if(!text) return;
   const name = '粘贴文本_' + (sources.length+1) + '.txt';
-  await addSrc(name, 'txt', text, null, null, curNb);
+  await addSrc(name, 'txt', text, null, null, readyNotebook);
   document.getElementById('textIn').value='';
 }
 async function onFileSelect(e){
   const files = Array.from((e && e.target && e.target.files) ? e.target.files : []);
   if(!files.length) return;
+  updateSelectedImportInfo(files, '已选择文件');
+  showToast('已选择 ' + files.length + ' 个文件，正在导入');
   await importSourceFiles(files);
   if(e && e.target) e.target.value = '';
+  clearSelectedImportInfo();
 }
 async function onFolderSelect(e){
   const files = Array.from((e && e.target && e.target.files) ? e.target.files : []);
   if(!files.length) return;
+  updateSelectedImportInfo(files, '已选择文件夹内容');
+  showToast('已选择 ' + files.length + ' 个文件，正在导入');
   await importSourceFiles(files);
   if(e && e.target) e.target.value = '';
+  clearSelectedImportInfo();
 }
 function dov(e){e.preventDefault();document.getElementById('umoDrop').classList.add('drag');}
 function ddl(e){document.getElementById('umoDrop').classList.remove('drag');}
@@ -8951,8 +9516,10 @@ function showImportIssues(unsupportedFiles, failedFiles, importedCount){
   const onlyReadFailed = failed.length > 0 && unsupported.length === 0;
   const lines = unsupported.map(function(file){
     return '<li>' + esc(importedSourceName(file) || file.name || '未命名文件') + '：不支持该文件格式</li>';
-  }).concat(failed.map(function(name){
-    return '<li>' + esc(name || '未命名文件') + '：文件读取失败</li>';
+  }).concat(failed.map(function(item){
+    const name = item && typeof item === 'object' ? item.name : item;
+    const reason = item && typeof item === 'object' && item.reason ? item.reason : '文件读取失败';
+    return '<li>' + esc(name || '未命名文件') + '：' + esc(reason) + '</li>';
   }));
   document.getElementById('importIssuesTitle').textContent = noneImported
     ? (issueCount === 1 ? '文件未能导入' : '所选文件未能导入')
@@ -8974,12 +9541,14 @@ async function importSourceFiles(fileList){
     showToast('正在导入文件，请稍候');
     return;
   }
+  const readyNotebook = await ensureActiveNotebookReadyForSources();
+  if(!readyNotebook) return;
   clearImportIssues();
   const all = Array.from(fileList || []);
   const visible = all.filter(f => f && !ignoredImportFile(f));
   const files = visible.filter(supportedImportFile);
   const unsupportedFiles = visible.filter(function(file){ return !supportedImportFile(file); });
-  const targetNotebook = curNb;
+  const targetNotebook = readyNotebook;
   const skipped = all.length - visible.length;
   const unsupported = visible.length - files.length;
   if(!files.length){
@@ -8999,6 +9568,7 @@ async function importSourceFiles(fileList){
   pw.style.display='';
   pf.style.width='0%';
   const imported = [];
+  let persistedImportedCount = 0;
   const failed = [];
   const unsynced = [];
   try{
@@ -9014,22 +9584,37 @@ async function importSourceFiles(fileList){
         ps.textContent = '正在保存文件...';
         if(!(await persistSourceFileIfNeeded(source, prepared.rawFile, targetNotebook))) unsynced.push(prepared.name);
       }catch(err){
-        failed.push(file.name);
+        const reason = err && err.message ? String(err.message) : '文件读取失败';
+        console.warn('[heartos-source-import] failed:', file && file.name ? file.name : 'unknown-file', reason);
+        failed.push({ name:file.name, reason:reason });
       }
     }
     pf.style.width = '100%';
     ps.textContent = '导入完成';
-    const hasIssues = showImportIssues(unsupportedFiles, failed, imported.length);
+    showImportIssues(unsupportedFiles, failed, imported.length);
     if(imported.length){
-      await finalizeSourceImport(imported, targetNotebook);
-      if(!hasIssues) closeMo('uploadMo');
+      try{
+        await finalizeSourceImport(imported, targetNotebook);
+        persistedImportedCount = imported.length;
+        closeMo('uploadMo');
+      }catch(err){
+        await removeUploadedSourceArtifacts(imported);
+        rollbackImportedSources(imported, targetNotebook);
+        const detail = err && err.message ? String(err.message) : '来源保存失败';
+        failed.push({
+          name: imported.map(function(src){ return src && src.name ? src.name : '未命名文件'; }).join('、'),
+          reason: detail
+        });
+        showImportIssues(unsupportedFiles, failed, 0);
+        showToast('来源没有真正保存成功，请重试');
+      }
     }
     const notes = [];
     if(skipped) notes.push('忽略 ' + skipped + ' 个系统文件');
     if(unsupported) notes.push(unsupported + ' 个不支持格式已在对话框列出');
-    if(failed.length) notes.push(failed.length + ' 个文件读取失败');
+    if(failed.length) notes.push(failed.length + ' 个文件导入或保存失败');
     if(unsynced.length) notes.push(unsynced.length + ' 个文件未同步到服务器');
-    showToast((imported.length ? ('已导入 ' + imported.length + ' 个来源') : '本次没有成功导入的文件') + (notes.length ? '，' + notes.join('，') : ''));
+    showToast((persistedImportedCount ? ('已导入 ' + persistedImportedCount + ' 个来源') : '本次没有成功导入的文件') + (notes.length ? '，' + notes.join('，') : ''));
   }finally{
     sourceImportBusy = false;
     pw.style.display='none';
@@ -9044,7 +9629,6 @@ function readFile(f){
 
 async function persistSourceFileIfNeeded(srcObj, rawFile, nb){
   if(!srcObj || !rawFile || srcObj.fileId || srcObj.serverFileId) return true;
-  const targetNotebook = nb || curNb;
   try{
     const fd = new FormData();
     fd.append('file', rawFile, srcObj.name || rawFile.name || 'source.bin');
@@ -9055,13 +9639,54 @@ async function persistSourceFileIfNeeded(srcObj, rawFile, nb){
     srcObj.fileId = out.id || '';
     srcObj.serverFileId = out.id || '';
     srcObj.fileUrl = out.url || out.fileUrl || '';
-    syncCurrentNotebookState();
-    scheduleSaveCurrentNotebook(false);
-    scheduleSaveCurrentNotebookSources(true);
     return true;
   }catch(_){
     return false;
   }
+}
+
+async function removeUploadedSourceArtifacts(imported){
+  const list = Array.isArray(imported) ? imported : [];
+  for(let i=0;i<list.length;i++){
+    const src = list[i];
+    const fileId = src && (src.fileId || src.serverFileId || '');
+    if(!fileId) continue;
+    try{
+      await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'DELETE' });
+    }catch(_){}
+    if(src){
+      src.fileId = '';
+      src.serverFileId = '';
+      src.fileUrl = '';
+    }
+  }
+}
+
+function rollbackImportedSources(imported, nb){
+  const targetNotebook = nb || curNb;
+  const importedIds = new Set((Array.isArray(imported) ? imported : []).map(function(src){
+    return String(src && src.id != null ? src.id : '');
+  }).filter(Boolean));
+  if(!importedIds.size || !targetNotebook) return;
+  const currentSources = Array.isArray(targetNotebook.sources) ? targetNotebook.sources : [];
+  const nextSources = currentSources.filter(function(src){
+    return !importedIds.has(String(src && src.id != null ? src.id : ''));
+  });
+  targetNotebook.sources = nextSources;
+  targetNotebook.srcs = nextSources.length;
+  if(targetNotebook === curNb){
+    sources = nextSources;
+    window.sources = sources;
+    syncLastImageSourceReference();
+    renderSrcs();
+    updateCiSrc();
+    renderChat();
+    renderStudio();
+    updateNotebookDebugBadge();
+  }
+  const idx = notebooks.findIndex(function(item){ return item && String(item.id) === String(targetNotebook.id); });
+  if(idx >= 0) notebooks[idx] = targetNotebook;
+  persistNotebookLocally(targetNotebook);
 }
 
 function nextSourceId(sourceList){
@@ -9076,8 +9701,11 @@ function appendSourceRecord(name,type,content,imageDataUrl,rawFile,nb){
     : (Array.isArray(targetNotebook && targetNotebook.sources) ? targetNotebook.sources : []);
   const id=nextSourceId(targetSources);
   const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null};
-  sources.push(srcObj);
-  window.sources = sources;
+  targetSources.push(srcObj);
+  if(targetNotebook && targetNotebook !== curNb) targetNotebook.sources = targetSources;
+  if(targetNotebook === curNb){
+    window.sources = sources;
+  }
   syncLastImageSourceReference();
   return srcObj;
 }
@@ -9088,11 +9716,20 @@ async function finalizeSourceImport(imported, nb){
   const latest = imported[imported.length - 1];
   window.__heartosJustAddedSourceId = latest.id;
   window.__heartosJustImportedSourceIds = imported.map(function(src){ return src.id; });
-  if(curNb) curNb.srcs=sources.length;
-  syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
-  scheduleSaveCurrentNotebookSources(true);
-  renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
+  if(targetNotebook && targetNotebook.id){
+    const idx = notebooks.findIndex(function(item){ return item && String(item.id) === String(targetNotebook.id); });
+    if(idx >= 0) notebooks[idx] = targetNotebook;
+  }
+  if(targetNotebook === curNb){
+    await persistNotebookAndSourcesNow(curNb);
+    renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
+    updateNotebookDebugBadge();
+    return;
+  }
+  if(targetNotebook){
+    targetNotebook.srcs = Array.isArray(targetNotebook.sources) ? targetNotebook.sources.length : 0;
+    await persistNotebookAndSourcesNow(targetNotebook);
+  }
 }
 
 async function addSrc(name,type,content,imageDataUrl,rawFile,nb){
@@ -9108,6 +9745,24 @@ async function addSrc(name,type,content,imageDataUrl,rawFile,nb){
   }
   return srcObj;
 }
+
+window.HeartOSModules = window.HeartOSModules || {};
+window.HeartOSModules.sourceUpload = {
+  importSourceFiles: importSourceFiles,
+  readFile: readFile,
+  persistSourceFileIfNeeded: persistSourceFileIfNeeded,
+  appendSourceRecord: appendSourceRecord,
+  finalizeSourceImport: finalizeSourceImport,
+  addSrc: addSrc
+};
+window.HeartOSModules.sourceManager = {
+  commitCurrentSourceState: commitCurrentSourceState,
+  toggleAll: toggleAll,
+  toggleOne: togSrc,
+  renameSource: renameSource,
+  deleteSource: deleteSource,
+  deleteSelectedSources: deleteSelectedSources
+};
 
 // ======================== MODALS ========================
 function openMo(id){document.getElementById(id).classList.add('open');}
@@ -9605,6 +10260,90 @@ async function ensureFeedbackAttachmentPreview(feedbackId, attachment){
   }
 }
 
+function syncFeedbackPageSelection(rows){
+  var items = Array.isArray(rows) ? rows : feedbackPageItems();
+  if(!feedbackPageDrafting && feedbackPageSelectedId && !items.some(function(item){ return String(item.id) === String(feedbackPageSelectedId); })){
+    feedbackPageSelectedId = items.length ? String(items[0].id) : '';
+  }
+  if(!feedbackPageDrafting && !feedbackPageSelectedId && items.length){
+    feedbackPageSelectedId = String(items[0].id);
+  }
+}
+
+async function fetchFeedbackCollection(path){
+  var resp = await apiFetch(path, { method:'GET' });
+  var out = await resp.json().catch(function(){ return {}; });
+  if(!resp.ok) throw new Error(out.detail || ('HTTP ' + resp.status));
+  return Array.isArray(out.items) ? out.items : [];
+}
+
+function buildFeedbackPreviewTasksFromThread(selected){
+  if(!selected || feedbackPageDrafting) return [];
+  var rows = feedbackThreadMessages(selected);
+  var tasks = [];
+  for(var i=0;i<rows.length;i++){
+    var msg = rows[i];
+    var attachments = Array.isArray(msg && msg.attachments) ? msg.attachments : [];
+    for(var j=0;j<attachments.length;j++){
+      var att = attachments[j];
+      if(!/^image\//i.test(String(att && att.contentType || ''))) continue;
+      tasks.push({
+        feedbackId: selected.id,
+        attachment: att,
+        hostId: 'feedbackThreadAttachmentPreview-' + String(selected.id || '') + '-' + String(msg.id || j) + '-' + j
+      });
+    }
+  }
+  return tasks;
+}
+
+function buildAdminFeedbackPreviewTasks(rows){
+  var items = Array.isArray(rows) ? rows : [];
+  var tasks = [];
+  for(var i=0;i<items.length;i++){
+    var item = items[i];
+    var attachments = Array.isArray(item && item.attachments) ? item.attachments : [];
+    for(var j=0;j<attachments.length;j++){
+      var att = attachments[j];
+      if(!/^image\//i.test(String(att && att.contentType || ''))) continue;
+      tasks.push({
+        feedbackId: item.id,
+        attachment: att,
+        hostId: 'feedbackAttachmentPreview-' + String(item.id || '') + '-' + j
+      });
+    }
+  }
+  return tasks;
+}
+
+async function hydrateFeedbackPreviewTasks(tasks, token){
+  var rows = Array.isArray(tasks) ? tasks : [];
+  if(!rows.length) return;
+  var nextIndex = 0;
+  async function worker(){
+    while(nextIndex < rows.length){
+      if(token !== feedbackPreviewHydrationToken) return;
+      var current = rows[nextIndex++];
+      var host = document.getElementById(current.hostId);
+      if(!host) continue;
+      host.textContent = '加载图片预览中…';
+      var previewUrl = await ensureFeedbackAttachmentPreview(current.feedbackId, current.attachment);
+      if(token !== feedbackPreviewHydrationToken) return;
+      host = document.getElementById(current.hostId);
+      if(!host) continue;
+      if(previewUrl){
+        host.innerHTML = '<img src="' + escapeHtml(previewUrl) + '" alt="' + escapeHtml(current.attachment.name || '反馈附件') + '" onclick="openChatImageZoom(\'' + escapeHtml(previewUrl) + '\')">';
+      }else{
+        host.textContent = '图片预览失败';
+      }
+    }
+  }
+  var workerCount = Math.min(FEEDBACK_PREVIEW_CONCURRENCY, rows.length);
+  var workers = [];
+  for(var i=0;i<workerCount;i++) workers.push(worker());
+  await Promise.all(workers);
+}
+
 function feedbackPageItems(){
   if(feedbackPageMode === 'all' && (getAuthUser() || {}).is_admin){
     return Array.isArray(adminFeedbackRecords) ? adminFeedbackRecords : [];
@@ -9645,6 +10384,14 @@ function renderFeedbackPageList(){
   if(modeBar) modeBar.innerHTML = buildFeedbackPageModeBar();
   if(!host) return;
   var rows = feedbackPageItems();
+  if(feedbackPageMode === 'all' && feedbackPageAdminLoading && !rows.length){
+    host.innerHTML = '<div class="feedback-center-empty">正在加载全部工单…</div>';
+    return;
+  }
+  if(feedbackPageMode !== 'all' && feedbackPageMineLoading && !rows.length){
+    host.innerHTML = '<div class="feedback-center-empty">正在加载我的工单…</div>';
+    return;
+  }
   if(!rows.length){
     host.innerHTML = '<div class="feedback-center-empty">当前还没有反馈记录。点击上方“新建反馈”创建第一条工单。</div>';
     return;
@@ -9679,7 +10426,7 @@ function buildFeedbackThread(item){
 }
 
 function buildFeedbackReplyComposer(item){
-  var isAdminView = !!((getAuthUser() || {}).is_admin && feedbackPageMode === 'all');
+  var isAdminView = !!((getAuthUser() || {}).is_admin);
   return '<form class="feedback-ticket-reply" onsubmit="submitFeedbackReply(event, \'' + escapeHtml(item.id) + '\')">'
     + '<textarea id="feedbackReplyMessage" maxlength="5000" placeholder="' + escapeHtml(isAdminView ? '继续追问问题场景、复现步骤或处理结论。' : '继续补充场景、复现步骤，或回复管理员的问题。') + '"></textarea>'
     + '<div class="feedback-upload-card"><div class="feedback-upload-copy"><div class="feedback-upload-title">图片附件</div><div class="feedback-upload-desc">可继续补充截图，帮助确认问题场景</div></div><div class="feedback-upload-actions"><label class="feedback-upload-btn" for="feedbackImages">添加图片</label><input id="feedbackImages" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple onchange="handleFeedbackImageSelect(this)" style="display:none"><div class="feedback-upload-meta">最多 ' + FEEDBACK_MAX_IMAGES + ' 张</div></div></div>'
@@ -9690,6 +10437,9 @@ function buildFeedbackReplyComposer(item){
 function buildFeedbackPageMainHead(){
   var u = getAuthUser() || {};
   var selected = feedbackPageSelectedItem();
+  if(feedbackPageMode === 'all' && feedbackPageAdminLoading && !selected && !feedbackPageDrafting){
+    return '<div><strong>全部工单</strong><div class="feedback-page-sub">正在同步管理员视图，先为你准备全部反馈列表。</div></div><div class="feedback-page-actions"><span class="feedback-admin-status-badge is-processing">加载中</span></div>';
+  }
   if(feedbackPageDrafting || !selected){
     return '<div><strong>新建反馈</strong><div class="feedback-page-sub">把问题、截图和场景描述整理成一条新工单提交。</div></div><div class="feedback-page-actions">' + (u.is_admin ? '<button class="tb-btn" type="button" onclick="switchFeedbackPageMode(\'all\')">查看全部工单</button>' : '') + '</div>';
   }
@@ -9699,15 +10449,21 @@ function buildFeedbackPageMainHead(){
 
 function buildFeedbackPageDetail(){
   var selected = feedbackPageSelectedItem();
+  if(feedbackPageMode === 'all' && feedbackPageAdminLoading && !selected && !feedbackPageDrafting){
+    return '<div class="feedback-center-empty">正在同步全部工单详情…</div>';
+  }
+  if(feedbackPageMode !== 'all' && feedbackPageMineLoading && !selected && !feedbackPageDrafting){
+    return '<div class="feedback-center-empty">正在准备你的工单详情…</div>';
+  }
   if(feedbackPageDrafting || !selected){
     return '<div class="feedback-ticket-grid"><div class="feedback-ticket-card"><div class="feedback-ticket-section"><div class="feedback-ticket-label">创建工单</div><div class="feedback-ticket-heading">提交一个新的问题</div><div class="feedback-ticket-submeta">尽量把页面、操作步骤、是否可复现等信息写清楚。提交后，这条工单就会进入右侧详情区，后续留言也会接在同一条工单里。</div></div><div class="feedback-ticket-section">' + buildFeedbackCenterComposerHtml() + '</div></div><div class="feedback-ticket-side"><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">使用说明</div><div class="feedback-ticket-thread-empty" style="margin-top:10px;">普通用户只能看到自己的工单；管理员切到“全部工单”后，才能查看所有人的反馈并继续回复。</div></div></div></div>';
   }
   var meta = feedbackStatusMeta(selected.status);
   var statusControl = '';
-  if((getAuthUser() || {}).is_admin && feedbackPageMode === 'all'){
+  if((getAuthUser() || {}).is_admin){
     statusControl = '<div class="feedback-ticket-sideitem"><label>处理状态</label><strong style="margin-bottom:8px;">' + escapeHtml(meta.label) + '</strong><select class="feedback-admin-select" onchange="updateAdminFeedbackStatus(\'' + escapeHtml(selected.id) + '\', this)"><option value="new"' + (meta.key === 'new' ? ' selected' : '') + '>待处理</option><option value="processing"' + (meta.key === 'processing' ? ' selected' : '') + '>处理中</option><option value="resolved"' + (meta.key === 'resolved' ? ' selected' : '') + '>已解决</option></select></div>';
   }
-  return '<div class="feedback-ticket-grid"><div class="feedback-ticket-card"><div class="feedback-ticket-section"><div class="feedback-ticket-label">工单概览</div><div class="feedback-ticket-heading">' + escapeHtml(feedbackItemTitle(selected)) + '</div><div class="feedback-ticket-submeta">提交于 ' + escapeHtml(formatFeedbackCreatedAt(selected.createdAt)) + ' · 当前状态 ' + escapeHtml(meta.label) + '</div></div><div class="feedback-ticket-section"><div class="feedback-ticket-label">沟通记录</div><div style="margin-top:14px;">' + buildFeedbackThread(selected) + '</div></div><div class="feedback-ticket-section"><div class="feedback-ticket-label">继续留言</div><div style="margin-top:14px;">' + buildFeedbackReplyComposer(selected) + '</div></div></div><aside class="feedback-ticket-side"><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">工单信息</div><div class="feedback-ticket-sidegrid" style="margin-top:12px;">' + statusControl + '<div class="feedback-ticket-sideitem"><label>提交页面</label><strong>' + escapeHtml((selected.context && selected.context.page) || '-') + '</strong></div><div class="feedback-ticket-sideitem"><label>会话 ID</label><strong>' + escapeHtml((selected.context && selected.context.notebookId) || '-') + '</strong></div><div class="feedback-ticket-sideitem"><label>来源数</label><strong>' + escapeHtml(String((selected.context && selected.context.sourceCount) || 0)) + '</strong></div><div class="feedback-ticket-sideitem"><label>消息数</label><strong>' + escapeHtml(String((selected.context && selected.context.messageCount) || 0)) + '</strong></div><div class="feedback-ticket-sideitem"><label>提交人</label><strong>' + escapeHtml(((selected.user && (selected.user.display_name || selected.user.username)) || '-')) + '</strong></div></div></div><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">权限说明</div><div class="feedback-ticket-thread-empty" style="margin-top:10px;">普通用户只能查看自己的反馈；管理员切到“全部工单”后，才能查看所有人的工单并继续回复。</div></div></aside></div>';
+  return '<div class="feedback-ticket-grid"><div class="feedback-ticket-card"><div class="feedback-ticket-section"><div class="feedback-ticket-label">工单概览</div><div class="feedback-ticket-heading">' + escapeHtml(feedbackItemTitle(selected)) + '</div><div class="feedback-ticket-submeta">提交于 ' + escapeHtml(formatFeedbackCreatedAt(selected.createdAt)) + ' · 当前状态 ' + escapeHtml(meta.label) + '</div></div><div class="feedback-ticket-section"><div class="feedback-ticket-label">沟通记录</div><div style="margin-top:14px;">' + buildFeedbackThread(selected) + '</div></div><div class="feedback-ticket-section"><div class="feedback-ticket-label">继续留言</div><div style="margin-top:14px;">' + buildFeedbackReplyComposer(selected) + '</div></div></div><aside class="feedback-ticket-side"><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">工单信息</div><div class="feedback-ticket-sidegrid" style="margin-top:12px;">' + statusControl + '<div class="feedback-ticket-sideitem"><label>提交页面</label><strong>' + escapeHtml((selected.context && selected.context.page) || '-') + '</strong></div><div class="feedback-ticket-sideitem"><label>会话 ID</label><strong>' + escapeHtml((selected.context && selected.context.notebookId) || '-') + '</strong></div><div class="feedback-ticket-sideitem"><label>来源数</label><strong>' + escapeHtml(String((selected.context && selected.context.sourceCount) || 0)) + '</strong></div><div class="feedback-ticket-sideitem"><label>消息数</label><strong>' + escapeHtml(String((selected.context && selected.context.messageCount) || 0)) + '</strong></div><div class="feedback-ticket-sideitem"><label>提交人</label><strong>' + escapeHtml(((selected.user && (selected.user.display_name || selected.user.username)) || '-')) + '</strong></div></div></div><div class="feedback-ticket-sidecard"><div class="feedback-ticket-label">权限说明</div><div class="feedback-ticket-thread-empty" style="margin-top:10px;">普通用户只能查看自己的反馈；管理员在这里可以直接更新处理状态，并在全部工单视图查看所有人的工单。</div></div></aside></div>';
 }
 
 function renderFeedbackPage(){
@@ -9720,52 +10476,50 @@ function renderFeedbackPage(){
 }
 
 async function hydrateFeedbackPagePreviews(){
-  var selected = feedbackPageSelectedItem();
-  if(selected && !feedbackPageDrafting){
-    var rows = feedbackThreadMessages(selected);
-    for(var i=0;i<rows.length;i++){
-      var msg = rows[i];
-      var attachments = Array.isArray(msg && msg.attachments) ? msg.attachments : [];
-      for(var j=0;j<attachments.length;j++){
-        var att = attachments[j];
-        if(!/^image\//i.test(String(att && att.contentType || ''))) continue;
-        var host = document.getElementById('feedbackThreadAttachmentPreview-' + selected.id + '-' + msg.id + '-' + j);
-        if(!host) continue;
-        host.textContent = '加载图片预览中…';
-        var previewUrl = await ensureFeedbackAttachmentPreview(selected.id, att);
-        if(previewUrl) host.innerHTML = '<img src="' + escapeHtml(previewUrl) + '" alt="' + escapeHtml(att.name || '反馈附件') + '" onclick="openChatImageZoom(\'' + escapeHtml(previewUrl) + '\')">';
-        else host.textContent = '图片预览失败';
-      }
-    }
-  }
+  var token = ++feedbackPreviewHydrationToken;
+  await hydrateFeedbackPreviewTasks(buildFeedbackPreviewTasksFromThread(feedbackPageSelectedItem()), token);
 }
 
 async function refreshCurrentUserProfile(){
   var token = getAuthToken();
-  if(!token) return getAuthUser();
-  try{
-    var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
-    if(!r.ok) return getAuthUser();
-    var me = await r.json().catch(function(){ return null; });
-    if(!me) return getAuthUser();
-    setAuthSession(token, {
-      user_id: me.user_id,
-      username: me.username,
-      phone: me.phone,
-      display_name: me.display_name,
-      name: me.name,
-      organization: me.organization,
-      department: me.department,
-      title: me.title,
-      user_type: me.user_type,
-      use_case: me.use_case,
-      email: me.email,
-      is_admin: !!me.is_admin
-    });
-    __authMeCheckedAt = Date.now();
+  var existing = getAuthUser();
+  if(!token) return existing;
+  var now = Date.now();
+  if(existing && (now - __authMeCheckedAt) < AUTH_ME_TTL_MS){
+    return existing;
+  }
+  if(__authMeInflight){
+    try{ await __authMeInflight; }catch(_){}
     return getAuthUser();
+  }
+  try{
+    __authMeInflight = (async function(){
+      var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
+      if(!r.ok) return getAuthUser();
+      var me = await r.json().catch(function(){ return null; });
+      if(!me) return getAuthUser();
+      setAuthSession(token, {
+        user_id: me.user_id,
+        username: me.username,
+        phone: me.phone,
+        display_name: me.display_name,
+        name: me.name,
+        organization: me.organization,
+        department: me.department,
+        title: me.title,
+        user_type: me.user_type,
+        use_case: me.use_case,
+        email: me.email,
+        is_admin: !!me.is_admin
+      });
+      __authMeCheckedAt = Date.now();
+      return getAuthUser();
+    })();
+    return await __authMeInflight;
   }catch(_){
     return getAuthUser();
+  }finally{
+    __authMeInflight = null;
   }
 }
 
@@ -9792,52 +10546,105 @@ function switchFeedbackPageMode(mode){
   feedbackPageSelectedId = '';
   feedbackPageDrafting = false;
   resetFeedbackDraft();
+  if(feedbackPageMode === 'all' && Array.isArray(adminFeedbackRecords) && adminFeedbackRecords.length){
+    syncFeedbackPageSelection(adminFeedbackRecords);
+    renderFeedbackPage();
+    hydrateFeedbackPagePreviews().catch(function(){});
+  }else if(feedbackPageMode === 'mine' && Array.isArray(myFeedbackRecords) && myFeedbackRecords.length){
+    syncFeedbackPageSelection(myFeedbackRecords);
+    renderFeedbackPage();
+    hydrateFeedbackPagePreviews().catch(function(){});
+  }
   refreshFeedbackPage();
 }
 
 async function refreshFeedbackPage(){
   cleanupFeedbackPreviewUrls();
-  var user = await refreshCurrentUserProfile();
-  var mineResp = await apiFetch('/api/feedback', { method:'GET' });
-  var mineOut = await mineResp.json().catch(function(){ return {}; });
-  if(!mineResp.ok) throw new Error(mineOut.detail || '读取失败');
-  myFeedbackRecords = Array.isArray(mineOut.items) ? mineOut.items : [];
-  if(user && user.is_admin){
-    var adminResp = await apiFetch('/api/admin/feedback', { method:'GET' });
-    var adminOut = await adminResp.json().catch(function(){ return {}; });
-    adminFeedbackRecords = adminResp.ok && Array.isArray(adminOut.items) ? adminOut.items : [];
-  }else{
+  var refreshToken = ++feedbackPageRefreshToken;
+  var cachedUser = getAuthUser() || {};
+  var cachedAdmin = !!cachedUser.is_admin;
+  feedbackPageMineLoading = true;
+  feedbackPageAdminLoading = cachedAdmin;
+  if(cachedAdmin && feedbackPageMode === 'all'){
+    renderFeedbackPage();
+  }
+  var userPromise = refreshCurrentUserProfile();
+  var minePromise = fetchFeedbackCollection('/api/feedback');
+  var adminPromise = cachedAdmin ? fetchFeedbackCollection('/api/admin/feedback') : null;
+
+  myFeedbackRecords = await minePromise;
+  if(refreshToken !== feedbackPageRefreshToken) return;
+  feedbackPageMineLoading = false;
+
+  var user = await userPromise;
+  if(refreshToken !== feedbackPageRefreshToken) return;
+  var isAdmin = !!(user && user.is_admin);
+  if(!isAdmin){
     adminFeedbackRecords = [];
-    feedbackPageMode = 'mine';
+    feedbackPageAdminLoading = false;
+    if(feedbackPageMode === 'all') feedbackPageMode = 'mine';
+    syncFeedbackPageSelection();
+    renderFeedbackPage();
+    hydrateFeedbackPagePreviews().catch(function(){});
+    return;
   }
-  var rows = feedbackPageItems();
-  if(!feedbackPageDrafting && feedbackPageSelectedId && !rows.some(function(item){ return String(item.id) === String(feedbackPageSelectedId); })){
-    feedbackPageSelectedId = rows.length ? String(rows[0].id) : '';
+
+  syncFeedbackPageSelection();
+  renderFeedbackPage();
+  hydrateFeedbackPagePreviews().catch(function(){});
+
+  if(!adminPromise) adminPromise = fetchFeedbackCollection('/api/admin/feedback');
+  try{
+    adminFeedbackRecords = await adminPromise;
+  }catch(e){
+    if(refreshToken !== feedbackPageRefreshToken) return;
+    feedbackPageAdminLoading = false;
+    if(feedbackPageMode === 'all') throw e;
+    adminFeedbackRecords = [];
+    console.warn('[HeartOS] feedback admin list load failed', e);
+    return;
   }
-  if(!feedbackPageDrafting && !feedbackPageSelectedId && rows.length){
-    feedbackPageSelectedId = String(rows[0].id);
-  }
+  if(refreshToken !== feedbackPageRefreshToken) return;
+  feedbackPageAdminLoading = false;
+  syncFeedbackPageSelection();
   renderFeedbackPage();
   hydrateFeedbackPagePreviews().catch(function(){});
 }
 
+function renderFeedbackPageLoadingState(){
+  var list = document.getElementById('feedbackPageList');
+  var detail = document.getElementById('feedbackPageDetail');
+  var head = document.getElementById('feedbackPageMainHead');
+  if(head) head.innerHTML = '<div><strong>反馈中心</strong><div class="feedback-page-sub">正在加载反馈记录…</div></div>';
+  if(list) list.innerHTML = '<div class="feedback-center-empty">正在加载反馈列表…</div>';
+  if(detail) detail.innerHTML = '<div class="feedback-center-empty">正在准备反馈详情…</div>';
+}
+
 async function openFeedbackPage(pushHistory){
   if(pushHistory !== false) pushHistory = true;
-  document.getElementById('homePage').classList.remove('active');
-  document.getElementById('nbPage').classList.remove('active');
-  document.getElementById('feedbackPage').classList.add('active');
+  if(feedbackPageOpeningPromise) return feedbackPageOpeningPromise;
+  renderFeedbackRouteShell();
   updateUserAvatarUI();
-  try{
-    await refreshFeedbackPage();
-  }catch(e){
-    var list = document.getElementById('feedbackPageList');
-    var detail = document.getElementById('feedbackPageDetail');
-    if(list) list.innerHTML = '<div class="feedback-center-empty">反馈列表加载失败，请稍后刷新重试。</div>';
-    if(detail) detail.innerHTML = '<div class="feedback-center-empty">暂时无法读取反馈记录：' + escapeHtml(explainFeedbackLoadError(e && e.message ? e.message : '')) + '</div>';
-  }
   if(pushHistory && __heartosHistoryReady){
     history.pushState({page:'feedback', id:feedbackPageDrafting ? '' : feedbackPageSelectedId}, '', '#feedback');
   }
+  syncSessionRouteFromLocation();
+  renderFeedbackPageLoadingState();
+  feedbackPageOpeningPromise = (async function(){
+    try{
+      await refreshFeedbackPage();
+      setSessionViewState('ready', '', '');
+    }catch(e){
+      var list = document.getElementById('feedbackPageList');
+      var detail = document.getElementById('feedbackPageDetail');
+      if(list) list.innerHTML = '<div class="feedback-center-empty">反馈列表加载失败，请稍后刷新重试。</div>';
+      if(detail) detail.innerHTML = '<div class="feedback-center-empty">暂时无法读取反馈记录：' + escapeHtml(explainFeedbackLoadError(e && e.message ? e.message : '')) + '</div>';
+      setSessionViewState('error', 'fetch-server', '反馈记录加载失败');
+    }finally{
+      feedbackPageOpeningPromise = null;
+    }
+  })();
+  return feedbackPageOpeningPromise;
 }
 
 async function openFeedbackCenterModal(){
@@ -10570,39 +11377,10 @@ async function ensureLogin(){
   }
 }
 
-async function refreshCurrentUserProfile(){
-  var token = getAuthToken();
-  if(!token) return getAuthUser();
-  try{
-    var r = await fetch(apiUrl('/api/auth/me'), { headers: authHeaders() });
-    if(!r.ok) return getAuthUser();
-    var me = await r.json().catch(function(){ return null; });
-    if(!me) return getAuthUser();
-    setAuthSession(token, {
-      user_id: me.user_id,
-      username: me.username,
-      phone: me.phone,
-      display_name: me.display_name,
-      name: me.name,
-      organization: me.organization,
-      department: me.department,
-      title: me.title,
-      user_type: me.user_type,
-      use_case: me.use_case,
-      email: me.email,
-      is_admin: !!me.is_admin
-    });
-    __authMeCheckedAt = Date.now();
-    return getAuthUser();
-  }catch(_){
-    return getAuthUser();
-  }
-}
-
 function buildAccountProfileHtml(user){
   var u = user || {};
   return '<form class="account-shell" onsubmit="submitAccountProfile(event)">'
-    + '<div class="account-hero"><div class="account-hero-copy"><div class="account-eyebrow">Account Center</div><div class="account-name">' + escapeHtml(u.display_name || u.name || u.phone || 'HeartOS 用户') + '</div><div class="account-meta">手机号 ' + escapeHtml(u.phone || '') + ' · ' + escapeHtml(u.organization || '未填写工作单位') + '<br>在这里维护账号资料、密码和管理员视图。</div></div><div class="account-hero-actions"><button class="account-chip-btn" type="button" onclick="openChangePasswordModal()">修改密码</button>' + (u.is_admin ? '<button class="account-chip-btn" type="button" onclick="openAdminUsersModal()">用户列表</button><button class="account-chip-btn" type="button" onclick="openAdminFeedbackModal()">反馈管理</button>' : '') + '<button class="account-chip-btn danger" type="button" onclick="logoutCurrentUser()">退出登录</button></div></div>'
+    + '<div class="account-hero"><div class="account-hero-copy"><div class="account-eyebrow">Account Center</div><div class="account-name">' + escapeHtml(u.display_name || u.name || u.phone || 'HeartOS 用户') + '</div><div class="account-meta">手机号 ' + escapeHtml(u.phone || '') + ' · ' + escapeHtml(u.organization || '未填写工作单位') + '<br>在这里维护账号资料、密码和管理员视图。</div></div><div class="account-hero-actions"><button class="account-chip-btn" type="button" onclick="openChangePasswordModal()">修改密码</button>' + (u.is_admin ? '<button class="account-chip-btn" type="button" onclick="openAdminUsersModal()">用户列表</button>' : '') + '<button class="account-chip-btn danger" type="button" onclick="logoutCurrentUser()">退出登录</button></div></div>'
     + '<div class="account-grid">'
     + '<div class="account-card"><div class="account-card-title">基础身份</div><div class="account-field"><label for="profileName">姓名</label><input id="profileName" value="' + escapeHtml(u.name || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileDisplayName">显示名称</label><input id="profileDisplayName" value="' + escapeHtml(u.display_name || u.name || '') + '"></div></div>'
     + '<div class="account-card"><div class="account-card-title">机构信息</div><div class="account-field"><label for="profileOrganization">工作单位</label><input id="profileOrganization" value="' + escapeHtml(u.organization || '') + '"></div><div class="account-field" style="margin-top:12px"><label for="profileEmail">邮箱</label><input id="profileEmail" value="' + escapeHtml(u.email || '') + '"></div></div>'
@@ -10720,19 +11498,6 @@ async function openAdminUsersModal(){
   }
 }
 
-function feedbackStatusMeta(status){
-  var key = String(status || 'new').toLowerCase();
-  if(key === 'processing') return { key:key, label:'处理中' };
-  if(key === 'resolved') return { key:key, label:'已解决' };
-  return { key:'new', label:'待处理' };
-}
-
-function formatFeedbackCreatedAt(ts){
-  var num = Number(ts || 0);
-  if(!num) return '未知时间';
-  try{ return new Date(num).toLocaleString(); }catch(_){ return '未知时间'; }
-}
-
 function cleanupAdminFeedbackPreviewUrls(){
   feedbackAttachmentPreviewUrls.forEach(function(url){
     if(url){
@@ -10740,27 +11505,6 @@ function cleanupAdminFeedbackPreviewUrls(){
     }
   });
   feedbackAttachmentPreviewUrls.clear();
-}
-
-function adminFeedbackPreviewKey(feedbackId, attachmentId){
-  return String(feedbackId || '') + ':' + String(attachmentId || '');
-}
-
-async function ensureFeedbackAttachmentPreview(feedbackId, attachment){
-  if(!attachment || !attachment.fileUrl) return '';
-  var key = adminFeedbackPreviewKey(feedbackId, attachment.id || attachment.name || '');
-  if(feedbackAttachmentPreviewUrls.has(key)) return feedbackAttachmentPreviewUrls.get(key) || '';
-  try{
-    var resp = await fetch(String(attachment.fileUrl), { headers: authHeaders() });
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
-    var blob = await resp.blob();
-    var objectUrl = URL.createObjectURL(blob);
-    feedbackAttachmentPreviewUrls.set(key, objectUrl);
-    return objectUrl;
-  }catch(_){
-    feedbackAttachmentPreviewUrls.set(key, '');
-    return '';
-  }
 }
 
 function buildAdminFeedbackHtml(items){
@@ -10795,24 +11539,8 @@ function buildAdminFeedbackHtml(items){
 }
 
 async function hydrateAdminFeedbackPreviews(){
-  var rows = Array.isArray(adminFeedbackRecords) ? adminFeedbackRecords : [];
-  for(var i=0;i<rows.length;i++){
-    var item = rows[i];
-    var attachments = Array.isArray(item && item.attachments) ? item.attachments : [];
-    for(var j=0;j<attachments.length;j++){
-      var att = attachments[j];
-      if(!/^image\//i.test(String(att && att.contentType || ''))) continue;
-      var host = document.getElementById('feedbackAttachmentPreview-' + item.id + '-' + j);
-      if(!host) continue;
-      host.textContent = '加载图片预览中…';
-      var previewUrl = await ensureFeedbackAttachmentPreview(item.id, att);
-      if(previewUrl){
-        host.innerHTML = '<img src="' + escapeHtml(previewUrl) + '" alt="' + escapeHtml(att.name || '反馈附件') + '" onclick="openChatImageZoom(\'' + escapeHtml(previewUrl) + '\')">';
-      }else{
-        host.textContent = '图片预览失败';
-      }
-    }
-  }
+  var token = ++feedbackPreviewHydrationToken;
+  await hydrateFeedbackPreviewTasks(buildAdminFeedbackPreviewTasks(adminFeedbackRecords), token);
 }
 
 async function openAdminFeedbackModal(){
@@ -10831,38 +11559,6 @@ async function openAdminFeedbackModal(){
   }
 }
 
-async function updateAdminFeedbackStatus(feedbackId, selectEl){
-  var nextStatus = String(selectEl && selectEl.value || 'new');
-  try{
-    var resp = await apiFetch('/api/admin/feedback/' + encodeURIComponent(String(feedbackId)) + '/status', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ status: nextStatus })
-    });
-    var out = await resp.json().catch(function(){ return {}; });
-    if(!resp.ok) throw new Error(out.detail || '更新失败');
-    adminFeedbackRecords = adminFeedbackRecords.map(function(item){
-      if(item && String(item.id) === String(feedbackId)) item.status = out.status || nextStatus;
-      return item;
-    });
-    myFeedbackRecords = myFeedbackRecords.map(function(item){
-      if(item && String(item.id) === String(feedbackId)) item.status = out.status || nextStatus;
-      return item;
-    });
-    var meta = feedbackStatusMeta(out.status || nextStatus);
-    var badge = document.getElementById('adminFeedbackBadge-' + feedbackId);
-    if(badge){
-      badge.className = 'feedback-admin-status-badge is-' + meta.key;
-      badge.textContent = meta.label;
-    }
-    if(document.getElementById('feedbackPage') && document.getElementById('feedbackPage').classList.contains('active')){
-      renderFeedbackPage();
-    }
-    showToast('反馈状态已更新');
-  }catch(e){
-    showToast('更新反馈状态失败：' + (e && e.message ? e.message : '请稍后重试'));
-  }
-}
 
 function logoutCurrentUser(){
   cleanupAdminFeedbackPreviewUrls();
@@ -11177,6 +11873,8 @@ window.addEventListener('pagehide', function(){
   if(curNb && __nbLoaded){
     persistRefreshInterruptionNotice();
     flushCurrentNotebookToLocalCache();
+    persistNotebookKeepalive(curNb);
+    persistNotebookSourcesKeepalive(curNb);
     scheduleSaveCurrentNotebook(true);
     scheduleSaveCurrentNotebookSources(true);
   }
@@ -11186,11 +11884,25 @@ window.addEventListener('beforeunload', function(){
   if(curNb && __nbLoaded){
     persistRefreshInterruptionNotice();
     flushCurrentNotebookToLocalCache();
+    persistNotebookKeepalive(curNb);
+    persistNotebookSourcesKeepalive(curNb);
   }
 });
 
 // ======================== INIT ========================
-renderHome();
+applyBuildMarker();
+loadSessionState();
+sourcePanelCollapsed = !!heartosSessionState.workspace.sourcePanelCollapsed;
+studioPanelCollapsed = !!heartosSessionState.workspace.studioPanelCollapsed;
+currentStudioCardType = heartosSessionState.workspace.selectedStudioCard || '';
+if(!__heartosHistoryReady){
+  ensureHistoryReadyFromLocation();
+}
+reconcileVisibleAppPage();
+if(!hydrateNotebookSummariesFromLocal() && currentRouteStateFromLocation().page === 'home'){
+  renderHome();
+}
+updateNotebookDebugBadge();
 
 async function loadAuthedAppData(){
   try{
@@ -11198,8 +11910,17 @@ async function loadAuthedAppData(){
   }catch(_){ }
   try{
     await loadNotebooksFromServer();
-    if((!curNb || !curNb.id) && Array.isArray(notebooks) && notebooks.length){
-      await restoreLastOpenedNotebook().catch(function(){});
+    const route = currentRouteStateFromLocation();
+    if(
+      route.page === 'notebook' &&
+      (
+        !curNb ||
+        String(curNb.id || '') !== String(route.notebookId || '') ||
+        !curNb._detailsLoaded ||
+        String(__nbDetailLoadingId || '') === String(route.notebookId || '')
+      )
+    ){
+      await restoreNotebookRouteFromLocation();
     }
   }catch(e){
     const hasLocalNotebookData = Array.isArray(notebooks) && notebooks.length > 0;
@@ -11217,6 +11938,8 @@ async function loadAuthedAppData(){
     }
     console.warn('[heartos-auth] notebook load failed', e && e.message ? e.message : e);
     showToast('对话历史加载失败，可刷新后重试');
+  }finally{
+    reconcileVisibleAppPage();
   }
 }
 
@@ -11237,18 +11960,64 @@ async function initAuthBoot(){
     setAuthMsg('');
     if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
     hydrateNotebookSummariesFromLocal();
-    showHomeLanding(false);
-    restoreLastOpenedNotebook().catch(function(){});
+    const route = currentRouteStateFromLocation();
+    if(route.page === 'notebook'){
+      restoreNotebookRouteFromLocation();
+    }else if(route.page === 'feedback'){
+      openFeedbackPage(false);
+    }
     loadAuthedAppData().catch(function(){});
+    reconcileVisibleAppPage();
     var u = getAuthUser();
     if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     updateUserAvatarUI();
   }catch(e){
     console.warn('[heartos-auth] login skipped', e && e.message ? e.message : e);
+    reconcileVisibleAppPage();
     updateUserAvatarUI();
   }
 }
-setTimeout(initAuthBoot, 100);
+
+window.HeartOSModules = window.HeartOSModules || {};
+window.HeartOSModules.notebookPersistence = {
+  normalizeSourceForPersistence: normalizeSourceForPersistence,
+  normalizeSourcesForPersistence: normalizeSourcesForPersistence,
+  serializeNotebookSources: serializeNotebookSources,
+  commitCurrentSourceState: commitCurrentSourceState,
+  syncNotebookStateFor: syncNotebookStateFor,
+  syncCurrentNotebookState: syncCurrentNotebookState,
+  persistNotebookLocally: persistNotebookLocally,
+  persistNotebookStateNow: persistNotebookStateNow,
+  persistNotebookAndSourcesNow: persistNotebookAndSourcesNow,
+  persistNotebookPayload: persistNotebookPayload,
+  persistNotebookSourcesPayload: persistNotebookSourcesPayload,
+  persistNotebookKeepalive: persistNotebookKeepalive,
+  persistNotebookSourcesKeepalive: persistNotebookSourcesKeepalive,
+  enqueueNotebookSave: enqueueNotebookSave,
+  enqueueNotebookSourceSave: enqueueNotebookSourceSave,
+  scheduleSaveCurrentNotebook: scheduleSaveCurrentNotebook,
+  scheduleSaveCurrentNotebookSources: scheduleSaveCurrentNotebookSources
+};
+window.HeartOSModules.notebookActions = {
+  scheduleSaveNotebook: scheduleSaveNotebook,
+  deleteNotebook: deleteNotebook
+};
+window.HeartOSModules.appBoot = {
+  loadAuthedAppData: loadAuthedAppData,
+  initAuthBoot: initAuthBoot,
+  ensureNotebookDetailLoaded: ensureNotebookDetailLoaded,
+  restoreLastOpenedNotebook: restoreLastOpenedNotebook
+};
+window.HeartOSModules.feedback = {
+  feedbackStatusMeta: feedbackStatusMeta,
+  formatFeedbackCreatedAt: formatFeedbackCreatedAt,
+  ensureFeedbackAttachmentPreview: ensureFeedbackAttachmentPreview,
+  updateAdminFeedbackStatus: updateAdminFeedbackStatus,
+  refreshCurrentUserProfile: refreshCurrentUserProfile
+};
+setTimeout(function(){
+  return window.HeartOSModules.appBoot.initAuthBoot();
+}, 100);
 
 updateApiStatus();
 </script>
