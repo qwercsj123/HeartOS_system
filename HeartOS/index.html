@@ -3219,16 +3219,80 @@ function sourceFullName(src){
   return String((src && src.name) || src || '未命名来源');
 }
 
+function sourceOwningList(src){
+  if(src && Array.isArray(src.__sourceListRef)) return src.__sourceListRef;
+  if(Array.isArray(sources) && sources.includes(src)) return sources;
+  if(curNb && Array.isArray(curNb.sources) && curNb.sources.includes(src)) return curNb.sources;
+  return Array.isArray(sources) ? sources : [];
+}
+
+function sourceDuplicateIndex(src, sourceList){
+  const list = Array.isArray(sourceList) ? sourceList : sourceOwningList(src);
+  if(!src || !Array.isArray(list) || !list.length) return 1;
+  const targetName = sourceFullName(src);
+  let rank = 0;
+  for(let i = 0; i < list.length; i++){
+    const item = list[i];
+    if(sourceFullName(item) !== targetName) continue;
+    rank += 1;
+    if(item === src) return rank;
+    if(String(item && item.id) === String(src && src.id)) return rank;
+  }
+  return 1;
+}
+
 function sourceDisplayName(src){
   const full = sourceFullName(src).replace(/\\/g, '/');
   return full.split('/').pop() || full;
+}
+
+function sourceDisplayLabel(src, sourceList){
+  const base = sourceDisplayName(src);
+  const full = sourceFullName(src);
+  const list = Array.isArray(sourceList) ? sourceList : sourceOwningList(src);
+  if(!full || !Array.isArray(list) || !list.length) return base;
+  let duplicates = 0;
+  for(let i = 0; i < list.length; i++){
+    if(sourceFullName(list[i]) === full) duplicates += 1;
+  }
+  if(duplicates <= 1) return base;
+  const index = sourceDuplicateIndex(src, list);
+  return base + ' (' + index + ')';
+}
+
+function sourceContentFingerprint(name, type, content, imageDataUrl, rawFile){
+  const safeName = sourceFullName(name).trim().toLowerCase();
+  const safeType = String(type || fileExtension(safeName) || '').trim().toLowerCase();
+  const file = isBlobLike(rawFile) ? rawFile : null;
+  if(file){
+    return [
+      safeName,
+      safeType,
+      file.size || 0,
+      file.lastModified || 0,
+      String(file.type || '').toLowerCase()
+    ].join('|');
+  }
+  if(imageDataUrl){
+    return [safeName, safeType, 'img', String(imageDataUrl).length].join('|');
+  }
+  return [safeName, safeType, 'txt', String(content || '').length].join('|');
+}
+
+function hasEquivalentSource(name, type, content, imageDataUrl, rawFile, sourceList){
+  const list = Array.isArray(sourceList) ? sourceList : [];
+  if(!list.length) return null;
+  const nextFingerprint = sourceContentFingerprint(name, type, content, imageDataUrl, rawFile);
+  return list.find(function(src){
+    return sourceContentFingerprint(src && src.name, src && src.type, src && src.content, src && src.imageDataUrl, src && src.fileObj) === nextFingerprint;
+  }) || null;
 }
 
 function renderSourceMiniRail(){
   const rail = document.getElementById('sourceMiniRail');
   if(!rail) return;
   const items = (Array.isArray(sources) ? sources : []).slice(0, 24).map(s => `
-    <button class="source-mini-item ${s.checked?'active':''}" title="${escAttr(sourceFullName(s))}" onclick="previewSource(${s.id}, event)">
+    <button class="source-mini-item ${s.checked?'active':''}" title="${escAttr(sourceDisplayLabel(s, sources))}" onclick="previewSource(${s.id}, event)">
       ${fileIco(String(s.type || 'file').toLowerCase())}
     </button>`).join('');
   const more = Array.isArray(sources) && sources.length > 24
@@ -3267,10 +3331,11 @@ function renderSrcs(){
   </div>` + sources.map(s=>{
     const isImg = ['png','jpg','jpeg','bmp','tiff'].includes((s.type||'').toLowerCase());
     const fsInfo = signalSampleRateInfo(s);
-    return `<div class="src-item" onclick="handleSourceRowClick(${s.id}, event)" title="${escAttr(sourceFullName(s))}">
+    const displayLabel = sourceDisplayLabel(s, sources);
+    return `<div class="src-item" onclick="handleSourceRowClick(${s.id}, event)" title="${escAttr(displayLabel)}">
       ${fileIco(s.type)}
       <div class="src-info">
-        <div class="src-name">${esc(sourceDisplayName(s))}</div>
+        <div class="src-name">${esc(displayLabel)}</div>
         <div class="src-type">${s.type.toUpperCase()}${isImg?' · ECG图像':''}${fsInfo.sampleRate ? (' · ' + fsInfo.sampleRate + ' Hz') : ''}</div>
       </div>
       <div class="src-menu-wrap">
@@ -3280,7 +3345,7 @@ function renderSrcs(){
           <button class="danger" onclick="deleteSource(${s.id}, event)">移除来源</button>
         </div>
       </div>
-      <button class="src-cb src-select-btn ${s.checked?'chk':''}" type="button" title="选择来源" aria-label="选择 ${escAttr(sourceDisplayName(s))}" aria-pressed="${s.checked?'true':'false'}" onclick="togSrc(${s.id}, event)"></button>
+      <button class="src-cb src-select-btn ${s.checked?'chk':''}" type="button" title="选择来源" aria-label="选择 ${escAttr(displayLabel)}" aria-pressed="${s.checked?'true':'false'}" onclick="togSrc(${s.id}, event)"></button>
     </div>`;
   }).join('');
   renderSourceMiniRail();
@@ -3533,7 +3598,7 @@ async function getImageSourceSize(src){
 
 async function buildSourceInitialSummary(src){
   if(!src) return { html:'', actions:'' };
-  const name = sourceDisplayName(src);
+  const name = sourceDisplayLabel(src);
   const size = src && src.fileObj && Number.isFinite(src.fileObj.size) ? formatFileSize(src.fileObj.size) : '';
   const ext = (sourceExt(src) || '').toUpperCase();
   const kind = sourceKindLabel(src);
@@ -4239,7 +4304,7 @@ async function previewSource(id, evt){
   const title = document.getElementById('srcPreviewTitle');
   const body = document.getElementById('srcPreviewBody');
   if(!title || !body) return;
-  title.textContent = sourceDisplayName(src);
+  title.textContent = sourceDisplayLabel(src, sources);
   title.title = sourceFullName(src);
   body.innerHTML = '<p style="color:var(--text3);font-size:13px;">正在加载预览...</p>';
   openMo('srcPreviewMo');
@@ -4260,7 +4325,7 @@ async function previewSource(id, evt){
     if(type === 'csv' || /csv/i.test(mime)){
       const text = await readCsvTextFromSource(src);
       if(text){
-        window.__heartosSignalPreviewContext = { format:'csv', text:text, label:'CSV 表格 · ' + sourceDisplayName(src) };
+        window.__heartosSignalPreviewContext = { format:'csv', text:text, label:'CSV 表格 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
       }else{
         body.innerHTML = '<p style="color:var(--text3);">这个 CSV 暂无可预览内容。</p>';
@@ -4270,7 +4335,7 @@ async function previewSource(id, evt){
     if(type === 'tsv'){
       const text = await readTextFromSource(src);
       if(text){
-        window.__heartosSignalPreviewContext = { format:'tsv', text:text, label:'TSV 表格 · ' + sourceDisplayName(src) };
+        window.__heartosSignalPreviewContext = { format:'tsv', text:text, label:'TSV 表格 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
       }else{
         body.innerHTML = '<p style="color:var(--text3);">这个 TSV 暂无可预览内容。</p>';
@@ -4280,7 +4345,7 @@ async function previewSource(id, evt){
     if(type === 'json' || /json/i.test(mime)){
       const text = await readTextFromSource(src);
       if(text){
-        window.__heartosSignalPreviewContext = { format:'json', text:text, label:'JSON 数据 · ' + sourceDisplayName(src) };
+        window.__heartosSignalPreviewContext = { format:'json', text:text, label:'JSON 数据 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
       }else{
         body.innerHTML = '<p style="color:var(--text3);">这个 JSON 暂无可预览内容。</p>';
@@ -4290,7 +4355,7 @@ async function previewSource(id, evt){
     if(type === 'xml' || /xml/i.test(mime)){
       const text = await readXmlTextFromSource(src);
       if(text){
-        window.__heartosSignalPreviewContext = { format:'xml', text:text, label:'XML 数据 · ' + sourceDisplayName(src) };
+        window.__heartosSignalPreviewContext = { format:'xml', text:text, label:'XML 数据 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
       }else{
         body.innerHTML = '<p style="color:var(--text3);">这个 XML 暂无可预览内容。</p>';
@@ -4416,6 +4481,7 @@ function buildSourceChatCardHTML(src, compact=false){
   const size = sourceSizeLabel(src);
   const hasImage = !!src.imageDataUrl;
   const id = Number(src.id) || 0;
+  const displayLabel = sourceDisplayLabel(src);
   const thumb = hasImage
     ? `<img src="${src.imageDataUrl}" alt="${escAttr(src.name || 'source image')}">`
     : esc(kind.replace(/文件|数据/g,'').slice(0,3) || 'FILE');
@@ -4423,7 +4489,7 @@ function buildSourceChatCardHTML(src, compact=false){
     <div class="source-chat-thumb">${thumb}</div>
     <div class="source-chat-info">
       <div class="source-chat-kicker">${compact ? '新来源已添加' : '已导入来源'}</div>
-      <div class="source-chat-name" title="${escAttr(sourceFullName(src))}">${esc(sourceDisplayName(src))}</div>
+      <div class="source-chat-name" title="${escAttr(sourceFullName(src))}">${esc(displayLabel)}</div>
       <div class="source-chat-meta">
         <span class="source-chat-pill">${esc(kind)}</span>
         ${size ? `<span class="source-chat-pill">${esc(size)}</span>` : ''}
@@ -4503,17 +4569,17 @@ async function buildBatchSourceOverview(batch){
       if(rows.length){
         const cols = rows.reduce(function(max, row){ return Math.max(max, row.length); }, 0);
         const totalRows = String(text || '').split(/\r?\n/).filter(function(line){ return line.trim(); }).length;
-        lines.push('<li><strong>' + esc(sourceDisplayName(src)) + '</strong>：' + ext.toUpperCase() + ' 表格，约 ' + Math.max(0, totalRows - 1) + ' 条记录，' + cols + ' 列。</li>');
+        lines.push('<li><strong>' + esc(sourceDisplayLabel(src, items)) + '</strong>：' + ext.toUpperCase() + ' 表格，约 ' + Math.max(0, totalRows - 1) + ' 条记录，' + cols + ' 列。</li>');
       }
     }else if(ext === 'xml'){
       const text = await readTextFromSource(src);
       const root = String(text || '').match(/<([A-Za-z_][\w:.-]*)[\s>]/);
-      if(root) lines.push('<li><strong>' + esc(sourceDisplayName(src)) + '</strong>：XML 结构，根节点 ' + esc(root[1]) + '。</li>');
+      if(root) lines.push('<li><strong>' + esc(sourceDisplayLabel(src, items)) + '</strong>：XML 结构，根节点 ' + esc(root[1]) + '。</li>');
     }else if(ext === 'json'){
       try{
         const value = JSON.parse(await readTextFromSource(src));
         const kind = Array.isArray(value) ? '数组结构' : (value && typeof value === 'object' ? '对象结构' : '');
-        if(kind) lines.push('<li><strong>' + esc(sourceDisplayName(src)) + '</strong>：JSON ' + kind + '。</li>');
+        if(kind) lines.push('<li><strong>' + esc(sourceDisplayLabel(src, items)) + '</strong>：JSON ' + kind + '。</li>');
       }catch(_){ }
     }
   }
@@ -4564,7 +4630,7 @@ function renderChat(){
   // First source ever: render the summary card skeleton + clear messages
   if(sources.length === 1 || !document.getElementById('sumCard')){
     ml.innerHTML = '';
-    const nbTitle = (curNb.title && curNb.title !== 'New Conversation') ? curNb.title : (isBatchImport ? '批量导入资料' : sourceDisplayName(latestSrc));
+    const nbTitle = (curNb.title && curNb.title !== 'New Conversation') ? curNb.title : (isBatchImport ? '批量导入资料' : sourceDisplayLabel(latestSrc, sources));
     ce.innerHTML=`${isBatchImport ? buildBatchSourceChatCardHTML(importedBatch) : buildSourceChatCardHTML(latestSrc)}
     <div class="sum-card" id="sumCard">
       <div class="sum-badge">✦ AI 摘要</div>
@@ -4581,8 +4647,6 @@ function renderChat(){
       </div>
       <div class="sum-acts">
         <button class="sa" onclick="copySum()">📋 复制摘要</button>
-        <button class="sa">👍</button>
-        <button class="sa">👎</button>
       </div>
     </div>
     <div class="sugg-qs" id="suggQs">
@@ -4959,7 +5023,7 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
     return {
       title: toolName,
       intro: '当前还没有勾选来源。是否使用这份文件继续？',
-      supportText: '将使用：' + sourceDisplayName(src),
+      supportText: '将使用：' + sourceDisplayLabel(src, sources),
       steps: [],
       hideList: true,
       actions: [
@@ -9668,6 +9732,7 @@ async function importSourceFiles(fileList){
   let persistedImportedCount = 0;
   const failed = [];
   const unsynced = [];
+  let duplicateSkipped = 0;
   try{
     for(let i=0;i<files.length;i++){
       const file = files[i];
@@ -9682,6 +9747,7 @@ async function importSourceFiles(fileList){
         if(!(await persistSourceFileIfNeeded(source, prepared.rawFile, targetNotebook))) unsynced.push(prepared.name);
       }catch(err){
         const reason = err && err.message ? String(err.message) : '文件读取失败';
+        if(err && err.code === 'DUPLICATE_SOURCE') duplicateSkipped += 1;
         console.warn('[heartos-source-import] failed:', file && file.name ? file.name : 'unknown-file', reason);
         failed.push({ name:file.name, reason:reason });
       }
@@ -9707,9 +9773,11 @@ async function importSourceFiles(fileList){
       }
     }
     const notes = [];
+    const realFailedCount = Math.max(0, failed.length - duplicateSkipped);
     if(skipped) notes.push('忽略 ' + skipped + ' 个系统文件');
     if(unsupported) notes.push(unsupported + ' 个不支持格式已在对话框列出');
-    if(failed.length) notes.push(failed.length + ' 个文件导入或保存失败');
+    if(duplicateSkipped) notes.push(duplicateSkipped + ' 个重复来源已跳过');
+    if(realFailedCount) notes.push(realFailedCount + ' 个文件导入或保存失败');
     if(unsynced.length) notes.push(unsynced.length + ' 个文件未同步到服务器');
     showToast((persistedImportedCount ? ('已导入 ' + persistedImportedCount + ' 个来源') : '本次没有成功导入的文件') + (notes.length ? '，' + notes.join('，') : ''));
   }finally{
@@ -9796,8 +9864,15 @@ function appendSourceRecord(name,type,content,imageDataUrl,rawFile,nb){
   const targetSources = targetNotebook === curNb
     ? (Array.isArray(sources) ? sources : [])
     : (Array.isArray(targetNotebook && targetNotebook.sources) ? targetNotebook.sources : []);
+  const existing = hasEquivalentSource(name, type, content, imageDataUrl, rawFile, targetSources);
+  if(existing){
+    const dupErr = new Error('同一对话中已存在完全相同的来源，已跳过重复导入');
+    dupErr.code = 'DUPLICATE_SOURCE';
+    dupErr.sourceId = existing.id;
+    throw dupErr;
+  }
   const id=nextSourceId(targetSources);
-  const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null};
+  const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null,__sourceListRef:targetSources};
   targetSources.push(srcObj);
   if(targetNotebook && targetNotebook !== curNb) targetNotebook.sources = targetSources;
   if(targetNotebook === curNb){
