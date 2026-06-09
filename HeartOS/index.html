@@ -153,7 +153,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .delete-selected-srcs{margin-left:auto;padding:3px 7px;border:1px solid #fecaca;border-radius:8px;background:#fff;color:#dc2626;font-size:11px;font-family:inherit;cursor:pointer;transition:all .15s;}
 .sel-all-row .delete-selected-srcs + .src-cb{margin-left:0;}
 .delete-selected-srcs:hover{background:#fef2f2;border-color:#fca5a5;}
-.src-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:16px;cursor:pointer;transition:all .15s;margin-bottom:4px;border:1px solid transparent;}
+.src-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:16px;transition:all .15s;margin-bottom:4px;border:1px solid transparent;}
 .src-item:hover{background:#fff;border-color:var(--border);box-shadow:var(--sh0);}
 .src-del,.src-menu-btn{width:22px;height:22px;border:none;border-radius:6px;background:transparent;color:#98a2b3;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;opacity:.7;}
 .src-del:hover,.src-menu-btn:hover{background:var(--bg3);color:var(--text2);opacity:1;}
@@ -163,12 +163,18 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .src-menu button{display:block;width:100%;border:none;background:#fff;text-align:left;padding:8px 10px;font-size:12px;color:var(--text2);cursor:pointer;}
 .src-menu button:hover{background:var(--bg2);color:var(--text);}
 .src-menu button.danger{color:#dc2626;}
+.src-main-btn{flex:1;min-width:0;border:none;background:transparent;padding:0;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;border-radius:12px;transition:background .15s ease, box-shadow .15s ease, transform .15s ease;}
+.src-main-btn:hover{background:rgba(47,99,217,.04);}
+.src-main-btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(47,107,255,.14);}
+.src-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;}
 .src-cb{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
 .src-select-btn{padding:0;background:#fff;cursor:pointer;}
 .src-select-btn:hover{border-color:var(--accent);background:var(--accent-light);}
 .src-cb.chk{background:var(--accent);border-color:var(--accent);}
 .src-cb.chk::after{content:'';width:7px;height:4px;border-left:1.5px solid #fff;border-bottom:1.5px solid #fff;transform:rotate(-45deg) translate(1px,-1px);display:block;}
-.src-ico{width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-weight:700;letter-spacing:0;}
+.src-ico{width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-weight:700;letter-spacing:0;position:relative;transition:all .16s ease;}
+.src-main-btn:hover .src-ico{box-shadow:var(--sh1);filter:saturate(1.05);transform:translateY(-1px);}
+.src-main-btn:hover .src-ico::after,.src-main-btn:focus-visible .src-ico::after{content:'预览';position:absolute;inset:auto auto 3px 3px;padding:1px 5px;border-radius:999px;background:rgba(15,23,42,.76);color:#fff;font-size:8px;font-weight:600;line-height:1.4;letter-spacing:.02em;}
 .src-ico.pdf{background:#fef2f2;color:#dc2626;}
 .src-ico.txt,.src-ico.md{background:#f0fdf4;color:#16a34a;}
 .src-ico.url{background:#eff6ff;color:#2563eb;}
@@ -1426,6 +1432,8 @@ const __nbSaveTimers = new Map();
 const __nbSaveQueues = new Map();
 const __nbSourceSaveTimers = new Map();
 const __nbSourceSaveQueues = new Map();
+const __nbResultFileSaveTimers = new Map();
+const __nbResultFileSaveQueues = new Map();
 const __nbDetailInflight = new Map();
 let __nbOpenRequestSeq = 0;
 let __nbOpeningId = '';
@@ -1473,12 +1481,351 @@ let feedbackPageAdminLoading = false;
 let feedbackPageRefreshToken = 0;
 let feedbackPreviewHydrationToken = 0;
 let feedbackPageSyncing = false;
+const HEARTOS_NOTEBOOK_DEBUG = (function(){
+  try{
+    if(String(localStorage.getItem('heartos_notebook_debug') || '').toLowerCase() === '1') return true;
+  }catch(_){ }
+  try{
+    return /(?:\?|&)heartosNotebookDebug=1(?:&|$)/.test(String(location.search || ''));
+  }catch(_){
+    return false;
+  }
+})();
 const feedbackAttachmentPreviewUrls = new Map();
 const FEEDBACK_MAX_IMAGES = 4;
 const FEEDBACK_PREVIEW_CONCURRENCY = 4;
 const FEEDBACK_CACHE_VERSION = 1;
 const FEEDBACK_CACHE_TTL_MS = 10 * 60 * 1000;
 const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
+const HEARTOS_DEBUG_MAX_STRING = 240;
+const HEARTOS_DEBUG_MAX_ARRAY = 8;
+const HEARTOS_DEBUG_MAX_KEYS = 20;
+const HEARTOS_FILE_CACHE_DB_NAME = 'heartos_file_cache';
+const HEARTOS_FILE_CACHE_DB_VERSION = 1;
+const HEARTOS_FILE_CACHE_STORE = 'entries';
+let __heartosFileCacheDbPromise = null;
+let __heartosFileCacheHydrationSeq = 0;
+
+function canUseHeartosFileCache(){
+  return typeof indexedDB !== 'undefined';
+}
+
+function openHeartosFileCacheDb(){
+  if(!canUseHeartosFileCache()) return Promise.resolve(null);
+  if(__heartosFileCacheDbPromise) return __heartosFileCacheDbPromise;
+  __heartosFileCacheDbPromise = new Promise(function(resolve){
+    try{
+      const req = indexedDB.open(HEARTOS_FILE_CACHE_DB_NAME, HEARTOS_FILE_CACHE_DB_VERSION);
+      req.onupgradeneeded = function(){
+        try{
+          const db = req.result;
+          if(!db.objectStoreNames.contains(HEARTOS_FILE_CACHE_STORE)){
+            db.createObjectStore(HEARTOS_FILE_CACHE_STORE, { keyPath:'key' });
+          }
+        }catch(_){ }
+      };
+      req.onsuccess = function(){ resolve(req.result || null); };
+      req.onerror = function(){ resolve(null); };
+      req.onblocked = function(){ resolve(null); };
+    }catch(_){
+      resolve(null);
+    }
+  });
+  return __heartosFileCacheDbPromise;
+}
+
+async function heartosFileCacheGet(key){
+  if(!key) return null;
+  const db = await openHeartosFileCacheDb();
+  if(!db) return null;
+  return await new Promise(function(resolve){
+    try{
+      const tx = db.transaction(HEARTOS_FILE_CACHE_STORE, 'readonly');
+      const store = tx.objectStore(HEARTOS_FILE_CACHE_STORE);
+      const req = store.get(String(key));
+      req.onsuccess = function(){ resolve(req.result || null); };
+      req.onerror = function(){ resolve(null); };
+      tx.onabort = function(){ resolve(null); };
+    }catch(_){
+      resolve(null);
+    }
+  });
+}
+
+async function heartosFileCachePut(entry){
+  if(!entry || !entry.key) return false;
+  const db = await openHeartosFileCacheDb();
+  if(!db) return false;
+  return await new Promise(function(resolve){
+    try{
+      const tx = db.transaction(HEARTOS_FILE_CACHE_STORE, 'readwrite');
+      const store = tx.objectStore(HEARTOS_FILE_CACHE_STORE);
+      const req = store.put(entry);
+      let settled = false;
+      function finish(value){
+        if(settled) return;
+        settled = true;
+        resolve(!!value);
+      }
+      req.onsuccess = function(){ finish(true); };
+      req.onerror = function(){ finish(false); };
+      tx.oncomplete = function(){ finish(true); };
+      tx.onerror = function(){ finish(false); };
+      tx.onabort = function(){ finish(false); };
+    }catch(_){
+      resolve(false);
+    }
+  });
+}
+
+async function heartosFileCacheDelete(key){
+  if(!key) return false;
+  const db = await openHeartosFileCacheDb();
+  if(!db) return false;
+  return await new Promise(function(resolve){
+    try{
+      const tx = db.transaction(HEARTOS_FILE_CACHE_STORE, 'readwrite');
+      const store = tx.objectStore(HEARTOS_FILE_CACHE_STORE);
+      const req = store.delete(String(key));
+      let settled = false;
+      function finish(value){
+        if(settled) return;
+        settled = true;
+        resolve(!!value);
+      }
+      req.onsuccess = function(){ finish(true); };
+      req.onerror = function(){ finish(false); };
+      tx.oncomplete = function(){ finish(true); };
+      tx.onerror = function(){ finish(false); };
+      tx.onabort = function(){ finish(false); };
+    }catch(_){
+      resolve(false);
+    }
+  });
+}
+
+async function deleteHeartosFileCacheEntries(keys){
+  const list = uniqueCacheKeys(keys);
+  if(!list.length) return false;
+  const results = await Promise.all(list.map(function(key){
+    return heartosFileCacheDelete(key);
+  }));
+  return results.some(Boolean);
+}
+
+function buildHeartosFileCacheKey(kind, notebookId, entryId, remoteId){
+  const userKey = notebookCacheUserKey();
+  if(!userKey) return '';
+  const safeRemoteId = String(remoteId || '').trim();
+  if(safeRemoteId) return 'remote:' + userKey + ':' + safeRemoteId;
+  const safeNotebookId = String(notebookId || '').trim();
+  const safeEntryId = String(entryId || '').trim();
+  if(!kind || !safeNotebookId || !safeEntryId) return '';
+  return String(kind) + ':' + userKey + ':' + safeNotebookId + ':' + safeEntryId;
+}
+
+function sourceFileCacheKey(src, nb){
+  return buildHeartosFileCacheKey(
+    'source',
+    nb && nb.id ? nb.id : (curNb && curNb.id ? curNb.id : ''),
+    src && src.id != null ? src.id : '',
+    src && (src.fileId || src.serverFileId || '')
+  );
+}
+
+function analysisFileCacheKey(file, nb){
+  return buildHeartosFileCacheKey(
+    'analysis',
+    nb && nb.id ? nb.id : (curNb && curNb.id ? curNb.id : ''),
+    file && file.id ? file.id : '',
+    file && (file.fileId || file.serverFileId || '')
+  );
+}
+
+function sourceFileLocalCacheKey(src, nb){
+  return buildHeartosFileCacheKey(
+    'source',
+    nb && nb.id ? nb.id : (curNb && curNb.id ? curNb.id : ''),
+    src && src.id != null ? src.id : '',
+    ''
+  );
+}
+
+function analysisFileLocalCacheKey(file, nb){
+  return buildHeartosFileCacheKey(
+    'analysis',
+    nb && nb.id ? nb.id : (curNb && curNb.id ? curNb.id : ''),
+    file && file.id ? file.id : '',
+    ''
+  );
+}
+
+function uniqueCacheKeys(keys){
+  const list = [];
+  (Array.isArray(keys) ? keys : []).forEach(function(key){
+    const safe = String(key || '').trim();
+    if(safe && list.indexOf(safe) < 0) list.push(safe);
+  });
+  return list;
+}
+
+function sourceFileCacheKeys(src, nb){
+  return uniqueCacheKeys([
+    sourceFileCacheKey(src, nb),
+    sourceFileLocalCacheKey(src, nb)
+  ]);
+}
+
+function analysisFileCacheKeys(file, nb){
+  return uniqueCacheKeys([
+    analysisFileCacheKey(file, nb),
+    analysisFileLocalCacheKey(file, nb)
+  ]);
+}
+
+async function deleteSourceFileCache(src, nb){
+  return await deleteHeartosFileCacheEntries(sourceFileCacheKeys(src, nb));
+}
+
+async function deleteAnalysisFileCache(file, nb){
+  return await deleteHeartosFileCacheEntries(analysisFileCacheKeys(file, nb));
+}
+
+function cachedBlobToFileLike(blob, fallbackName, fallbackMime){
+  if(!isBlobLike(blob)) return null;
+  const name = String(fallbackName || (blob && blob.name) || 'heartos_file.bin');
+  const mime = String(fallbackMime || (blob && blob.type) || '');
+  if(typeof File !== 'undefined' && !(blob instanceof File)){
+    try{
+      return new File([blob], name, { type:mime });
+    }catch(_){ }
+  }
+  return blob;
+}
+
+async function cacheSourceFileLocally(src, rawFile, nb, options){
+  if(!src) return false;
+  const keys = sourceFileCacheKeys(src, nb);
+  if(!keys.length) return false;
+  const opts = options || {};
+  const blob = isBlobLike(rawFile) ? rawFile : (isBlobLike(opts.blob) ? opts.blob : null);
+  const text = typeof opts.text === 'string'
+    ? opts.text
+    : ((isTextLikeSource(src) && typeof src.content === 'string' && src.content) ? String(src.content) : '');
+  const dataUrl = typeof opts.dataUrl === 'string'
+    ? opts.dataUrl
+    : ((typeof src.imageDataUrl === 'string' && src.imageDataUrl.indexOf('data:') === 0) ? String(src.imageDataUrl) : '');
+  const base = {
+    userKey: notebookCacheUserKey(),
+    kind: 'source',
+    notebookId: String((nb && nb.id) || (curNb && curNb.id) || ''),
+    entryId: String(src.id != null ? src.id : ''),
+    fileId: String(src.fileId || src.serverFileId || ''),
+    name: String(src.name || (blob && blob.name) || ''),
+    mime: String(src.mime || (blob && blob.type) || ''),
+    updatedAt: Date.now(),
+    blob: blob || null,
+    text: text || '',
+    dataUrl: dataUrl || ''
+  };
+  const writes = await Promise.all(keys.map(function(key){
+    return heartosFileCachePut(Object.assign({ key:key }, base));
+  }));
+  return writes.some(Boolean);
+}
+
+async function cacheAnalysisFileLocally(file, text, nb){
+  if(!file) return false;
+  const keys = analysisFileCacheKeys(file, nb);
+  if(!keys.length) return false;
+  const safeText = typeof text === 'string'
+    ? text
+    : (typeof file.content === 'string' ? file.content : '');
+  const base = {
+    userKey: notebookCacheUserKey(),
+    kind: 'analysis',
+    notebookId: String((nb && nb.id) || (curNb && curNb.id) || ''),
+    entryId: String(file.id || ''),
+    fileId: String(file.fileId || file.serverFileId || ''),
+    name: String(file.name || ''),
+    mime: String(file.mime || ''),
+    updatedAt: Date.now(),
+    text: safeText || ''
+  };
+  const writes = await Promise.all(keys.map(function(key){
+    return heartosFileCachePut(Object.assign({ key:key }, base));
+  }));
+  return writes.some(Boolean);
+}
+
+async function hydrateSourceFromLocalFileCache(src, nb){
+  if(!src) return false;
+  let cached = null;
+  const keys = sourceFileCacheKeys(src, nb);
+  for(let i = 0; i < keys.length; i += 1){
+    cached = await heartosFileCacheGet(keys[i]);
+    if(cached) break;
+  }
+  if(!cached) return false;
+  let changed = false;
+  if(!src.fileObj && isBlobLike(cached.blob)){
+    const fileLike = cachedBlobToFileLike(cached.blob, cached.name || src.name || 'source.bin', cached.mime || src.mime || '');
+    if(fileLike){
+      src.fileObj = fileLike;
+      changed = true;
+    }
+  }
+  if(!src.content && typeof cached.text === 'string' && cached.text){
+    src.content = cached.text;
+    changed = true;
+  }
+  if(!src.imageDataUrl && typeof cached.dataUrl === 'string' && cached.dataUrl.indexOf('data:') === 0){
+    src.imageDataUrl = cached.dataUrl;
+    changed = true;
+  }
+  if(!src.mime && cached.mime){
+    src.mime = String(cached.mime || '');
+    changed = true;
+  }
+  return changed;
+}
+
+async function hydrateAnalysisFileFromLocalCache(file, nb){
+  if(!file) return false;
+  let cached = null;
+  const keys = analysisFileCacheKeys(file, nb);
+  for(let i = 0; i < keys.length; i += 1){
+    cached = await heartosFileCacheGet(keys[i]);
+    if(cached) break;
+  }
+  if(!cached || typeof cached.text !== 'string' || !cached.text) return false;
+  if(typeof file.content === 'string' && file.content) return false;
+  file.content = cached.text;
+  if(!file.mime && cached.mime) file.mime = String(cached.mime || '');
+  return true;
+}
+
+async function hydrateNotebookFileCaches(nb){
+  if(!nb || !nb.id || !nb._detailsLoaded) return;
+  const hydrationSeq = ++__heartosFileCacheHydrationSeq;
+  const sourceList = Array.isArray(nb.sources) ? nb.sources : [];
+  const analysisList = Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [];
+  const sourceResults = await Promise.allSettled(sourceList.map(function(src){
+    return hydrateSourceFromLocalFileCache(src, nb);
+  }));
+  const analysisResults = await Promise.allSettled(analysisList.map(function(file){
+    return hydrateAnalysisFileFromLocalCache(file, nb);
+  }));
+  const sourceHits = sourceResults.filter(function(item){ return item && item.status === 'fulfilled' && item.value; }).length;
+  const analysisHits = analysisResults.filter(function(item){ return item && item.status === 'fulfilled' && item.value; }).length;
+  notebookDebugLog('hydrateNotebookFileCaches', {
+    notebookId: String(nb.id || ''),
+    sourceHits: sourceHits,
+    analysisHits: analysisHits,
+    hydrationSeq: hydrationSeq,
+    isCurrentNotebook: !!(curNb && String(curNb.id || '') === String(nb.id || ''))
+  });
+}
 
 function updateChatSendButton(){
   const btn = document.getElementById('chatSendBtn');
@@ -1492,6 +1839,62 @@ function updateChatSendButton(){
     btn.title = '发送';
     btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
   }
+}
+
+function sanitizeHeartosDebugValue(value, depth){
+  const level = Number(depth) || 0;
+  if(value == null) return value;
+  if(typeof value === 'string'){
+    return value.length > HEARTOS_DEBUG_MAX_STRING
+      ? (value.slice(0, HEARTOS_DEBUG_MAX_STRING) + '…(' + value.length + ')')
+      : value;
+  }
+  if(typeof value === 'number' || typeof value === 'boolean') return value;
+  if(Array.isArray(value)){
+    if(level >= 2) return '[array:' + value.length + ']';
+    const items = value.slice(0, HEARTOS_DEBUG_MAX_ARRAY).map(function(entry){
+      return sanitizeHeartosDebugValue(entry, level + 1);
+    });
+    if(value.length > HEARTOS_DEBUG_MAX_ARRAY) items.push('[+' + (value.length - HEARTOS_DEBUG_MAX_ARRAY) + ' more]');
+    return items;
+  }
+  if(typeof value === 'object'){
+    if(level >= 2) return '[object]';
+    const out = {};
+    const keys = Object.keys(value);
+    keys.slice(0, HEARTOS_DEBUG_MAX_KEYS).forEach(function(key){
+      out[key] = sanitizeHeartosDebugValue(value[key], level + 1);
+    });
+    if(keys.length > HEARTOS_DEBUG_MAX_KEYS) out.__truncatedKeys = keys.length - HEARTOS_DEBUG_MAX_KEYS;
+    return out;
+  }
+  return String(value);
+}
+
+function heartosConsoleDebug(tag){
+  if(!HEARTOS_NOTEBOOK_DEBUG) return;
+  try{
+    const args = Array.prototype.slice.call(arguments, 1).map(function(item){
+      return sanitizeHeartosDebugValue(item, 0);
+    });
+    console.debug.apply(console, ['[' + String(tag || 'heartos-debug') + ']'].concat(args));
+  }catch(_){ }
+}
+
+function notebookDebugLog(event, payload){
+  if(!HEARTOS_NOTEBOOK_DEBUG) return;
+  try{
+    const entry = Object.assign({
+      event: event,
+      at: Date.now(),
+      route: String(location.hash || ''),
+      backend: String(typeof HEARTOS_BACKEND_BASE_URL === 'string' ? HEARTOS_BACKEND_BASE_URL : '')
+    }, sanitizeHeartosDebugValue(payload || {}, 0));
+    window.__heartosNotebookDebugLog = window.__heartosNotebookDebugLog || [];
+    window.__heartosNotebookDebugLog.push(entry);
+    if(window.__heartosNotebookDebugLog.length > 200) window.__heartosNotebookDebugLog.shift();
+    console.debug('[heartos-nb-debug]', entry);
+  }catch(_){ }
 }
 
 function setChatBusy(next){
@@ -1866,6 +2269,8 @@ function normalizeNotebookItem(it, detailsLoaded){
   const safeSources = Array.isArray(it && it.sources) ? it.sources : [];
   const safeMsgs = Array.isArray(it && it.msgs) ? it.msgs : [];
   const safeEvents = Array.isArray(it && it.events) ? it.events : [];
+  const safeAnalysisFiles = hasDetails && Array.isArray(it && it.analysisFiles) ? it.analysisFiles : [];
+  const safeUpdatedAt = Number((it && it.updatedAt) || 0);
   return {
     id: safeId,
     title: (it && it.title) ? String(it.title) : 'New Conversation',
@@ -1877,10 +2282,12 @@ function normalizeNotebookItem(it, detailsLoaded){
     msgs: hasDetails ? safeMsgs : [],
     events: hasDetails ? safeEvents : [],
     msgCount: Array.isArray(it && it.msgs) ? safeMsgs.length : Number((it && it.msgCount) || 0),
-    analysisFiles: hasDetails && Array.isArray(it && it.analysisFiles) ? it.analysisFiles : [],
+    analysisCount: Array.isArray(it && it.analysisFiles) ? it.analysisFiles.length : Number((it && it.analysisCount) || 0),
+    analysisFiles: safeAnalysisFiles,
     sumHtml: hasDetails && it && it.sumHtml ? String(it.sumHtml) : '',
     suggHtml: hasDetails && it && it.suggHtml ? String(it.suggHtml) : '',
-    updatedAt: Number((it && it.updatedAt) || 0),
+    updatedAt: safeUpdatedAt,
+    analysisFilesUpdatedAt: Number((it && it.analysisFilesUpdatedAt) || safeUpdatedAt || 0),
     _detailsLoaded: hasDetails
   };
 }
@@ -1897,6 +2304,12 @@ function notebookMessageCount(nb){
   return Number(nb.msgCount || 0);
 }
 
+function notebookAnalysisCount(nb){
+  if(!nb) return 0;
+  if(Array.isArray(nb.analysisFiles)) return nb.analysisFiles.length;
+  return Number(nb.analysisCount || 0);
+}
+
 function shouldUseCachedNotebookDetail(summaryNb, cachedDetail){
   if(!cachedDetail || !cachedDetail._detailsLoaded) return false;
   if(!summaryNb) return true;
@@ -1906,11 +2319,25 @@ function shouldUseCachedNotebookDetail(summaryNb, cachedDetail){
   const cachedSourceCount = notebookSourceCount(cachedDetail);
   const summaryMessageCount = notebookMessageCount(summaryNb);
   const cachedMessageCount = notebookMessageCount(cachedDetail);
+  const summaryAnalysisCount = notebookAnalysisCount(summaryNb);
+  const cachedAnalysisCount = notebookAnalysisCount(cachedDetail);
   if(summaryUpdatedAt && cachedUpdatedAt && cachedUpdatedAt < summaryUpdatedAt) return false;
   if(summarySourceCount > cachedSourceCount) return false;
   if(summaryMessageCount > cachedMessageCount) return false;
+  if(summaryAnalysisCount > cachedAnalysisCount) return false;
   if(!defaultNotebookTitle(summaryNb.title) && defaultNotebookTitle(cachedDetail.title)) return false;
   return true;
+}
+
+function canUseCachedNotebookDetailOptimistically(summaryNb, cachedDetail){
+  if(!cachedDetail || !cachedDetail._detailsLoaded) return false;
+  if(shouldUseCachedNotebookDetail(summaryNb, cachedDetail)) return true;
+  return !!(
+    (Array.isArray(cachedDetail.sources) && cachedDetail.sources.length) ||
+    (Array.isArray(cachedDetail.analysisFiles) && cachedDetail.analysisFiles.length) ||
+    (Array.isArray(cachedDetail.msgs) && cachedDetail.msgs.length) ||
+    (cachedDetail.sumHtml || cachedDetail.suggHtml)
+  );
 }
 
 async function loadNotebooksFromServer(){
@@ -1950,18 +2377,27 @@ async function loadNotebooksFromServer(){
 }
 
 async function loadNotebookDetail(id){
-  const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'GET' });
-  if(!resp.ok) throw new Error('加载对话内容失败');
-  const out = await resp.json().catch(function(){ return {}; });
-  if(!out.item) throw new Error('对话不存在');
-  return normalizeNotebookItem(out.item, true);
+  const notebookId = encodeURIComponent(id);
+  const detailResp = await apiFetch('/api/notebooks/' + notebookId, { method:'GET' });
+  if(!detailResp.ok) throw new Error('加载对话内容失败');
+  const detailOut = await detailResp.json().catch(function(){ return {}; });
+  if(!detailOut.item) throw new Error('对话不存在');
+  const item = Object.assign({}, detailOut.item || {});
+  notebookDebugLog('loadNotebookDetail', {
+    notebookId: String(item.id || id || ''),
+    sourceCount: Array.isArray(item.sources) ? item.sources.length : 0,
+    analysisCount: Array.isArray(item.analysisFiles) ? item.analysisFiles.length : 0,
+    updatedAt: Number(item.updatedAt || 0),
+    analysisFilesUpdatedAt: Number(item.analysisFilesUpdatedAt || 0)
+  });
+  return normalizeNotebookItem(item, true);
 }
 
 function ensureNotebookDetailLoaded(id){
   const safeId = String(id || '');
   if(!safeId) return Promise.reject(new Error('缺少对话 ID'));
   const existing = notebooks.find(function(item){ return String(item.id) === safeId; });
-  if(existing && existing._detailsLoaded) return Promise.resolve(existing);
+  if(existing && existing._detailsLoaded && !existing._fromLocalCache) return Promise.resolve(existing);
   const inflight = __nbDetailInflight.get(safeId);
   if(inflight) return inflight;
   const request = loadNotebookDetail(safeId).then(function(full){
@@ -1981,11 +2417,18 @@ function ensureNotebookDetailLoaded(id){
     const fullMessageCount = Array.isArray(full && full.msgs)
       ? full.msgs.length
       : Number((full && full.msgCount) || 0);
+    const currentAnalysisCount = Array.isArray(current && current.analysisFiles)
+      ? current.analysisFiles.length
+      : Number((current && current.analysisCount) || 0);
+    const fullAnalysisCount = Array.isArray(full && full.analysisFiles)
+      ? full.analysisFiles.length
+      : Number((full && full.analysisCount) || 0);
     const currentLooksStale = !!(
       current &&
       (
         currentSourceCount < fullSourceCount ||
         currentMessageCount < fullMessageCount ||
+        currentAnalysisCount < fullAnalysisCount ||
         (!defaultNotebookTitle(full.title) && defaultNotebookTitle(current.title))
       )
     );
@@ -1995,7 +2438,7 @@ function ensureNotebookDetailLoaded(id){
       !currentLooksStale &&
       (
         currentUpdatedAt > fullUpdatedAt ||
-        (currentUpdatedAt === fullUpdatedAt && currentSourceCount >= fullSourceCount && currentMessageCount >= fullMessageCount)
+        (currentUpdatedAt === fullUpdatedAt && currentSourceCount >= fullSourceCount && currentMessageCount >= fullMessageCount && currentAnalysisCount >= fullAnalysisCount)
       )
     );
     if(!keepCurrent){
@@ -2003,6 +2446,15 @@ function ensureNotebookDetailLoaded(id){
       else notebooks.unshift(full);
       persistNotebookDetailCache(full);
     }
+    notebookDebugLog('ensureNotebookDetailLoaded:resolved', {
+      notebookId: safeId,
+      keepCurrent: keepCurrent,
+      currentFromLocalCache: !!(current && current._fromLocalCache),
+      currentAnalysisCount: currentAnalysisCount,
+      fullAnalysisCount: fullAnalysisCount,
+      currentUpdatedAt: currentUpdatedAt,
+      fullUpdatedAt: fullUpdatedAt
+    });
     refreshHomeIfVisible();
     return keepCurrent ? current : full;
   }).finally(function(){
@@ -2091,6 +2543,11 @@ async function deleteNotebook(id, evt){
       clearTimeout(pendingSourceTimer);
       __nbSourceSaveTimers.delete(notebookId);
     }
+    const pendingResultFileTimer = __nbResultFileSaveTimers.get(notebookId);
+    if(pendingResultFileTimer){
+      clearTimeout(pendingResultFileTimer);
+      __nbResultFileSaveTimers.delete(notebookId);
+    }
     notebooks = notebooks.filter(n => String(n.id) !== notebookId);
     try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
     persistNotebookSummaryCache();
@@ -2105,6 +2562,7 @@ async function deleteNotebook(id, evt){
     showToast('对话已移除，正在清理后台数据…');
     try{ await (__nbSaveQueues.get(notebookId) || Promise.resolve()); }catch(_){ }
     try{ await (__nbSourceSaveQueues.get(notebookId) || Promise.resolve()); }catch(_){ }
+    try{ await (__nbResultFileSaveQueues.get(notebookId) || Promise.resolve()); }catch(_){ }
     const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(id), { method:'DELETE' });
     if(!resp.ok) throw new Error('删除对话失败');
     showToast('对话已删除');
@@ -2288,6 +2746,7 @@ async function loadAiConfigFromServer(){
 function persistNotebookLocally(nb){
   if(!nb) return;
   if(nb._draft) return;
+  if(!nb._detailsLoaded || isNotebookBootPlaceholder(nb)) return;
   const payload = {
     id: String(nb.id),
     title: nb.title || 'New Conversation',
@@ -2295,9 +2754,10 @@ function persistNotebookLocally(nb){
     color: nb.color || '#e8f0fe',
     date: nb.date || todayText(),
     sources: normalizeSourcesForPersistence(nb.sources, { forLocalCache:true }),
-    msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
-    events: Array.isArray(nb.events) ? nb.events : [],
-    analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
+    msgs: serializeNotebookMessages(nb.msgs, { forLocalCache:true }),
+    events: serializeNotebookEvents(nb.events),
+    analysisFiles: serializeAnalysisFiles(nb.analysisFiles, { forLocalCache:true }),
+    analysisFilesUpdatedAt: Number(nb.analysisFilesUpdatedAt || nb.updatedAt || Date.now()),
     sumHtml: nb.sumHtml || '',
     suggHtml: nb.suggHtml || '',
     updatedAt: Number(nb.updatedAt || Date.now())
@@ -2305,14 +2765,19 @@ function persistNotebookLocally(nb){
   if(!nb.updatedAt) nb.updatedAt = payload.updatedAt;
   persistNotebookSummaryCache();
   const ok = writeLocalJson(notebookDetailCacheKey(payload.id), { savedAt: Date.now(), item: payload });
+  persistNotebookBootCache(nb);
+  persistActiveNotebookSnapshot(nb);
   markSessionSyncState({ lastSavedAt: Date.now(), dirty:true });
   if(!ok){
-    try{ console.warn('[heartos-cache] notebook detail cache write failed', payload.id); }catch(_){}
+    try{ heartosConsoleDebug('heartos-cache', 'notebook detail cache write failed', payload.id); }catch(_){}
   }
 }
 
 const HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT = 120000;
 const HEARTOS_LOCAL_CACHE_MAX_IMAGE_DATA_URL = 240000;
+const HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT = 24000;
+const HEARTOS_PERSIST_MAX_MSG_HTML = 20000;
+const HEARTOS_REMOTE_FILE_TIMEOUT_MS = 8000;
 
 function normalizeSourceForPersistence(src, options){
   if(!src) return null;
@@ -2344,6 +2809,8 @@ function normalizeSourceForPersistence(src, options){
   if(src.meta && typeof src.meta === 'object') normalized.meta = src.meta;
   if(src.analysisMeta && typeof src.analysisMeta === 'object') normalized.analysisMeta = src.analysisMeta;
   if(src.derivedFrom != null && src.derivedFrom !== '') normalized.derivedFrom = src.derivedFrom;
+  if(src.analysisFileId != null && src.analysisFileId !== '') normalized.analysisFileId = String(src.analysisFileId);
+  if(src.fromAnalysisResult != null) normalized.fromAnalysisResult = !!src.fromAnalysisResult;
   if(src.serverPath) normalized.serverPath = String(src.serverPath);
   return normalized;
 }
@@ -2357,6 +2824,111 @@ function normalizeSourcesForPersistence(list){
 
 function serializeNotebookSources(list){
   return normalizeSourcesForPersistence(list);
+}
+
+function normalizeNotebookMessageForPersistence(msg, options){
+  if(!msg || typeof msg !== 'object') return null;
+  const opts = options || {};
+  const forLocalCache = !!opts.forLocalCache;
+  const normalized = {};
+  Object.keys(msg).forEach(function(key){
+    const value = msg[key];
+    if(value == null) return;
+    if(key === '_html'){
+      const html = typeof value === 'string' ? value : '';
+      if(!html) return;
+      if(!forLocalCache && html.length <= HEARTOS_PERSIST_MAX_MSG_HTML){
+        normalized._html = html;
+      }
+      return;
+    }
+    if(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'){
+      normalized[key] = value;
+      return;
+    }
+    if(Array.isArray(value) || typeof value === 'object'){
+      try{
+        normalized[key] = JSON.parse(JSON.stringify(value));
+      }catch(_){ }
+    }
+  });
+  if(!normalized.content && msg.content) normalized.content = String(msg.content);
+  if(!normalized.role && msg.role) normalized.role = String(msg.role);
+  if(!normalized.kind && msg.kind) normalized.kind = String(msg.kind);
+  if(!normalized.type && msg.type) normalized.type = String(msg.type);
+  if(!normalized.createdAt && msg.createdAt) normalized.createdAt = msg.createdAt;
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+function serializeNotebookMessages(list){
+  const options = arguments[1] || {};
+  return (Array.isArray(list) ? list : []).map(function(msg){
+    return normalizeNotebookMessageForPersistence(msg, options);
+  }).filter(Boolean);
+}
+
+function normalizeNotebookEventForPersistence(event){
+  if(!event || typeof event !== 'object') return null;
+  const normalized = {};
+  Object.keys(event).forEach(function(key){
+    const value = event[key];
+    if(value == null) return;
+    if(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'){
+      normalized[key] = value;
+      return;
+    }
+    if(Array.isArray(value) || typeof value === 'object'){
+      try{
+        normalized[key] = JSON.parse(JSON.stringify(value));
+      }catch(_){ }
+    }
+  });
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+function serializeNotebookEvents(list){
+  return (Array.isArray(list) ? list : []).map(function(event){
+    return normalizeNotebookEventForPersistence(event);
+  }).filter(Boolean);
+}
+
+function normalizeAnalysisFileForPersistence(file, options){
+  if(!file) return null;
+  const opts = options || {};
+  const forLocalCache = !!opts.forLocalCache;
+  const hasRemoteFile = !!(file.fileId || file.serverFileId || file.fileUrl);
+  let content = typeof file.content === 'string' ? file.content : '';
+  if(hasRemoteFile) content = '';
+  else if(forLocalCache && content.length > HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT){
+    content = content.slice(0, HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT) + '\n...[truncated for local cache]';
+  }
+  const normalized = {
+    id: String(file.id || ''),
+    name: String(file.name || 'analysis.txt'),
+    type: String(file.type || 'txt').toLowerCase(),
+    mime: String(file.mime || 'text/plain;charset=utf-8'),
+    content: content,
+    source: String(file.source || ''),
+    sourceName: String(file.sourceName || ''),
+    sourceId: String(file.sourceId || ''),
+    batchId: String(file.batchId || ''),
+    parentSourceId: String(file.parentSourceId || ''),
+    generatedBy: String(file.generatedBy || ''),
+    sampleRate: normalizedSampleRate(file.sampleRate),
+    sampleRateSource: String(file.sampleRateSource || ''),
+    createdAt: file.createdAt || '',
+    fileId: file.fileId ? String(file.fileId) : '',
+    serverFileId: file.serverFileId ? String(file.serverFileId) : '',
+    fileUrl: file.fileUrl ? String(file.fileUrl) : ''
+  };
+  return normalized;
+}
+
+function serializeAnalysisFiles(list){
+  const options = arguments[1] || {};
+  return (Array.isArray(list) ? list : []).map(function(file){
+    return normalizeAnalysisFileForPersistence(file, options);
+  }).filter(Boolean);
 }
 
 function canPersistNotebookState(nb){
@@ -2422,7 +2994,181 @@ async function persistNotebookAndSourcesNow(nb){
   const target = nb || curNb;
   if(!target) return;
   await persistNotebookStateNow(target);
-  await enqueueNotebookSourceSave(target);
+}
+
+async function persistAnalysisResultFileIfNeeded(file){
+  if(!file || file.fileId || file.serverFileId) return true;
+  const text = typeof file.content === 'string' ? file.content : '';
+  if(!text) return false;
+  try{
+    const fd = new FormData();
+    const rawFile = new File([text], file.name || ('analysis_' + Date.now() + '.' + (file.type || 'txt')), { type: file.mime || 'text/plain;charset=utf-8' });
+    fd.append('file', rawFile, rawFile.name);
+    fd.append('source', 'heartos_analysis');
+    const resp = await apiFetch('/api/files/upload', { method:'POST', body: fd });
+    const out = await resp.json().catch(()=>({}));
+    if(!resp.ok) return false;
+    file.fileId = out.id || '';
+    file.serverFileId = out.id || '';
+    file.fileUrl = out.url || out.fileUrl || '';
+    cacheAnalysisFileLocally(file, text, curNb).catch(function(){});
+    return true;
+  }catch(_){
+    return false;
+  }
+}
+
+async function ensureAnalysisResultFilesPersisted(nb){
+  const target = nb || curNb;
+  const files = Array.isArray(target && target.analysisFiles) ? target.analysisFiles : [];
+  for(let i=0;i<files.length;i++){
+    await persistAnalysisResultFileIfNeeded(files[i]);
+  }
+}
+
+async function readAnalysisFileText(file){
+  if(!file) return '';
+  if(typeof file.content === 'string' && file.content) return file.content;
+  await hydrateAnalysisFileFromLocalCache(file, curNb);
+  if(typeof file.content === 'string' && file.content) return file.content;
+  try{
+    const resp = await fetchHeartosStoredFile(file, { timeoutMs: HEARTOS_REMOTE_FILE_TIMEOUT_MS, logLabel:'analysis-preview' });
+    if(!resp || !resp.ok) return '';
+    const text = await resp.text();
+    file.content = typeof text === 'string' ? text : '';
+    if(file.content) cacheAnalysisFileLocally(file, file.content, curNb).catch(function(){});
+    return file.content;
+  }catch(_){
+    return '';
+  }
+}
+
+async function fetchHeartosStoredFile(entry, options){
+  const item = entry || {};
+  const opts = options || {};
+  const timeoutMs = Math.max(1200, Number(opts.timeoutMs) || HEARTOS_REMOTE_FILE_TIMEOUT_MS);
+  const logLabel = String(opts.logLabel || 'file-fetch');
+  const fileId = String(item.fileId || item.serverFileId || '').trim();
+  const fileUrl = String(item.fileUrl || item.url || '').trim();
+  const baseCandidates = buildBackendBaseCandidates(HEARTOS_BACKEND_BASE_URL);
+  async function runRequest(url, useApiFetch, baseUrl){
+    const ctrl = new AbortController();
+    const tm = setTimeout(function(){
+      try{ ctrl.abort(); }catch(_){}
+    }, timeoutMs);
+    const startedAt = Date.now();
+    try{
+      const resp = useApiFetch
+        ? await apiFetch(url, {
+          method:'GET',
+          signal: ctrl.signal,
+          __skipAuthCheck:true,
+          __skipAuthRecovery:true,
+          __baseUrl: baseUrl || ''
+        })
+        : await fetch(url, { method:'GET', headers: authHeaders(), signal: ctrl.signal });
+      notebookDebugLog('fileFetch:done', {
+        label: logLabel,
+        url: String(url || ''),
+        useApiFetch: !!useApiFetch,
+        baseUrl: String(baseUrl || ''),
+        status: Number(resp && resp.status || 0),
+        durationMs: Date.now() - startedAt
+      });
+      if(resp && resp.ok && baseUrl) setBackendBaseUrl(baseUrl, 'fileFetch');
+      return resp;
+    }catch(err){
+      notebookDebugLog('fileFetch:error', {
+        label: logLabel,
+        url: String(url || ''),
+        useApiFetch: !!useApiFetch,
+        baseUrl: String(baseUrl || ''),
+        durationMs: Date.now() - startedAt,
+        error: String((err && err.message) || err || '')
+      });
+      return null;
+    }finally{
+      clearTimeout(tm);
+    }
+  }
+  if(fileId){
+    for(let i=0;i<baseCandidates.length;i++){
+      const baseUrl = baseCandidates[i];
+      const respById = await runRequest('/api/files/' + encodeURIComponent(fileId), true, baseUrl);
+      if(respById && respById.ok) return respById;
+    }
+  }
+  if(fileUrl){
+    if(fileUrl.charAt(0) === '/'){
+      for(let i=0;i<baseCandidates.length;i++){
+        const baseUrl = baseCandidates[i];
+        const respByUrl = await runRequest(fileUrl, true, baseUrl);
+        if(respByUrl && respByUrl.ok) return respByUrl;
+      }
+    }else{
+      const parsed = parseBackendBaseUrl(fileUrl);
+      if(parsed && isLocalHostName(parsed.hostname) && /^\/api\/files\//i.test(parsed.pathname || '')){
+        const normalizedPath = String(parsed.pathname || '') + String(parsed.search || '');
+        const localCandidates = buildBackendBaseCandidates(parsed.origin).concat(baseCandidates);
+        for(let i=0;i<localCandidates.length;i++){
+          const baseUrl = localCandidates[i];
+          const respByLocalUrl = await runRequest(normalizedPath, true, baseUrl);
+          if(respByLocalUrl && respByLocalUrl.ok) return respByLocalUrl;
+        }
+      }else{
+        const respByUrl = await runRequest(fileUrl, false, '');
+        if(respByUrl && respByUrl.ok) return respByUrl;
+      }
+    }
+  }
+  return null;
+}
+
+async function readStoredEntryText(entry, options){
+  const resp = await fetchHeartosStoredFile(entry, options);
+  if(!resp || !resp.ok) return '';
+  try{
+    const text = await resp.text();
+    return typeof text === 'string' ? text : '';
+  }catch(_){
+    return '';
+  }
+}
+
+async function readStoredEntryBlob(entry, options){
+  const resp = await fetchHeartosStoredFile(entry, options);
+  if(!resp || !resp.ok) return null;
+  try{
+    return await resp.blob();
+  }catch(_){
+    return null;
+  }
+}
+
+async function persistAnalysisFilesNow(nb){
+  const target = nb || curNb;
+  if(!target || !canPersistNotebookState(target)) return;
+  if(target === curNb) syncCurrentNotebookState();
+  else syncNotebookStateFor(target);
+  await ensureAnalysisResultFilesPersisted(target);
+  persistNotebookLocally(target);
+  await enqueueNotebookSave(target);
+}
+
+async function persistSingleAnalysisResultNow(file, nb){
+  const target = nb || curNb;
+  if(!file || !target || !canPersistNotebookState(target)) return false;
+  const promise = file._persistPromise && typeof file._persistPromise.then === 'function'
+    ? file._persistPromise
+    : persistAnalysisResultFileIfNeeded(file);
+  const saved = await promise.catch(function(){ return false; });
+  if(!saved) return false;
+  nextAnalysisFilesUpdatedAt(target);
+  if(target === curNb) syncCurrentNotebookState();
+  else syncNotebookStateFor(target);
+  persistNotebookLocally(target);
+  await enqueueNotebookSave(target);
+  return true;
 }
 
 function syncLastImageSourceReference(){
@@ -2484,12 +3230,31 @@ function scheduleSaveCurrentNotebookSources(immediate, nb){
   else __nbSourceSaveTimers.set(id, setTimeout(run, 180));
 }
 
+function nextNotebookUpdatedAt(nb, suggested){
+  const target = nb || curNb;
+  const nextBase = Number(suggested || Date.now()) || Date.now();
+  const current = target ? Number(target.updatedAt || 0) : 0;
+  const next = Math.max(nextBase, current + 1);
+  if(target) target.updatedAt = next;
+  return next;
+}
+
+function nextAnalysisFilesUpdatedAt(nb, suggested){
+  const target = nb || curNb;
+  const nextBase = Number(suggested || Date.now()) || Date.now();
+  const current = target ? Number(target.analysisFilesUpdatedAt || 0) : 0;
+  const notebookCurrent = target ? Number(target.updatedAt || 0) : 0;
+  const next = Math.max(nextBase, current + 1, notebookCurrent);
+  if(target) target.analysisFilesUpdatedAt = next;
+  return next;
+}
+
 function buildNotebookPayload(nb, options){
   if(!canPersistNotebookState(nb)) return null;
   const settings = options || {};
   const stampUpdatedAt = settings.stampUpdatedAt !== false;
   const updatedAt = stampUpdatedAt
-    ? Date.now()
+    ? nextNotebookUpdatedAt(nb)
     : Number(nb.updatedAt || Date.now());
   if(stampUpdatedAt || !nb.updatedAt) nb.updatedAt = updatedAt;
   const payload = {
@@ -2499,89 +3264,144 @@ function buildNotebookPayload(nb, options){
     color: nb.color || '#e8f0fe',
     date: nb.date || todayText(),
     sources: normalizeSourcesForPersistence(nb.sources),
-    msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
-    events: Array.isArray(nb.events) ? nb.events : [],
-    analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
+    msgs: serializeNotebookMessages(nb.msgs),
+    events: serializeNotebookEvents(nb.events),
+    analysisFiles: serializeAnalysisFiles(nb.analysisFiles),
+    analysisFilesUpdatedAt: Number(nb.analysisFilesUpdatedAt || nb.updatedAt || updatedAt),
     sumHtml: nb.sumHtml || '',
     suggHtml: nb.suggHtml || '',
     updatedAt: updatedAt
   };
+  notebookDebugLog('buildNotebookPayload', {
+    notebookId: payload.id,
+    sourceCount: Array.isArray(payload.sources) ? payload.sources.length : 0,
+    analysisCount: Array.isArray(payload.analysisFiles) ? payload.analysisFiles.length : 0,
+    updatedAt: Number(payload.updatedAt || 0),
+    analysisFilesUpdatedAt: Number(payload.analysisFilesUpdatedAt || 0),
+    stampUpdatedAt: stampUpdatedAt
+  });
   persistNotebookLocally(nb);
   return payload;
 }
 
 async function persistNotebookPayload(payload){
+  notebookDebugLog('persistNotebookPayload:start', {
+    notebookId: String(payload && payload.id || ''),
+    sourceCount: Array.isArray(payload && payload.sources) ? payload.sources.length : 0,
+    analysisCount: Array.isArray(payload && payload.analysisFiles) ? payload.analysisFiles.length : 0,
+    updatedAt: Number(payload && payload.updatedAt || 0),
+    analysisFilesUpdatedAt: Number(payload && payload.analysisFilesUpdatedAt || 0)
+  });
   const resp = await apiFetch('/api/notebooks', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
   if(!resp.ok) throw new Error('保存笔记失败');
+  const out = await resp.json().catch(function(){ return {}; });
+  notebookDebugLog('persistNotebookPayload:done', {
+    notebookId: String(payload && payload.id || ''),
+    stale: !!(out && out.stale),
+    deleted: !!(out && out.deleted)
+  });
   markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
 }
 
-async function persistNotebookSourcesPayload(notebookId, items){
+async function persistNotebookSourcesPayload(notebookId, items, updatedAt){
   if(!notebookId) return;
   const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(String(notebookId)) + '/sources', {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ items: Array.isArray(items) ? items : [] })
+    body: JSON.stringify({
+      items: Array.isArray(items) ? items : [],
+      updatedAt: Number(updatedAt || 0) || Date.now()
+    })
   });
   if(!resp.ok) throw new Error('保存来源失败');
   markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
 }
 
-function enqueueNotebookSourceSave(nb){
-  if(!canPersistNotebookState(nb)) return Promise.resolve();
-  const notebookId = String(nb.id);
-  const items = serializeNotebookSources(nb.sources);
-  const previous = __nbSourceSaveQueues.get(notebookId) || Promise.resolve();
-  const next = previous.catch(function(){}).then(function(){
-    return persistNotebookSourcesPayload(notebookId, items);
+async function persistNotebookResultFilesPayload(notebookId, items, updatedAt){
+  if(!notebookId) return;
+  const resp = await apiFetch('/api/notebooks/' + encodeURIComponent(String(notebookId)) + '/result-files', {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      items: Array.isArray(items) ? items : [],
+      updatedAt: Number(updatedAt || 0) || Date.now()
+    })
   });
-  __nbSourceSaveQueues.set(notebookId, next);
-  next.finally(function(){
-    if(__nbSourceSaveQueues.get(notebookId) === next) __nbSourceSaveQueues.delete(notebookId);
-  }).catch(function(){});
-  return next;
+  if(!resp.ok) throw new Error('保存结果文件失败');
+  markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
+}
+
+function enqueueNotebookSourceSave(nb){
+  return enqueueNotebookSave(nb);
 }
 
 async function persistNotebookSources(nb){
   return enqueueNotebookSourceSave(nb);
 }
 
+function enqueueNotebookResultFileSave(nb){
+  return enqueueNotebookSave(nb);
+}
+
+function scheduleSaveCurrentNotebookResultFiles(immediate, nb){
+  const target = nb || curNb;
+  if(!target || !__nbLoaded || !canPersistNotebookState(target)) return;
+  if(target === curNb) syncCurrentNotebookState();
+  else syncNotebookStateFor(target);
+  persistNotebookLocally(target);
+  const id = String(target.id || '');
+  if(!id) return;
+  const activeTimer = __nbResultFileSaveTimers.get(id);
+  if(activeTimer){
+    clearTimeout(activeTimer);
+    __nbResultFileSaveTimers.delete(id);
+  }
+  const run = function(){
+    __nbResultFileSaveTimers.delete(id);
+    enqueueNotebookResultFileSave(target).catch(reportNotebookSaveError);
+  };
+  if(immediate) run();
+  else __nbResultFileSaveTimers.set(id, setTimeout(run, 180));
+}
+
 function persistNotebookSourcesKeepalive(nb){
-  if(!nb || !nb.id || !getAuthToken()) return;
-  try{
-    const notebookId = String(nb.id);
-    const items = serializeNotebookSources(nb.sources);
-    fetch(apiUrl('/api/notebooks/' + encodeURIComponent(notebookId) + '/sources'), {
-      method:'PUT',
-      headers: authHeaders({'Content-Type':'application/json'}),
-      body: JSON.stringify({ items: items }),
-      keepalive: true
-    }).catch(function(){});
-  }catch(_){ }
+  persistNotebookKeepalive(nb);
+}
+
+function persistNotebookResultFilesKeepalive(nb){
+  persistNotebookKeepalive(nb);
 }
 
 function persistNotebookKeepalive(nb){
   if(!nb || !nb.id || !getAuthToken() || !canPersistNotebookState(nb)) return;
   try{
-    const updatedAt = Date.now();
-    nb.updatedAt = updatedAt;
+    const updatedAt = nextNotebookUpdatedAt(nb);
     const payload = {
       id: String(nb.id),
       title: nb.title || 'New Conversation',
       icon: nb.icon || '📔',
       color: nb.color || '#e8f0fe',
       date: nb.date || todayText(),
-      msgs: Array.isArray(nb.msgs) ? nb.msgs : [],
-      events: Array.isArray(nb.events) ? nb.events : [],
-      analysisFiles: Array.isArray(nb.analysisFiles) ? nb.analysisFiles : [],
+      sources: normalizeSourcesForPersistence(nb.sources),
+      msgs: serializeNotebookMessages(nb.msgs),
+      events: serializeNotebookEvents(nb.events),
+      analysisFiles: serializeAnalysisFiles(nb.analysisFiles),
+      analysisFilesUpdatedAt: Number(nb.analysisFilesUpdatedAt || nb.updatedAt || updatedAt),
       sumHtml: nb.sumHtml || '',
       suggHtml: nb.suggHtml || '',
       updatedAt: updatedAt
     };
+    notebookDebugLog('persistNotebookKeepalive', {
+      notebookId: String(payload.id || ''),
+      sourceCount: Array.isArray(payload.sources) ? payload.sources.length : 0,
+      analysisCount: Array.isArray(payload.analysisFiles) ? payload.analysisFiles.length : 0,
+      updatedAt: Number(payload.updatedAt || 0),
+      analysisFilesUpdatedAt: Number(payload.analysisFilesUpdatedAt || 0)
+    });
     fetch(apiUrl('/api/notebooks'), {
       method:'POST',
       headers: authHeaders({'Content-Type':'application/json'}),
@@ -2622,6 +3442,7 @@ function syncNotebookStateFor(nb, state){
   nb.msgs = Array.isArray(nextState.msgs) ? nextState.msgs : (Array.isArray(nb.msgs) ? nb.msgs : []);
   nb.events = Array.isArray(nextState.events) ? nextState.events : (Array.isArray(nb.events) ? nb.events : []);
   nb.analysisFiles = Array.isArray(nextState.analysisFiles) ? nextState.analysisFiles : (Array.isArray(nb.analysisFiles) ? nb.analysisFiles : []);
+  nb.analysisFilesUpdatedAt = Number(nextState.analysisFilesUpdatedAt || nb.analysisFilesUpdatedAt || nb.updatedAt || 0);
   nb.srcs = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
   return nb;
 }
@@ -2639,7 +3460,7 @@ function syncCurrentNotebookState(){
 }
 
 function flushCurrentNotebookToLocalCache(){
-  if(!curNb || !__nbLoaded) return;
+  if(!curNb || !__nbLoaded || !canPersistNotebookState(curNb)) return;
   syncCurrentNotebookState();
   persistNotebookLocally(curNb);
   persistLastOpenedNotebookId(curNb.id);
@@ -2700,7 +3521,7 @@ async function openNb(id, autoUpload=false){
   let nextNb = explicitId
     ? (Array.isArray(notebooks) ? notebooks.find(function(n){ return String(n && n.id) === explicitId; }) : null)
     : ((Array.isArray(notebooks) && notebooks.length) ? notebooks[0] : null);
-  const fallbackCacheCandidate = explicitId ? loadNotebookDetailFromLocal(explicitId) : null;
+  const fallbackCacheCandidate = explicitId ? (loadNotebookDetailFromLocal(explicitId) || loadNotebookBootFromLocal(explicitId)) : null;
   if(!nextNb && fallbackCacheCandidate){
     nextNb = fallbackCacheCandidate;
   }
@@ -2715,15 +3536,16 @@ async function openNb(id, autoUpload=false){
   }
   if(!nextNb){ goHome(); return; }
   const requestSeq = ++__nbOpenRequestSeq;
-  const cacheCandidate = !nextNb._detailsLoaded ? (fallbackCacheCandidate || loadNotebookDetailFromLocal(nextNb.id)) : null;
-  const canUseCachedDetail = shouldUseCachedNotebookDetail(nextNb, cacheCandidate);
+  const cacheCandidate = !nextNb._detailsLoaded
+    ? (fallbackCacheCandidate || loadNotebookDetailFromLocal(nextNb.id) || loadNotebookBootFromLocal(nextNb.id))
+    : null;
+  const canUseCachedDetail = canUseCachedNotebookDetailOptimistically(nextNb, cacheCandidate);
   const usedLocalDetail = !!canUseCachedDetail;
   if(canUseCachedDetail){
     nextNb = cacheCandidate;
+    if(nextNb) nextNb._fromLocalCache = true;
     const cachedIndex = notebooks.findIndex(function(item){ return item.id === nextNb.id; });
     if(cachedIndex >= 0) notebooks[cachedIndex] = nextNb;
-  }else if(cacheCandidate && nextNb && nextNb.id){
-    try{ localStorage.removeItem(notebookDetailCacheKey(nextNb.id)); }catch(_){ }
   }
   setNotebookOpeningState(nextNb.id);
   setNotebookDetailLoadingState(nextNb._detailsLoaded ? '' : nextNb.id);
@@ -2764,6 +3586,7 @@ async function openNb(id, autoUpload=false){
     renderStudio();
     maybeAppendRefreshInterruptionNotice();
     const hasLocalFallback = !!(usedLocalDetail || (curNb && curNb._detailsLoaded));
+    const failedNotebookId = String(nextNb && nextNb.id || '');
     const ce = document.getElementById('chatEmpty');
     const ml = document.getElementById('msgsList');
     if(!hasLocalFallback && ce && ml){
@@ -2782,6 +3605,21 @@ async function openNb(id, autoUpload=false){
       }
       showResultPlaceholder('历史分析结果加载失败，请稍后刷新重试。');
       setSessionViewState('error', 'fetch-server', '对话加载失败');
+      notebookDebugLog('openNb:loadFailedNoFallback', {
+        notebookId: failedNotebookId,
+        usedLocalDetail: usedLocalDetail
+      });
+      const stillExists = Array.isArray(notebooks) && notebooks.some(function(item){
+        return item && String(item.id) === failedNotebookId;
+      });
+      if(!stillExists && String(location.hash || '') === notebookRouteHash(failedNotebookId)){
+        setTimeout(function(){
+          if(String(location.hash || '') === notebookRouteHash(failedNotebookId)){
+            goHome();
+            showToast('这个对话当前账号不可访问，已返回列表');
+          }
+        }, 0);
+      }
     }else{
       setSessionViewState('partial', 'fetch-server', '已显示本地缓存，云端同步失败');
     }
@@ -2836,8 +3674,14 @@ function getNotebookColumnWidths(){
 }
 
 function notebookCacheUserKey(){
-  const u = getAuthUser && getAuthUser();
-  return String((u && (u.user_id || u.username)) || 'guest');
+  const identity = getAuthSessionIdentity();
+  const key = String(identity.userId || identity.username || 'guest');
+  notebookDebugLog('notebookCacheUserKey', {
+    cacheUserKey: key,
+    userId: String(identity.userId || ''),
+    username: String(identity.username || '')
+  });
+  return key;
 }
 
 function sessionStateKey(){
@@ -2904,6 +3748,18 @@ function notebookSummaryCacheKey(){
 
 function notebookDetailCacheKey(id){
   return 'heartos_nb_detail_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':' + String(id || '');
+}
+
+function notebookBootCacheKey(id){
+  return 'heartos_nb_boot_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':' + String(id || '');
+}
+
+function activeNotebookSnapshotKey(){
+  return 'heartos_active_nb_snapshot:' + notebookCacheUserKey();
+}
+
+function activeNotebookSnapshotGlobalKey(){
+  return 'heartos_active_nb_snapshot:last';
 }
 
 function notebookLastOpenedKey(){
@@ -2975,6 +3831,7 @@ function notebookSummarySnapshot(nb){
   if(nb._draft) return null;
   const srcCount = Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0);
   const messageCount = Array.isArray(nb.msgs) ? nb.msgs.length : Number(nb.msgCount || 0);
+  const analysisCount = Array.isArray(nb.analysisFiles) ? nb.analysisFiles.length : Number(nb.analysisCount || 0);
   return {
     id: String(nb.id || ''),
     title: String(nb.title || 'New Conversation'),
@@ -2983,6 +3840,7 @@ function notebookSummarySnapshot(nb){
     date: String(nb.date || todayText()),
     srcs: srcCount,
     msgCount: messageCount,
+    analysisCount: analysisCount,
     updatedAt: Number(nb.updatedAt || 0)
   };
 }
@@ -3014,6 +3872,96 @@ function persistNotebookDetailCache(nb){
     savedAt: Date.now(),
     item: payload
   });
+  persistNotebookBootCache(nb);
+  persistActiveNotebookSnapshot(nb);
+}
+
+function buildNotebookBootPayload(nb){
+  if(isNotebookBootPlaceholder(nb)) return null;
+  if(!nb || nb._draft || !nb._detailsLoaded || !nb.id) return null;
+  return {
+    id: String(nb.id),
+    title: nb.title || 'New Conversation',
+    icon: nb.icon || '📔',
+    color: nb.color || '#e8f0fe',
+    date: nb.date || todayText(),
+    sources: normalizeSourcesForPersistence(nb.sources, { forLocalCache:true }).map(function(src){
+      if(!src) return null;
+      return {
+        id: Number(src.id) || 0,
+        name: String(src.name || '未命名来源'),
+        type: String(src.type || 'file'),
+        checked: src.checked !== false,
+        mime: src.mime ? String(src.mime) : '',
+        sampleRate: src.sampleRate != null ? src.sampleRate : '',
+        fileId: src.fileId ? String(src.fileId) : '',
+        serverFileId: src.serverFileId ? String(src.serverFileId) : '',
+        fileUrl: src.fileUrl ? String(src.fileUrl) : ''
+      };
+    }).filter(Boolean),
+    msgs: Array.isArray(nb.msgs) ? nb.msgs.slice(-20) : [],
+    events: Array.isArray(nb.events) ? nb.events.slice(-20) : [],
+    analysisFiles: serializeAnalysisFiles(nb.analysisFiles, { forLocalCache:true }),
+    analysisFilesUpdatedAt: Number(nb.analysisFilesUpdatedAt || nb.updatedAt || Date.now()),
+    sumHtml: nb.sumHtml || '',
+    suggHtml: nb.suggHtml || '',
+    updatedAt: Number(nb.updatedAt || Date.now())
+  };
+}
+
+function buildActiveNotebookSnapshot(nb){
+  const payload = buildNotebookBootPayload(nb);
+  if(!payload || !payload.id) return null;
+  const identity = getAuthSessionIdentity();
+  payload._snapshot = {
+    savedAt: Date.now(),
+    userId: String(identity.userId || ''),
+    username: String(identity.username || ''),
+    route: notebookRouteHash(payload.id)
+  };
+  return payload;
+}
+
+function writeSessionJson(key, value){
+  try{
+    sessionStorage.setItem(key, JSON.stringify(value));
+    return true;
+  }catch(_){
+    return false;
+  }
+}
+
+function readSessionJson(key){
+  try{
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(_){
+    return null;
+  }
+}
+
+function persistActiveNotebookSnapshot(nb){
+  const payload = buildActiveNotebookSnapshot(nb);
+  if(!payload || !payload.id) return false;
+  const sessionOk = writeSessionJson(activeNotebookSnapshotGlobalKey(), payload);
+  const localOk = writeLocalJson(activeNotebookSnapshotKey(), payload);
+  notebookDebugLog('persistActiveNotebookSnapshot', {
+    notebookId: payload.id,
+    sourceCount: Array.isArray(payload.sources) ? payload.sources.length : 0,
+    analysisCount: Array.isArray(payload.analysisFiles) ? payload.analysisFiles.length : 0,
+    sessionOk: !!sessionOk,
+    localOk: !!localOk
+  });
+  return sessionOk || localOk;
+}
+
+function persistNotebookBootCache(nb){
+  const payload = buildNotebookBootPayload(nb);
+  if(!payload || !payload.id) return false;
+  return writeLocalJson(notebookBootCacheKey(payload.id), {
+    savedAt: Date.now(),
+    item: payload
+  });
 }
 
 function loadNotebookDetailFromLocal(id){
@@ -3024,34 +3972,177 @@ function loadNotebookDetailFromLocal(id){
     try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
     return null;
   }
-  return normalizeNotebookItem(cached.item, true);
+  const item = normalizeNotebookItem(cached.item, true);
+  item._fromLocalCache = true;
+  item._cachedSavedAt = Number(cached.savedAt || 0);
+  notebookDebugLog('loadNotebookDetailFromLocal', {
+    notebookId: String(item.id || id || ''),
+    sourceCount: Array.isArray(item.sources) ? item.sources.length : 0,
+    analysisCount: Array.isArray(item.analysisFiles) ? item.analysisFiles.length : 0,
+    updatedAt: Number(item.updatedAt || 0),
+    analysisFilesUpdatedAt: Number(item.analysisFilesUpdatedAt || 0),
+    cachedSavedAt: Number(cached.savedAt || 0)
+  });
+  persistNotebookBootCache(item);
+  return item;
+}
+
+function loadNotebookBootFromLocal(id){
+  if(isNotebookBootPlaceholder({ id:id })) return null;
+  const cached = readLocalJson(notebookBootCacheKey(id));
+  if(!cached || !cached.item) return null;
+  const item = normalizeNotebookItem(cached.item, true);
+  item._fromLocalCache = true;
+  item._fromBootCache = true;
+  item._cachedSavedAt = Number(cached.savedAt || 0);
+  return item;
+}
+
+function loadActiveNotebookSnapshot(id){
+  const safeId = String(id || '');
+  if(!safeId) return null;
+  const identity = getAuthSessionIdentity();
+  const candidates = [
+    readSessionJson(activeNotebookSnapshotGlobalKey()),
+    readLocalJson(activeNotebookSnapshotKey())
+  ].filter(Boolean);
+  for(let i = 0; i < candidates.length; i += 1){
+    const raw = candidates[i];
+    if(!raw || String(raw.id || '') !== safeId) continue;
+    const snapMeta = raw._snapshot && typeof raw._snapshot === 'object' ? raw._snapshot : {};
+    const snapUserId = String(snapMeta.userId || '').trim();
+    const snapUsername = String(snapMeta.username || '').trim();
+    const identityMatches = !identity.userId && !identity.username
+      ? true
+      : (!!identity.userId && identity.userId === snapUserId) || (!!identity.username && identity.username === snapUsername);
+    if(!identityMatches) continue;
+    const item = normalizeNotebookItem(raw, true);
+    item._fromLocalCache = true;
+    item._fromActiveSnapshot = true;
+    item._cachedSavedAt = Number(snapMeta.savedAt || 0);
+    notebookDebugLog('loadActiveNotebookSnapshot:hit', {
+      notebookId: safeId,
+      sourceCount: Array.isArray(item.sources) ? item.sources.length : 0,
+      analysisCount: Array.isArray(item.analysisFiles) ? item.analysisFiles.length : 0,
+      messageCount: Array.isArray(item.msgs) ? item.msgs.length : 0
+    });
+    return item;
+  }
+  notebookDebugLog('loadActiveNotebookSnapshot:miss', {
+    notebookId: safeId
+  });
+  return null;
+}
+
+function upsertNotebookIntoList(nb){
+  if(!nb || !nb.id) return nb;
+  const idx = Array.isArray(notebooks) ? notebooks.findIndex(function(item){
+    return item && String(item.id) === String(nb.id);
+  }) : -1;
+  if(idx >= 0) notebooks[idx] = nb;
+  else if(Array.isArray(notebooks)) notebooks.unshift(nb);
+  else notebooks = [nb];
+  return nb;
+}
+
+function loadNotebookRouteFromLocalCache(id){
+  const safeId = String(id || '');
+  if(!safeId) return null;
+  return loadActiveNotebookSnapshot(safeId) || loadNotebookDetailFromLocal(safeId) || loadNotebookBootFromLocal(safeId);
+}
+
+function hydrateNotebookRouteFromLocalCache(){
+  const routeNotebookId = notebookIdFromHash();
+  if(!routeNotebookId){
+    notebookDebugLog('hydrateNotebookRouteFromLocalCache:skipNoRoute', {});
+    return false;
+  }
+  const cached = loadNotebookRouteFromLocalCache(routeNotebookId);
+  if(!cached){
+    notebookDebugLog('hydrateNotebookRouteFromLocalCache:miss', {
+      notebookId: routeNotebookId
+    });
+    return false;
+  }
+  __nbLoaded = true;
+  __notebookListReady = true;
+  upsertNotebookIntoList(cached);
+  applyNotebookToWorkspace(cached);
+  openNotebookShell();
+  setNotebookDetailLoadingState('');
+  setSessionViewState('partial', 'sync-server', '正在同步最新内容…');
+  notebookDebugLog('hydrateNotebookRouteFromLocalCache:hit', {
+    notebookId: routeNotebookId,
+    sourceCount: Array.isArray(cached.sources) ? cached.sources.length : 0,
+    analysisCount: Array.isArray(cached.analysisFiles) ? cached.analysisFiles.length : 0,
+    messageCount: Array.isArray(cached.msgs) ? cached.msgs.length : 0,
+    fromBootCache: !!cached._fromBootCache
+  });
+  return true;
 }
 
 function pruneNotebookDetailCaches(activeIds){
   const keep = new Set((Array.isArray(activeIds) ? activeIds : []).filter(Boolean).map(function(id){
     return notebookDetailCacheKey(id);
   }));
+  const keepBoot = new Set((Array.isArray(activeIds) ? activeIds : []).filter(Boolean).map(function(id){
+    return notebookBootCacheKey(id);
+  }));
   try{
     const prefix = 'heartos_nb_detail_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':';
+    const bootPrefix = 'heartos_nb_boot_cache:' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':' + notebookCacheUserKey() + ':';
     for(let i = localStorage.length - 1; i >= 0; i -= 1){
       const key = localStorage.key(i);
       if(!key || key.indexOf(prefix) !== 0) continue;
       if(!keep.has(key)) localStorage.removeItem(key);
+    }
+    for(let j = localStorage.length - 1; j >= 0; j -= 1){
+      const bootKey = localStorage.key(j);
+      if(!bootKey || bootKey.indexOf(bootPrefix) !== 0) continue;
+      if(!keepBoot.has(bootKey)) localStorage.removeItem(bootKey);
     }
   }catch(_){ }
 }
 
 function hydrateNotebookSummariesFromLocal(){
   const cachedItems = loadNotebookSummariesFromLocal();
-  if(!cachedItems.length) return false;
+  if(!cachedItems.length){
+    notebookDebugLog('hydrateNotebookSummariesFromLocal:miss', {});
+    return false;
+  }
   notebooks = cachedItems;
   __nbLoaded = true;
   __notebookListReady = true;
   const home = document.getElementById('homePage');
   const root = document.documentElement;
+  const routeNotebookId = notebookIdFromHash();
+  if(routeNotebookId && !(curNb && String(curNb.id || '') === String(routeNotebookId) && curNb._detailsLoaded)){
+    const bootNb = loadNotebookRouteFromLocalCache(routeNotebookId);
+    if(bootNb){
+      upsertNotebookIntoList(bootNb);
+      applyNotebookToWorkspace(bootNb);
+      openNotebookShell();
+      setNotebookDetailLoadingState('');
+      setSessionViewState('partial', 'sync-server', '正在同步最新内容…');
+      notebookDebugLog('hydrateNotebookSummariesFromLocal:hit', {
+        notebookId: routeNotebookId,
+        sourceCount: Array.isArray(bootNb.sources) ? bootNb.sources.length : 0,
+        analysisCount: Array.isArray(bootNb.analysisFiles) ? bootNb.analysisFiles.length : 0,
+        fromBootCache: !!bootNb._fromBootCache
+      });
+      return true;
+    }
+    notebookDebugLog('hydrateNotebookSummariesFromLocal:routeWithoutDetail', {
+      notebookId: routeNotebookId,
+      summaryCount: cachedItems.length
+    });
+  }
   if((home && home.classList.contains('active')) || root.classList.contains('heartos-init-home')){
     renderHome();
   }
+  notebookDebugLog('hydrateNotebookSummariesFromLocal:summaryOnly', {
+    summaryCount: cachedItems.length
+  });
   return true;
 }
 
@@ -3090,6 +4181,13 @@ function applyNotebookToWorkspace(nb){
   syncLastImageSourceReference();
   updateSourceEntryAvailability();
   updateNotebookDebugBadge();
+  if(curNb && curNb._detailsLoaded){
+    hydrateNotebookFileCaches(curNb).then(function(){
+      if(!curNb || !nb || String(curNb.id || '') !== String(nb.id || '')) return;
+      renderSrcs();
+      renderAnalysisFiles();
+    }).catch(function(){});
+  }
 }
 
 function canEditNotebookSources(nb){
@@ -3292,7 +4390,7 @@ function renderSourceMiniRail(){
   const rail = document.getElementById('sourceMiniRail');
   if(!rail) return;
   const items = (Array.isArray(sources) ? sources : []).slice(0, 24).map(s => `
-    <button class="source-mini-item ${s.checked?'active':''}" title="${escAttr(sourceDisplayLabel(s, sources))}" onclick="previewSource(${s.id}, event)">
+    <button class="source-mini-item ${s.checked?'active':''}" title="${escAttr(sourceDisplayLabel(s, sources))}" onclick='previewSource(${jsStringLiteral(s.id)}, event)'>
       ${fileIco(String(s.type || 'file').toLowerCase())}
     </button>`).join('');
   const more = Array.isArray(sources) && sources.length > 24
@@ -3332,20 +4430,24 @@ function renderSrcs(){
     const isImg = ['png','jpg','jpeg','bmp','tiff'].includes((s.type||'').toLowerCase());
     const fsInfo = signalSampleRateInfo(s);
     const displayLabel = sourceDisplayLabel(s, sources);
-    return `<div class="src-item" onclick="handleSourceRowClick(${s.id}, event)" title="${escAttr(displayLabel)}">
-      ${fileIco(s.type)}
-      <div class="src-info">
-        <div class="src-name">${esc(displayLabel)}</div>
-        <div class="src-type">${s.type.toUpperCase()}${isImg?' · ECG图像':''}${fsInfo.sampleRate ? (' · ' + fsInfo.sampleRate + ' Hz') : ''}</div>
-      </div>
-      <div class="src-menu-wrap">
-        <button class="src-menu-btn" title="来源操作" onclick="toggleSourceMenu(${s.id}, event)">⋮</button>
-        <div class="src-menu" id="srcMenu-${s.id}" onclick="event.stopPropagation()">
-          <button onclick="renameSource(${s.id}, event)">重命名</button>
-          <button class="danger" onclick="deleteSource(${s.id}, event)">移除来源</button>
+    return `<div class="src-item" title="${escAttr(displayLabel)}">
+      <button class="src-main-btn" type="button" title="预览 ${escAttr(displayLabel)}" aria-label="预览 ${escAttr(displayLabel)}" onclick='previewSource(${jsStringLiteral(s.id)}, event)'>
+        ${fileIco(s.type)}
+        <div class="src-info">
+          <div class="src-name">${esc(displayLabel)}</div>
+          <div class="src-type">${s.type.toUpperCase()}${isImg?' · ECG图像':''}${fsInfo.sampleRate ? (' · ' + fsInfo.sampleRate + ' Hz') : ''}</div>
         </div>
+      </button>
+      <div class="src-actions">
+        <div class="src-menu-wrap">
+          <button class="src-menu-btn" title="来源操作" onclick='toggleSourceMenu(${jsStringLiteral(s.id)}, event)'>⋮</button>
+          <div class="src-menu" id="srcMenu-${escAttr(sourceIdKey(s.id))}" onclick="event.stopPropagation()">
+            <button onclick='renameSource(${jsStringLiteral(s.id)}, event)'>重命名</button>
+            <button class="danger" onclick='deleteSource(${jsStringLiteral(s.id)}, event)'>移除来源</button>
+          </div>
+        </div>
+        <button class="src-cb src-select-btn ${s.checked?'chk':''}" type="button" title="选择来源" aria-label="选择 ${escAttr(displayLabel)}" aria-pressed="${s.checked?'true':'false'}" onclick='togSrc(${jsStringLiteral(s.id)}, event)'></button>
       </div>
-      <button class="src-cb src-select-btn ${s.checked?'chk':''}" type="button" title="选择来源" aria-label="选择 ${escAttr(displayLabel)}" aria-pressed="${s.checked?'true':'false'}" onclick="togSrc(${s.id}, event)"></button>
     </div>`;
   }).join('');
   renderSourceMiniRail();
@@ -3360,35 +4462,39 @@ function toggleAll(){
   sources.forEach(function(s){ s.checked = !allChecked; });
   commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:false });
 }
+function sourceIdKey(id){
+  return String(id == null ? '' : id);
+}
+function sourceIdEquals(left, right){
+  return sourceIdKey(left) === sourceIdKey(right);
+}
+function findSourceById(id){
+  return Array.isArray(sources) ? sources.find(function(src){ return !!src && sourceIdEquals(src.id, id); }) : null;
+}
+function jsStringLiteral(value){
+  return JSON.stringify(sourceIdKey(value));
+}
 function togSrc(id, evt){
   if(evt) evt.stopPropagation();
-  const s = sources.find(function(x){ return x.id === id; });
+  const s = findSourceById(id);
   if(!s) return;
   s.checked = !s.checked;
   commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:false });
-}
-function handleSourceRowClick(id, evt){
-  const target = evt && evt.target ? evt.target : null;
-  if(target){
-    const interactive = target.closest('.src-select-btn, .src-menu-wrap, .src-menu-btn, .src-menu');
-    if(interactive) return;
-  }
-  previewSource(id, evt);
 }
 function updateCiSrc(){document.getElementById('ciSrc').textContent=sources.filter(s=>s.checked).length+' 个来源';}
 
 function toggleSourceMenu(id, evt){
   if(evt) evt.stopPropagation();
   document.querySelectorAll('.src-menu.open').forEach(m => {
-    if(m.id !== 'srcMenu-' + id) m.classList.remove('open');
+    if(m.id !== 'srcMenu-' + sourceIdKey(id)) m.classList.remove('open');
   });
-  const m = document.getElementById('srcMenu-' + id);
+  const m = document.getElementById('srcMenu-' + sourceIdKey(id));
   if(m) m.classList.toggle('open');
 }
 
 function renameSource(id, evt){
   if(evt) evt.stopPropagation();
-  const src = sources.find(x => x.id === id);
+  const src = findSourceById(id);
   if(!src) return;
   const next = prompt('输入新的来源名称：', src.name || '');
   if(!next) return;
@@ -3410,41 +4516,38 @@ async function sourceDataUrl(src){
       }catch(_){ resolve(''); }
     });
   }
-  const fileId = src.fileId || src.serverFileId || '';
-  if(fileId){
-    try{
-      const ctrl = new AbortController();
-      const tm = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 10000);
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET', signal: ctrl.signal });
-      clearTimeout(tm);
-      if(resp.ok){
-        const blob = await resp.blob();
-        return await new Promise(resolve=>{
-          const r = new FileReader();
-          r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
-          r.onerror = () => resolve('');
-          r.readAsDataURL(blob);
-        });
-      }
-    }catch(_){ }
+  await hydrateSourceFromLocalFileCache(src, curNb);
+  if(src.imageDataUrl) return src.imageDataUrl;
+  if(isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type||''))){
+    return await new Promise(resolve=>{
+      try{
+        const r = new FileReader();
+        r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
+        r.onerror = () => resolve('');
+        r.readAsDataURL(src.fileObj);
+      }catch(_){ resolve(''); }
+    });
   }
-  const fileUrl = src.fileUrl ? String(src.fileUrl) : '';
-  if(fileUrl){
-    try{
-      const ctrl = new AbortController();
-      const tm = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 10000);
-      const resp = await fetch(fileUrl, { headers: authHeaders(), signal: ctrl.signal });
-      clearTimeout(tm);
-      if(resp.ok){
-        const blob = await resp.blob();
-        return await new Promise(resolve=>{
-          const r = new FileReader();
-          r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
-          r.onerror = () => resolve('');
-          r.readAsDataURL(blob);
-        });
+  const blob = await readStoredEntryBlob(src, { timeoutMs: 4500, logLabel:'source-data-url' });
+  if(isBlobLike(blob)){
+    const dataUrl = await new Promise(resolve=>{
+      try{
+        const r = new FileReader();
+        r.onload = ev => resolve(String((ev.target && ev.target.result) || ''));
+        r.onerror = () => resolve('');
+        r.readAsDataURL(blob);
+      }catch(_){ resolve(''); }
+    });
+    if(dataUrl){
+      if(/^image\//i.test(String(blob.type || ''))){
+        src.imageDataUrl = String(dataUrl);
       }
-    }catch(_){ }
+      cacheSourceFileLocally(src, cachedBlobToFileLike(blob, src.name || src.fileId || 'source.bin', src.mime || blob.type || ''), curNb, {
+        dataUrl: String(dataUrl || ''),
+        blob: blob
+      }).catch(function(){});
+    }
+    return dataUrl;
   }
   return '';
 }
@@ -3452,21 +4555,48 @@ async function sourceDataUrl(src){
 async function sourceObjectUrl(src){
   if(!src) return '';
   if(isBlobLike(src.fileObj)) return URL.createObjectURL(src.fileObj);
-  const fileId = src.fileId || src.serverFileId || '';
-  if(fileId){
-    try{
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
-      if(resp.ok) return URL.createObjectURL(await resp.blob());
-    }catch(_){ }
-  }
-  const fileUrl = src.fileUrl ? String(src.fileUrl) : '';
-  if(fileUrl){
-    try{
-      const resp = await fetch(fileUrl, { headers: authHeaders() });
-      if(resp.ok) return URL.createObjectURL(await resp.blob());
-    }catch(_){ }
+  await hydrateSourceFromLocalFileCache(src, curNb);
+  if(isBlobLike(src.fileObj)) return URL.createObjectURL(src.fileObj);
+  const blob = await readStoredEntryBlob(src, { timeoutMs: 4500, logLabel:'source-object-url' });
+  if(isBlobLike(blob)){
+    cacheSourceFileLocally(src, cachedBlobToFileLike(blob, src.name || src.fileId || 'source.bin', src.mime || blob.type || ''), curNb, {
+      blob: blob
+    }).catch(function(){});
+    return URL.createObjectURL(blob);
   }
   return '';
+}
+
+function cloneSourceForDerivedImage(src){
+  if(!src || typeof src !== 'object') return null;
+  const clone = Object.assign({}, src);
+  clone.originalSourceId = clone.originalSourceId || String(src.id || '');
+  clone.originalSourceName = clone.originalSourceName || String(src.name || '');
+  clone.originalSourceType = clone.originalSourceType || String(src.type || '');
+  return clone;
+}
+
+function createDerivedImageSource(src, imageDataUrl){
+  if(!src || !imageDataUrl || String(imageDataUrl).indexOf('data:') !== 0) return null;
+  const derived = cloneSourceForDerivedImage(src);
+  if(!derived) return null;
+  const pngName = String(src.name || 'ecg_pdf_page1.pdf').replace(/\.pdf$/i, '.png');
+  derived.imageDataUrl = String(imageDataUrl);
+  derived.name = pngName;
+  derived.type = 'png';
+  const pngFile = dataUrlToFile(derived.imageDataUrl, pngName);
+  if(pngFile) derived.fileObj = pngFile;
+  return derived;
+}
+
+function withTimeout(promise, ms){
+  let timer = null;
+  const timeout = new Promise(resolve => {
+    timer = setTimeout(() => resolve({ __timedOut: true }), Math.max(1, Number(ms) || 0));
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(function(){
+    if(timer) clearTimeout(timer);
+  });
 }
 
 function sourceExt(src){
@@ -3512,15 +4642,16 @@ async function readTextFromSource(src){
   }
   // 本地无 fileObj 时优先返回已缓存内容，避免网络请求挂起
   if(src.content) return String(src.content);
-  const fileId = src.fileId || src.serverFileId || '';
-  if(fileId){
-    try{
-      const ctrl = new AbortController();
-      const tm = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 10000);
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET', signal: ctrl.signal });
-      clearTimeout(tm);
-      if(resp.ok) return await resp.text();
-    }catch(_){ }
+  await hydrateSourceFromLocalFileCache(src, curNb);
+  if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
+    try{ return await src.fileObj.text(); }catch(_){ }
+  }
+  if(src.content) return String(src.content);
+  const text = await readStoredEntryText(src, { timeoutMs: 4500, logLabel:'source-text' });
+  if(text){
+    src.content = text;
+    cacheSourceFileLocally(src, null, curNb, { text:text }).catch(function(){});
+    return text;
   }
   return '';
 }
@@ -3748,8 +4879,14 @@ function buildSummaryWorkflowActions(latestSrc, imgCount){
 
 function runSummarySourceTool(type, sourceId){
   const target = Array.isArray(sources) ? sources.find(function(src){ return src && Number(src.id) === Number(sourceId); }) : null;
-  if(target && (type === 'ecg' || type === 'ecgsmart' || type === 'zhunxin')){
+  if(target && (type === 'ecg' || type === 'zhunxin')){
     sources.forEach(function(src){ src.checked = src === target; });
+    renderSrcs();
+    updateCiSrc();
+    syncCurrentNotebookState();
+    scheduleSaveCurrentNotebook(false);
+  }else if(target && type === 'ecgsmart' && !target.checked){
+    target.checked = true;
     renderSrcs();
     updateCiSrc();
     syncCurrentNotebookState();
@@ -3828,13 +4965,6 @@ async function pickSummaryImageDataUrl(latestSrc){
         (!dataUrl || String(dataUrl).indexOf('data:image') !== 0);
       if(needsPdfConvert){
         dataUrl = await convertPdfSourceToImageDataUrl(src);
-        if(dataUrl){
-          src.imageDataUrl = dataUrl;
-          const pngName = String(src.name || 'ecg_pdf_page1.pdf').replace(/\.pdf$/i, '.png');
-          const pngFile = dataUrlToFile(dataUrl, pngName);
-          if(pngFile) src.fileObj = pngFile;
-          src.type = 'png';
-        }
       }
       if(dataUrl && String(dataUrl).indexOf('data:image') === 0) return dataUrl;
     }catch(_){}
@@ -4299,11 +5429,13 @@ function renderBinaryPreview(src){
 
 async function previewSource(id, evt){
   if(evt) evt.stopPropagation();
-  const src = sources.find(x=>x.id===id);
+  const src = findSourceById(id);
   if(!src) return;
   const title = document.getElementById('srcPreviewTitle');
   const body = document.getElementById('srcPreviewBody');
   if(!title || !body) return;
+  window.__heartosSourcePreviewSeq = (window.__heartosSourcePreviewSeq || 0) + 1;
+  const previewSeq = window.__heartosSourcePreviewSeq;
   title.textContent = sourceDisplayLabel(src, sources);
   title.title = sourceFullName(src);
   body.innerHTML = '<p style="color:var(--text3);font-size:13px;">正在加载预览...</p>';
@@ -4313,17 +5445,23 @@ async function previewSource(id, evt){
   try{
     window.__heartosSignalPreviewContext = null;
     if(['png','jpg','jpeg','bmp','tif','tiff','gif','webp','svg'].includes(type) || /^image\//i.test(mime)){
-      const url = await sourceDataUrl(src);
+      const urlResult = await withTimeout(sourceDataUrl(src), 4500);
+      if(previewSeq !== window.__heartosSourcePreviewSeq) return;
+      const url = urlResult && !urlResult.__timedOut ? urlResult : '';
       body.innerHTML = url ? `<img src="${escAttr(url)}" alt="${escAttr(src.name || 'image')}">` : '<p style="color:#dc2626;">无法读取图片预览。</p>';
       return;
     }
     if(type === 'pdf' || /pdf/i.test(mime)){
-      const url = await sourceObjectUrl(src);
+      const urlResult = await withTimeout(sourceObjectUrl(src), 4500);
+      if(previewSeq !== window.__heartosSourcePreviewSeq) return;
+      const url = urlResult && !urlResult.__timedOut ? urlResult : '';
       body.innerHTML = url ? `<iframe src="${escAttr(url)}"></iframe>` : '<p style="color:var(--text3);">PDF 预览暂不可用。</p>';
       return;
     }
     if(type === 'csv' || /csv/i.test(mime)){
-      const text = await readCsvTextFromSource(src);
+      const textResult = await withTimeout(readCsvTextFromSource(src), 4500);
+      if(previewSeq !== window.__heartosSourcePreviewSeq) return;
+      const text = textResult && !textResult.__timedOut ? textResult : '';
       if(text){
         window.__heartosSignalPreviewContext = { format:'csv', text:text, label:'CSV 表格 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
@@ -4333,7 +5471,9 @@ async function previewSource(id, evt){
       return;
     }
     if(type === 'tsv'){
-      const text = await readTextFromSource(src);
+      const textResult = await withTimeout(readTextFromSource(src), 4500);
+      if(previewSeq !== window.__heartosSourcePreviewSeq) return;
+      const text = textResult && !textResult.__timedOut ? textResult : '';
       if(text){
         window.__heartosSignalPreviewContext = { format:'tsv', text:text, label:'TSV 表格 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
@@ -4343,7 +5483,9 @@ async function previewSource(id, evt){
       return;
     }
     if(type === 'json' || /json/i.test(mime)){
-      const text = await readTextFromSource(src);
+      const textResult = await withTimeout(readTextFromSource(src), 4500);
+      if(previewSeq !== window.__heartosSourcePreviewSeq) return;
+      const text = textResult && !textResult.__timedOut ? textResult : '';
       if(text){
         window.__heartosSignalPreviewContext = { format:'json', text:text, label:'JSON 数据 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
@@ -4353,7 +5495,9 @@ async function previewSource(id, evt){
       return;
     }
     if(type === 'xml' || /xml/i.test(mime)){
-      const text = await readXmlTextFromSource(src);
+      const textResult = await withTimeout(readXmlTextFromSource(src), 4500);
+      if(previewSeq !== window.__heartosSourcePreviewSeq) return;
+      const text = textResult && !textResult.__timedOut ? textResult : '';
       if(text){
         window.__heartosSignalPreviewContext = { format:'xml', text:text, label:'XML 数据 · ' + sourceDisplayLabel(src, sources) };
         renderSignalTablePreviewFromModal();
@@ -4379,9 +5523,10 @@ async function previewSource(id, evt){
 
 async function deleteSource(id, evt){
   if(evt) evt.stopPropagation();
-  const idx = sources.findIndex(x=>x.id===id);
+  const idx = sources.findIndex(function(src){ return !!src && sourceIdEquals(src.id, id); });
   if(idx < 0) return;
   const src = sources[idx];
+  const targetNotebook = curNb;
   if(!confirm(`确认删除来源：${src.name} ？`)) return;
 
   const fileId = src.fileId || src.serverFileId || '';
@@ -4403,6 +5548,7 @@ async function deleteSource(id, evt){
   }
 
   sources.splice(idx, 1);
+  deleteSourceFileCache(src, targetNotebook).catch(function(){});
   commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:true });
   showToast('来源已移除');
 }
@@ -4440,8 +5586,12 @@ async function deleteSelectedSources(evt){
     showToast('删除失败：所选来源文件未能彻底删除');
     return;
   }
-  sources = sources.filter(s => !removableIds.has(s.id));
+  const removedSources = sources.filter(function(s){ return removableIds.has(sourceIdKey(s && s.id)); });
+  sources = sources.filter(function(s){ return !removableIds.has(sourceIdKey(s && s.id)); });
   window.sources = sources;
+  removedSources.forEach(function(src){
+    deleteSourceFileCache(src, curNb).catch(function(){});
+  });
   commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:true });
   if(failedNames.length){
     showToast(`已删除 ${removableIds.size} 个来源，${failedNames.length} 个删除失败`);
@@ -4452,14 +5602,14 @@ async function deleteSelectedSources(evt){
 
 async function openHandEcgFromSource(id, evt){
   if(evt){ evt.stopPropagation(); }
-  let src = sources.find(x=>x.id===id);
+  let src = findSourceById(id);
   if(!src){ runStudio('ecg'); return; }
   src = await ensureEcgImageSource(src);
   if(!src || !src.imageDataUrl){
     showToast('当前来源格式暂不支持手动数字化，请上传 PDF、JPG 或 PNG。');
     return;
   }
-  sources.forEach(s=>{ s.checked = (s.id===id); });
+  sources.forEach(function(s){ s.checked = sourceIdEquals(s && s.id, id); });
   renderSrcs();
   updateCiSrc();
   openEcgOverlay(src);
@@ -5017,6 +6167,8 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
   const imageCompatible = picked.filter(canUseAsImageToolSource);
   const incompatiblePicked = picked.filter(function(src){ return !canUseAsImageToolSource(src); });
   const isWaveTool = toolName === 'ECG 心电组学' || toolName === 'ECG 信号补全';
+  const isAutoDigitizeTool = toolName === '自动数字化';
+  const isSingleImageTool = toolName === '手动数字化' || toolName === '准心风险评估' || toolName === '准心评估智能体';
   if(message === '__single_unchecked_candidate__' && picked.length === 1){
     const src = picked[0];
     const actionTool = toolActionNameByToolName(toolName);
@@ -5090,7 +6242,7 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
   const target = toolName === '手动数字化'
     ? '手动数字化'
     : (toolName === '准心风险评估' || toolName === '准心评估智能体' ? '准心风险评估' : '自动数字化');
-  if(!incompatiblePicked.length && imageCompatible.length > 1){
+  if(isSingleImageTool && !incompatiblePicked.length && imageCompatible.length > 1){
     return {
       title: target + '一次只能处理 1 个来源',
       intro: '你当前勾选了 ' + imageCompatible.length + ' 个可识别的图片/PDF 来源。' + target + ' 一次只能基于 1 个来源启动，所以这次不是文件格式错误，而是选择数量过多。',
@@ -5106,17 +6258,36 @@ function buildToolErrorPlan(toolName, sourcesToList, message){
       ]
     };
   }
+  if(isAutoDigitizeTool && imageCompatible.length > 1 && incompatiblePicked.length){
+    return {
+      title: '自动数字化暂时不能开始',
+      intro: '当前勾选来源里同时包含可批量处理的图片/PDF，以及不支持自动数字化的其它格式。',
+      supportText: '自动数字化支持一次处理多个 JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页），但请先取消勾选 CSV、XML、JSON、TXT 等非图像来源。',
+      steps: [
+        { title:'保留要批量处理的图片/PDF', desc:'左侧来源列表里可以同时勾选多张心电图图片或多个 PDF。' },
+        { title:'取消不兼容格式', desc:'先取消勾选 CSV、XML、JSON、TXT 等非图像来源，再重新启动自动数字化。' },
+        { title:'重新开始批量处理', desc:'只保留图片/PDF 后，自动数字化会按当前勾选来源逐个生成 CSV。' }
+      ],
+      actions: [
+        { label:'我知道了', kind:'primary', action:'close' }
+      ]
+    };
+  }
   const supportText = target === '准心风险评估'
     ? '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个图片/PDF 来源启动准心风险评估。'
-    : '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个来源启动数字化。';
+    : (isAutoDigitizeTool
+      ? '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；可同时勾选多个图片/PDF 来源批量启动自动数字化。'
+      : '支持输入：JPG、PNG、BMP、TIFF、WebP 或 PDF（默认转换第 1 页）；每次仅支持选择 1 个来源启动数字化。');
   return {
     title: target + '暂时不能开始',
-    intro: '当前勾选来源不是可识别的心电图图片/PDF，且' + target + '一次只能基于 1 个图片/PDF 来源启动。按下面 3 步操作即可继续。',
+    intro: isAutoDigitizeTool
+      ? '当前勾选来源不是可识别的心电图图片/PDF，或者文件内容损坏。自动数字化本身支持批量处理，但需要勾选的都是可转换图片/PDF。'
+      : ('当前勾选来源不是可识别的心电图图片/PDF，且' + target + '一次只能基于 1 个图片/PDF 来源启动。按下面 3 步操作即可继续。'),
     supportText: supportText,
     steps: [
       { title:'先看当前来源类型', desc:'你现在选中的来源不是图片/PDF，或者文件内容损坏。' },
       { title:'重新选择图片/PDF', desc:'点击“去上传文件”，上传清晰的心电图图片或 PDF。' },
-      { title:target === '准心风险评估' ? '重新启动评估' : '重新启动数字化', desc:'只勾选 1 个图片/PDF 来源后，再次启动' + target + '。' }
+      { title:target === '准心风险评估' ? '重新启动评估' : '重新启动数字化', desc:isAutoDigitizeTool ? '勾选一个或多个图片/PDF 来源后，再次启动自动数字化。' : ('只勾选 1 个图片/PDF 来源后，再次启动' + target + '。') }
     ],
     actions: [
       { label:'去上传文件', kind:'primary', action:'upload' },
@@ -5439,22 +6610,16 @@ async function ensureEcgImageSource(src){
   if(src.imageDataUrl){
     if(!src.fileObj || !/^image\//i.test(String(src.fileObj.type || ''))){
       src.imageDataUrl = await normalizeToolImageDataUrl(src.imageDataUrl);
-      const imgName = String(src.name || 'ecg_image.png').replace(/\.pdf$/i, '.png');
-      const imgFile = dataUrlToFile(src.imageDataUrl, imgName);
-      if(imgFile) src.fileObj = imgFile;
-      if(!src.type || String(src.type).toLowerCase() === 'pdf') src.type = 'png';
+      const derived = createDerivedImageSource(src, src.imageDataUrl);
+      if(derived) return derived;
     }
     return src;
   }
   if(!src.imageDataUrl && !isBlobLike(src.fileObj)){
     const remoteDataUrl = await sourceDataUrl(src);
     if(remoteDataUrl && String(remoteDataUrl).indexOf('data:image') === 0){
-      src.imageDataUrl = await normalizeToolImageDataUrl(remoteDataUrl);
-      const remoteName = String(src.name || 'ecg_image.png').replace(/\.pdf$/i, '.png');
-      const remoteFile = dataUrlToFile(src.imageDataUrl, remoteName);
-      if(remoteFile) src.fileObj = remoteFile;
-      if(!src.type || String(src.type).toLowerCase() === 'pdf') src.type = 'png';
-      return src;
+      const derivedRemote = createDerivedImageSource(src, await normalizeToolImageDataUrl(remoteDataUrl));
+      if(derivedRemote) return derivedRemote;
     }
   }
   if(isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type||''))){
@@ -5471,14 +6636,8 @@ async function ensureEcgImageSource(src){
   }
   const pdfDataUrl = await convertPdfSourceToImageDataUrl(src);
   if(pdfDataUrl){
-    if(!src.originalName) src.originalName = src.name || '';
-    src.imageDataUrl = await normalizeToolImageDataUrl(pdfDataUrl);
-    const pngName = String(src.name || 'ecg_pdf_page1.pdf').replace(/\.pdf$/i, '.png');
-    const pngFile = dataUrlToFile(src.imageDataUrl, pngName);
-    if(pngFile) src.fileObj = pngFile;
-    src.type = 'png';
-    if(src.name && /\.pdf$/i.test(src.name)) src.name = pngName;
-    return src;
+    const derivedPdf = createDerivedImageSource(src, await normalizeToolImageDataUrl(pdfDataUrl));
+    if(derivedPdf) return derivedPdf;
   }
   return null;
 }
@@ -7330,6 +8489,18 @@ function signalSampleRateInfo(src){
   return { sampleRate:fs, source:source, origin:origin, platform:platform, label:origin + ' · ' + state };
 }
 
+function findReplaceableAnalysisResultIndex(item){
+  if(!item) return -1;
+  const generatedBy = String(item.generatedBy || '').toLowerCase();
+  const sourceId = String(item.parentSourceId || item.sourceId || '').trim();
+  if(generatedBy !== 'auto_digitize' || !sourceId) return -1;
+  return Array.isArray(analysisFiles) ? analysisFiles.findIndex(function(file){
+    if(!file) return false;
+    return String((file.generatedBy || '')).toLowerCase() === 'auto_digitize'
+      && String(file.parentSourceId || file.sourceId || '').trim() === sourceId;
+  }) : -1;
+}
+
 function addAnalysisResultFile(file){
   if(!file || !file.content) return null;
   const ext = String(file.ext || file.type || 'txt').replace(/^\./,'').toLowerCase() || 'txt';
@@ -7351,10 +8522,26 @@ function addAnalysisResultFile(file){
     createdAt: file.createdAt || new Date().toLocaleString()
   };
   if(!Array.isArray(analysisFiles)) analysisFiles = [];
+  const replaceIdx = findReplaceableAnalysisResultIndex(item);
+  if(replaceIdx >= 0) analysisFiles.splice(replaceIdx, 1);
   analysisFiles.unshift(item);
+  cacheAnalysisFileLocally(item, item.content, curNb).catch(function(){});
   if(curNb) curNb.analysisFiles = analysisFiles;
+  if(curNb) nextAnalysisFilesUpdatedAt(curNb);
   syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
+  if(curNb){
+    finalizeDraftNotebook(curNb);
+    persistNotebookLocally(curNb);
+    scheduleSaveCurrentNotebookResultFiles(true);
+    item._persistPromise = persistAnalysisResultFileIfNeeded(item).then(function(saved){
+      if(!saved || !curNb) return;
+      nextAnalysisFilesUpdatedAt(curNb);
+      syncCurrentNotebookState();
+      persistNotebookLocally(curNb);
+      scheduleSaveCurrentNotebookResultFiles(true);
+      return true;
+    }).catch(function(){});
+  }
   renderAnalysisFiles();
   return item;
 }
@@ -7542,7 +8729,7 @@ function toggleResultFileMenu(id, evt){
   if(m) m.classList.toggle('open');
 }
 
-function previewAnalysisFile(id, evt){
+async function previewAnalysisFile(id, evt){
   if(evt) evt.stopPropagation();
   document.querySelectorAll('.result-file-menu.open').forEach(m => m.classList.remove('open'));
   const f = analysisFiles.find(x => x && x.id === id);
@@ -7553,9 +8740,28 @@ function previewAnalysisFile(id, evt){
   const name = f.name || '分析结果文件';
   const type = String(f.type || '').toLowerCase();
   const mime = String(f.mime || '').toLowerCase();
-  const text = String(f.content || '');
+  window.__heartosAnalysisPreviewSeq = (window.__heartosAnalysisPreviewSeq || 0) + 1;
+  const previewSeq = window.__heartosAnalysisPreviewSeq;
   window.__heartosSignalPreviewContext = null;
   title.textContent = name;
+  body.innerHTML = '<div class="src-preview-loading">正在加载结果文件预览...</div>';
+  openMo('srcPreviewMo');
+  notebookDebugLog('previewAnalysisFile:start', {
+    fileId: String(f.fileId || f.serverFileId || ''),
+    resultId: String(f.id || ''),
+    name: name
+  });
+  const textResult = await withTimeout(readAnalysisFileText(f), 9000);
+  if(previewSeq !== window.__heartosAnalysisPreviewSeq) return;
+  const text = textResult && !textResult.__timedOut ? String(textResult || '') : '';
+  if(textResult && textResult.__timedOut){
+    body.innerHTML = '<div class="src-preview-loading">结果文件预览超时，已停止等待。请稍后重试。</div>';
+    return;
+  }
+  if(!text){
+    body.innerHTML = '<div class="src-preview-loading">结果文件内容暂时无法读取，请稍后重试。</div>';
+    return;
+  }
   if(type === 'csv' || /csv/i.test(mime) || /\.csv$/i.test(name)){
     window.__heartosSignalPreviewContext = { format:'csv', text:text, label:'CSV 结果文件 · ' + name };
     renderSignalTablePreviewFromModal();
@@ -7571,7 +8777,6 @@ function previewAnalysisFile(id, evt){
   }else{
     body.innerHTML = renderPrettyCodePreview(text, (type || 'TXT').toUpperCase() + ' 结果文件', type || 'txt');
   }
-  openMo('srcPreviewMo');
 }
 
 function renameAnalysisFile(id, evt){
@@ -7581,8 +8786,9 @@ function renameAnalysisFile(id, evt){
   const next = prompt('输入新的文件名：', f.name);
   if(!next) return;
   f.name = uniqueAnalysisResultFileName(normalizeResultFileName(next, f.type || 'txt'), f.id);
+  if(curNb) nextAnalysisFilesUpdatedAt(curNb);
   syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
+  scheduleSaveCurrentNotebookResultFiles(false);
   renderAnalysisFiles();
   showToast('结果文件名称已更新');
 }
@@ -7601,14 +8807,18 @@ async function importAnalysisFileAsSource(id, evt){
     return;
   }
   const ext = String(f.type || String(f.name || '').split('.').pop() || 'txt').replace(/^\./, '').toLowerCase();
+  const text = await readAnalysisFileText(f);
   let rawFile = null;
   try{
-    rawFile = new File([String(f.content || '')], f.name || ('analysis.' + ext), {type: f.mime || 'text/plain;charset=utf-8'});
+    rawFile = new File([text], f.name || ('analysis.' + ext), {type: f.mime || 'text/plain;charset=utf-8'});
   }catch(_){ }
-  const src = await addSrc(f.name || ('analysis.' + ext), ext, String(f.content || ''), null, rawFile);
-  if(src){
+  let src = null;
+  try{
+    src = appendSourceRecord(f.name || ('analysis.' + ext), ext, text, null, rawFile, curNb);
     src.__analysisFileId = id;
     src.__fromAnalysisResult = true;
+    src.analysisFileId = id;
+    src.fromAnalysisResult = true;
     src.__fromEcgomics = f.source === 'ECGOmics';
     src.__fromReconstruct = f.source === '心电图补全' || f.source === 'ECG 信号补全';
     src.__fromDigitize = f.source === '手动数字化' || f.source === '自动数字化';
@@ -7616,10 +8826,33 @@ async function importAnalysisFileAsSource(id, evt){
     src.generatedBy = f.generatedBy || (src.__fromReconstruct ? 'reconstruct' : (src.__fromDigitize ? 'digitize' : ''));
     src.sampleRate = normalizedSampleRate(f.sampleRate);
     src.sampleRateSource = f.sampleRateSource || (src.sampleRate && src.__fromDigitize ? 'platform' : '');
+    if(src) await finalizeSourceImport([src], curNb);
+  }catch(err){
+    if(err && err.code === 'DUPLICATE_SOURCE'){
+      showToast('该结果文件已在来源列表中');
+      return;
+    }
+    showToast('结果文件加入来源失败，请稍后重试');
+    return;
+  }
+  if(src){
     syncCurrentNotebookState();
-    scheduleSaveCurrentNotebook(false);
+    persistNotebookLocally(curNb);
+    try{ persistNotebookKeepalive(curNb); }catch(_){}
+    try{ persistNotebookSourcesKeepalive(curNb); }catch(_){}
+    scheduleSaveCurrentNotebook(true);
+    scheduleSaveCurrentNotebookSources(true);
     renderSrcs();
     updateCiSrc();
+    if(rawFile){
+      persistSourceFileIfNeeded(src, rawFile, curNb).then(function(saved){
+        if(!saved) return;
+        syncCurrentNotebookState();
+        persistNotebookLocally(curNb);
+        try{ persistNotebookSourcesKeepalive(curNb); }catch(_){}
+        scheduleSaveCurrentNotebookSources(true);
+      }).catch(function(){});
+    }
   }
   showToast('结果文件已加入来源');
 }
@@ -7629,18 +8862,22 @@ function deleteAnalysisFile(id, evt){
   const idx = analysisFiles.findIndex(x => x && x.id === id);
   if(idx < 0) return;
   if(!confirm('确认删除这个分析结果文件？')) return;
+  const removed = analysisFiles[idx];
   analysisFiles.splice(idx, 1);
+  deleteAnalysisFileCache(removed, curNb).catch(function(){});
+  if(curNb) nextAnalysisFilesUpdatedAt(curNb);
   syncCurrentNotebookState();
-  scheduleSaveCurrentNotebook(false);
+  scheduleSaveCurrentNotebookResultFiles(false);
   renderAnalysisFiles();
   showToast('结果文件已删除');
 }
 
-function exportAnalysisFile(id, evt){
+async function exportAnalysisFile(id, evt){
   if(evt) evt.stopPropagation();
   const f = analysisFiles.find(x => x && x.id === id);
   if(!f) return;
-  const blob = new Blob([String(f.content || '')], { type: f.mime || 'text/plain;charset=utf-8' });
+  const text = await readAnalysisFileText(f);
+  const blob = new Blob([text], { type: f.mime || 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = f.name || ('analysis_' + Date.now() + '.txt');
@@ -8114,15 +9351,16 @@ async function readCsvTextFromSource(src){
   if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
-  const fileId = src.fileId || src.serverFileId || '';
-  if(fileId){
-    try{
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
-      if(resp.ok){
-        const txt = await resp.text();
-        if(txt && txt.indexOf(',') >= 0) return txt;
-      }
-    }catch(_){ }
+  await hydrateSourceFromLocalFileCache(src, curNb);
+  if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
+    try{ return await src.fileObj.text(); }catch(_){ }
+  }
+  if(typeof src.content === 'string' && src.content && src.content.indexOf(',') >= 0) return String(src.content);
+  const txt = await readStoredEntryText(src, { timeoutMs: 4500, logLabel:'source-csv' });
+  if(txt && txt.indexOf(',') >= 0){
+    src.content = txt;
+    cacheSourceFileLocally(src, null, curNb, { text:txt }).catch(function(){});
+    return txt;
   }
   return String(src.content||'');
 }
@@ -8582,15 +9820,17 @@ async function readXmlTextFromSource(src){
   if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
     try{ return await src.fileObj.text(); }catch(_){ }
   }
-  const fileId = src.fileId || src.serverFileId || '';
-  if(fileId){
-    try{
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
-      if(resp.ok){
-        const txt = await resp.text();
-        if(txt && txt.indexOf('<') >= 0 && txt.indexOf('>') >= 0) return txt;
-      }
-    }catch(_){ }
+  await hydrateSourceFromLocalFileCache(src, curNb);
+  if(isBlobLike(src.fileObj) && typeof src.fileObj.text === 'function'){
+    try{ return await src.fileObj.text(); }catch(_){ }
+  }
+  const localContent = String(src.content||'').trim();
+  if(localContent && localContent.indexOf('<') >= 0 && localContent.indexOf('>') >= 0) return localContent;
+  const txt = await readStoredEntryText(src, { timeoutMs: 4500, logLabel:'source-xml' });
+  if(txt && txt.indexOf('<') >= 0 && txt.indexOf('>') >= 0){
+    src.content = txt;
+    cacheSourceFileLocally(src, null, curNb, { text:txt }).catch(function(){});
+    return txt;
   }
   const c = String(src.content||'').trim();
   if(c && c.indexOf('<') >= 0 && c.indexOf('>') >= 0) return c;
@@ -8897,13 +10137,14 @@ async function autoDigitizeSingleSource(src, task, requestController){
   currentResultText = csv;
   const resultFile = addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'自动数字化', sourceName:String((src && src.name) || ''), sourceId:String((src && src.id) || ''), parentSourceId:String((src && src.id) || ''), generatedBy:'auto_digitize', sampleRate:Number(data && data.fs) || 500, sampleRateSource:'platform' });
   if(resultFile) csvName = resultFile.name;
+  if(resultFile) await persistSingleAnalysisResultNow(resultFile, curNb);
   currentResultFileName = csvName;
   const returnedImage = _extractReturnedImageDataUrl(data);
   let compareImage = '';
   try{
     compareImage = await buildAutoDigitizeSideBySideDataUrl(src.imageDataUrl, leadMap, { crop:'', leftTitle:'Original ECG image' });
   }catch(cmpErr){
-    console.warn('auto digitize side-by-side preview failed', cmpErr);
+    heartosConsoleDebug('heartos-auto-digitize', 'side-by-side preview failed', cmpErr && cmpErr.message ? cmpErr.message : cmpErr);
   }
   if(studioTaskWasStopped(task)) throw new DOMException('Stopped', 'AbortError');
   const leadNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
@@ -9008,6 +10249,7 @@ async function runStudio(type, opts){
         await new Promise(resolve => setTimeout(resolve, remainingMs));
       }
       if(studioTaskWasStopped(task)) return;
+      await persistAnalysisFilesNow(curNb);
       if(task.currentController === ctrl) task.currentController = null;
       if(activeToolAbortController === ctrl) activeToolAbortController = null;
       studioRunning = false;
@@ -9104,6 +10346,7 @@ async function runStudio(type, opts){
       }
       if(studioTaskWasStopped(task)) return;
       const counts = batchCounts(task.batchItems);
+      await persistAnalysisFilesNow(curNb);
       showResultBatchTask(task, '自动数字化批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', '', false);
       appendAI('自动数字化批量处理完成：共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个。\n' +
         task.batchItems.map(function(item){
@@ -9191,6 +10434,7 @@ async function runStudio(type, opts){
       }
       if(studioTaskWasStopped(task)) return;
       const counts = batchCounts(task.batchItems);
+      await persistAnalysisFilesNow(curNb);
       showResultBatchTask(task, 'ECG 信号补全批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', 'green', false);
       appendAI('ECG 信号补全批量处理完成：共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个。\n' +
         task.batchItems.map(function(item){ return item.name + '：' + (item.status === 'success' ? ('SUCCESS · CSV：' + item.outputName) : ('FAIL · ' + item.message)); }).join('\n'));
@@ -9342,6 +10586,7 @@ async function runStudio(type, opts){
       }
       if(studioTaskWasStopped(task)) return;
       const counts = batchCounts(task.batchItems);
+      await persistAnalysisFilesNow(curNb);
       showResultBatchTask(task, 'ECG 心电组学批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', '', false);
       const firstDurationFailure = (task.batchItems || []).find(function(item){
         return item && item.status === 'failed' && parseEcgFeatureDurationIssue(item.message);
@@ -9795,6 +11040,10 @@ function readFile(f){
 async function persistSourceFileIfNeeded(srcObj, rawFile, nb){
   if(!srcObj || !rawFile || srcObj.fileId || srcObj.serverFileId) return true;
   try{
+    cacheSourceFileLocally(srcObj, rawFile, nb || curNb, {
+      text: typeof srcObj.content === 'string' ? srcObj.content : '',
+      dataUrl: typeof srcObj.imageDataUrl === 'string' ? srcObj.imageDataUrl : ''
+    }).catch(function(){});
     const fd = new FormData();
     fd.append('file', rawFile, srcObj.name || rawFile.name || 'source.bin');
     fd.append('source', 'heartos');
@@ -9804,6 +11053,10 @@ async function persistSourceFileIfNeeded(srcObj, rawFile, nb){
     srcObj.fileId = out.id || '';
     srcObj.serverFileId = out.id || '';
     srcObj.fileUrl = out.url || out.fileUrl || '';
+    cacheSourceFileLocally(srcObj, rawFile, nb || curNb, {
+      text: typeof srcObj.content === 'string' ? srcObj.content : '',
+      dataUrl: typeof srcObj.imageDataUrl === 'string' ? srcObj.imageDataUrl : ''
+    }).catch(function(){});
     return true;
   }catch(_){
     return false;
@@ -9874,6 +11127,10 @@ function appendSourceRecord(name,type,content,imageDataUrl,rawFile,nb){
   const id=nextSourceId(targetSources);
   const srcObj = {id,name,type,checked:true,content,imageDataUrl:imageDataUrl||null,fileObj:rawFile||null,__sourceListRef:targetSources};
   targetSources.push(srcObj);
+  cacheSourceFileLocally(srcObj, rawFile || null, targetNotebook, {
+    text: typeof content === 'string' ? content : '',
+    dataUrl: imageDataUrl || ''
+  }).catch(function(){});
   if(targetNotebook && targetNotebook !== curNb) targetNotebook.sources = targetSources;
   if(targetNotebook === curNb){
     window.sources = sources;
@@ -10076,32 +11333,115 @@ if(!aiConfig.provider) aiConfig.provider = 'zhipu';
 if(!aiConfig.model) aiConfig.model = 'glm-4-flash';
 aiConfig.key = '';
 let aiServerKeyState = {};
+function normalizeBackendBaseUrl(url){
+  return String(url || '').trim().replace(/\/+$/,'');
+}
+function isLocalHostName(host){
+  const safe = String(host || '').trim().toLowerCase();
+  return safe === '127.0.0.1' || safe === 'localhost' || safe === '';
+}
+function parseBackendBaseUrl(url){
+  const safe = normalizeBackendBaseUrl(url);
+  if(!safe) return null;
+  try{ return new URL(safe); }catch(_){ return null; }
+}
+function isLocalBackendBase(url){
+  const parsed = parseBackendBaseUrl(url);
+  return !!(parsed && isLocalHostName(parsed.hostname));
+}
+function buildBackendBaseCandidates(preferredBase){
+  const list = [];
+  function add(base){
+    const normalized = normalizeBackendBaseUrl(base);
+    if(!normalized || list.indexOf(normalized) >= 0) return;
+    list.push(normalized);
+  }
+  let manualOverride = '';
+  let configured = '';
+  let lastGood = '';
+  try{ manualOverride = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_override') || ''); }catch(_){}
+  try{ configured = normalizeBackendBaseUrl(window.HEARTOS_BACKEND_BASE_URL || ''); }catch(_){}
+  try{ lastGood = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_last_good') || ''); }catch(_){}
+  add(preferredBase);
+  add(manualOverride);
+  add(lastGood);
+  add(configured);
+  const host = String((window.location && window.location.hostname) || '').toLowerCase();
+  if(isLocalHostName(host)){
+    add('http://127.0.0.1:9000');
+    add('http://127.0.0.1:9010');
+    add('http://localhost:9000');
+    add('http://localhost:9010');
+  }
+  return list;
+}
 function resolveBackendBaseUrl(){
   var manualOverride = '';
-  try{ manualOverride = String(localStorage.getItem('heartos_backend_base_override') || '').replace(/\/+$/,''); }catch(_){}
-  var configured = String(window.HEARTOS_BACKEND_BASE_URL || '').replace(/\/+$/,'');
-  var normalized = manualOverride || configured;
+  var configured = '';
+  var lastGood = '';
+  try{ manualOverride = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_override') || ''); }catch(_){}
+  try{ configured = normalizeBackendBaseUrl(window.HEARTOS_BACKEND_BASE_URL || ''); }catch(_){}
+  try{ lastGood = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_last_good') || ''); }catch(_){}
+  var normalized = manualOverride || lastGood || configured;
   var host = String((window.location && window.location.hostname) || '').toLowerCase();
-  var isLocalHost = host === '127.0.0.1' || host === 'localhost' || host === '';
-  if(isLocalHost && !manualOverride && (!normalized || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(normalized))){
-    normalized = 'http://127.0.0.1:9010';
-  }
-  if(normalized === 'http://127.0.0.1:9000' || normalized === 'http://localhost:9000'){
-    normalized = normalized.replace(':9000', ':9010');
-  }
+  var isLocalHost = isLocalHostName(host);
+  if(isLocalHost && !normalized) normalized = 'http://127.0.0.1:9000';
   try{ localStorage.removeItem('heartos_backend_base'); }catch(_){}
-  return normalized;
+  return normalizeBackendBaseUrl(normalized);
 }
 
-const HEARTOS_BACKEND_BASE_URL = resolveBackendBaseUrl();
+let HEARTOS_BACKEND_BASE_URL = resolveBackendBaseUrl();
 
-function apiUrl(path){
-  return HEARTOS_BACKEND_BASE_URL + path;
+function setBackendBaseUrl(next, reason){
+  var normalized = normalizeBackendBaseUrl(next);
+  if(!normalized) return HEARTOS_BACKEND_BASE_URL;
+  if(HEARTOS_BACKEND_BASE_URL === normalized) return HEARTOS_BACKEND_BASE_URL;
+  HEARTOS_BACKEND_BASE_URL = normalized;
+  try{ localStorage.setItem('heartos_backend_base_last_good', normalized); }catch(_){}
+  notebookDebugLog('backendBase:updated', {
+    next: normalized,
+    reason: String(reason || '')
+  });
+  return HEARTOS_BACKEND_BASE_URL;
+}
+
+function apiUrl(path, baseUrl){
+  return normalizeBackendBaseUrl(baseUrl || HEARTOS_BACKEND_BASE_URL) + path;
 }
 
 function getAuthToken(){ return localStorage.getItem('heartos_auth_token') || ''; }
 function getAuthUser(){
   try{ return JSON.parse(localStorage.getItem('heartos_auth_user')||'null'); }catch(_){ return null; }
+}
+function parseAuthTokenPayload(token){
+  var raw = String(token || '').trim();
+  if(!raw) return null;
+  var parts = raw.split('.');
+  if(parts.length < 2) return null;
+  try{
+    var base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    var pad = base64.length % 4;
+    if(pad) base64 += '='.repeat(4 - pad);
+    return JSON.parse(atob(base64));
+  }catch(_){
+    return null;
+  }
+}
+function getAuthSessionIdentity(){
+  var user = getAuthUser && getAuthUser();
+  if(user){
+    var userId = String((user.user_id || user.id || '') || '').trim();
+    var username = String((user.username || user.phone || '') || '').trim();
+    if(userId || username) return { userId:userId, username:username };
+  }
+  var payload = parseAuthTokenPayload(getAuthToken && getAuthToken());
+  if(payload && typeof payload === 'object'){
+    return {
+      userId: String((payload.uid || payload.user_id || payload.id || '') || '').trim(),
+      username: String((payload.username || payload.phone || '') || '').trim()
+    };
+  }
+  return { userId:'', username:'' };
 }
 function setAuthSession(token, user){
   if(token) localStorage.setItem('heartos_auth_token', token);
@@ -11937,17 +13277,22 @@ function buildHandEcgMeta(src, launchId){
 async function apiFetch(path, opts){
   opts = opts || {};
   var skipAuthCheck = !!opts.__skipAuthCheck;
+  var skipAuthRecovery = !!opts.__skipAuthRecovery;
+  var baseUrl = normalizeBackendBaseUrl(opts.__baseUrl || HEARTOS_BACKEND_BASE_URL);
   if(Object.prototype.hasOwnProperty.call(opts, '__skipAuthCheck')) delete opts.__skipAuthCheck;
+  if(Object.prototype.hasOwnProperty.call(opts, '__skipAuthRecovery')) delete opts.__skipAuthRecovery;
+  if(Object.prototype.hasOwnProperty.call(opts, '__baseUrl')) delete opts.__baseUrl;
   var ok = skipAuthCheck ? !!getAuthToken() : await ensureLogin();
   if(!ok) throw new Error('未登录，已取消操作');
   var headers = authHeaders(opts.headers || {});
   var finalOpts = Object.assign({}, opts, { headers: headers });
-  var resp = await fetch(apiUrl(path), finalOpts);
-  if(resp.status === 401){
+  var resp = await fetch(apiUrl(path, baseUrl), finalOpts);
+  if(resp.ok && baseUrl) setBackendBaseUrl(baseUrl, 'apiFetch');
+  if(resp.status === 401 && !skipAuthRecovery){
     clearAuthSession();
     await ensureLogin();
     finalOpts.headers = authHeaders(opts.headers || {});
-    resp = await fetch(apiUrl(path), finalOpts);
+    resp = await fetch(apiUrl(path, baseUrl), finalOpts);
   }
   return resp;
 }
@@ -12133,6 +13478,7 @@ document.addEventListener('visibilitychange', function(){
     syncCurrentNotebookState();
     scheduleSaveCurrentNotebook(true);
     scheduleSaveCurrentNotebookSources(true);
+    scheduleSaveCurrentNotebookResultFiles(true);
   }
 });
 
@@ -12142,8 +13488,10 @@ window.addEventListener('pagehide', function(){
     flushCurrentNotebookToLocalCache();
     persistNotebookKeepalive(curNb);
     persistNotebookSourcesKeepalive(curNb);
+    persistNotebookResultFilesKeepalive(curNb);
     scheduleSaveCurrentNotebook(true);
     scheduleSaveCurrentNotebookSources(true);
+    scheduleSaveCurrentNotebookResultFiles(true);
   }
 });
 
@@ -12153,6 +13501,7 @@ window.addEventListener('beforeunload', function(){
     flushCurrentNotebookToLocalCache();
     persistNotebookKeepalive(curNb);
     persistNotebookSourcesKeepalive(curNb);
+    persistNotebookResultFilesKeepalive(curNb);
   }
 });
 
@@ -12165,8 +13514,10 @@ currentStudioCardType = heartosSessionState.workspace.selectedStudioCard || '';
 if(!__heartosHistoryReady){
   ensureHistoryReadyFromLocation();
 }
+const __bootHydratedRouteNotebook = hydrateNotebookRouteFromLocalCache();
+const __bootHydratedNotebookCache = __bootHydratedRouteNotebook || hydrateNotebookSummariesFromLocal();
 reconcileVisibleAppPage();
-if(!hydrateNotebookSummariesFromLocal() && currentRouteStateFromLocation().page === 'home'){
+if(!__bootHydratedNotebookCache && currentRouteStateFromLocation().page === 'home'){
   renderHome();
 }
 updateNotebookDebugBadge();
@@ -12178,16 +13529,35 @@ async function loadAuthedAppData(){
   try{
     await loadNotebooksFromServer();
     const route = currentRouteStateFromLocation();
-    if(
-      route.page === 'notebook' &&
-      (
-        !curNb ||
-        String(curNb.id || '') !== String(route.notebookId || '') ||
-        !curNb._detailsLoaded ||
-        String(__nbDetailLoadingId || '') === String(route.notebookId || '')
-      )
-    ){
-      await restoreNotebookRouteFromLocation();
+    if(route.page === 'notebook' && route.notebookId){
+      const routeNotebookId = String(route.notebookId || '');
+      const hasVisibleNotebookDetail = !!(
+        curNb &&
+        String(curNb.id || '') === routeNotebookId &&
+        curNb._detailsLoaded
+      );
+      if(hasVisibleNotebookDetail){
+        ensureNotebookDetailLoaded(routeNotebookId).then(function(freshNb){
+          if(
+            !freshNb ||
+            !curNb ||
+            String(curNb.id || '') !== routeNotebookId ||
+            String(location.hash || '') !== notebookRouteHash(routeNotebookId)
+          ){
+            return;
+          }
+          applyNotebookToWorkspace(freshNb);
+          renderSrcs();
+          renderChat();
+          renderStudio();
+          updateCiSrc();
+          maybeAppendRefreshInterruptionNotice();
+          setSessionViewState('ready', '', '');
+          markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
+        }).catch(function(){});
+      }else{
+        await openNb(routeNotebookId, false);
+      }
     }
   }catch(e){
     const hasLocalNotebookData = Array.isArray(notebooks) && notebooks.length > 0;
@@ -12235,12 +13605,10 @@ async function initAuthBoot(){
     }
     loadAuthedAppData().catch(function(){});
     reconcileVisibleAppPage();
-    var u = getAuthUser();
-    if(u){ console.log('[heartos-auth] logged in as', u.username || u.user_id); }
     prewarmFeedbackSnapshotInBackground(false).catch(function(){});
     updateUserAvatarUI();
   }catch(e){
-    console.warn('[heartos-auth] login skipped', e && e.message ? e.message : e);
+    heartosConsoleDebug('heartos-auth', 'login skipped', e && e.message ? e.message : e);
     reconcileVisibleAppPage();
     updateUserAvatarUI();
   }
@@ -12261,6 +13629,7 @@ window.HeartOSModules.notebookPersistence = {
   persistNotebookSourcesPayload: persistNotebookSourcesPayload,
   persistNotebookKeepalive: persistNotebookKeepalive,
   persistNotebookSourcesKeepalive: persistNotebookSourcesKeepalive,
+  persistNotebookResultFilesKeepalive: persistNotebookResultFilesKeepalive,
   enqueueNotebookSave: enqueueNotebookSave,
   enqueueNotebookSourceSave: enqueueNotebookSourceSave,
   scheduleSaveCurrentNotebook: scheduleSaveCurrentNotebook,
@@ -13193,7 +14562,10 @@ document.addEventListener('keydown',function(e){
     return [];
   }
   function log(){
-    try{ console.log.apply(console, ['[heartos-final]'].concat([].slice.call(arguments))); }catch(_){}
+    try{
+      const args = ['heartos-final'].concat([].slice.call(arguments));
+      heartosConsoleDebug.apply(null, args);
+    }catch(_){}
   }
   function isImg(s){
     if(!s) return false;
@@ -14380,7 +15752,7 @@ document.addEventListener('keydown',function(e){
         var err = await resp.json().catch(function(){ return {}; });
         throw new Error(err.detail || ('HTTP ' + resp.status));
       }
-      console.log('[heartos-final] 手动数字化 CSV saved upstream:', payload.file_name);
+      heartosConsoleDebug('heartos-final', '手动数字化 CSV saved upstream', payload.file_name);
     }catch(e){
       console.warn('[heartos-final] 手动数字化 CSV upstream save failed:', e);
       if(typeof showToast === 'function'){

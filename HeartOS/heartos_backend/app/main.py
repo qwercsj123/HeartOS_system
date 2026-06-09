@@ -5,8 +5,11 @@ import base64
 import csv
 import io
 import json
+import logging
 import mimetypes
+import os
 import re
+import threading
 import time
 import uuid
 import xml.etree.ElementTree as ET
@@ -75,6 +78,12 @@ from .schemas import (
 APP_VERSION = "1.4.1"
 PLATFORM_NAME = "HeartOS"
 LEGACY_PLACEHOLDER_NOTEBOOK_IDS = {"boot"}
+MAX_PERSISTED_NOTEBOOK_MSG_HTML = 20_000
+NOTEBOOK_DEBUG_ENABLED = str(os.getenv("HEARTOS_NOTEBOOK_DEBUG", "0")).strip().lower() in {"1", "true", "yes", "on"}
+LOGGER = logging.getLogger("heartos.notebook")
+NOTEBOOK_DEBUG_MAX_STRING = 240
+NOTEBOOK_DEBUG_MAX_ARRAY = 8
+NOTEBOOK_DEBUG_MAX_KEYS = 20
 DEFAULT_CHAT_SYSTEM = (
     "我是 HeartOS 的智能助手，可协助完成心电图数字化、ECG 心电组学、信号补全和心电数据分析。"
     "当用户询问“你是谁”“你是做什么的”时，请优先使用这句身份介绍，并围绕 HeartOS 的心电相关能力展开回答；"
@@ -266,10 +275,15 @@ AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json"
 NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
 NOTEBOOK_SOURCES_PATH = (Path(settings.users_file).resolve().parent / "notebook_sources.json").resolve()
 NOTEBOOK_TOMBSTONES_PATH = (Path(settings.users_file).resolve().parent / "notebook_tombstones.json").resolve()
+NOTEBOOK_RESULT_FILES_PATH = (Path(settings.users_file).resolve().parent / "notebook_result_files.json").resolve()
 FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
 FEEDBACK_MAX_IMAGES = 4
 FEEDBACK_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}
 FEEDBACK_STATUS_VALUES = {"new", "processing", "resolved"}
+NOTEBOOKS_DB_LOCK = threading.RLock()
+NOTEBOOK_SOURCES_DB_LOCK = threading.RLock()
+NOTEBOOK_RESULT_FILES_DB_LOCK = threading.RLock()
+NOTEBOOK_TOMBSTONES_DB_LOCK = threading.RLock()
 
 
 def _load_file_meta() -> dict[str, Any]:
@@ -300,6 +314,51 @@ def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
     temp_path = path.with_suffix(path.suffix + ".tmp")
     temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     temp_path.replace(path)
+
+
+def _sanitize_notebook_debug_value(value: Any, depth: int = 0) -> Any:
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= NOTEBOOK_DEBUG_MAX_STRING else f"{value[:NOTEBOOK_DEBUG_MAX_STRING]}…({len(value)})"
+    if isinstance(value, list):
+        if depth >= 2:
+            return f"[array:{len(value)}]"
+        items = [_sanitize_notebook_debug_value(entry, depth + 1) for entry in value[:NOTEBOOK_DEBUG_MAX_ARRAY]]
+        if len(value) > NOTEBOOK_DEBUG_MAX_ARRAY:
+            items.append(f"[+{len(value) - NOTEBOOK_DEBUG_MAX_ARRAY} more]")
+        return items
+    if isinstance(value, dict):
+        if depth >= 2:
+            return "[object]"
+        out: dict[str, Any] = {}
+        keys = list(value.keys())
+        for key in keys[:NOTEBOOK_DEBUG_MAX_KEYS]:
+            out[str(key)] = _sanitize_notebook_debug_value(value.get(key), depth + 1)
+        if len(keys) > NOTEBOOK_DEBUG_MAX_KEYS:
+            out["__truncatedKeys"] = len(keys) - NOTEBOOK_DEBUG_MAX_KEYS
+        return out
+    return str(value)
+
+
+def _notebook_debug(event: str, **payload: Any) -> None:
+    if not NOTEBOOK_DEBUG_ENABLED:
+        return
+    try:
+        LOGGER.warning(
+            "[heartos-nb-debug] %s",
+            json.dumps(
+                {
+                    "event": event,
+                    "pid": os.getpid(),
+                    **{key: _sanitize_notebook_debug_value(value) for key, value in payload.items()},
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+        )
+    except Exception:
+        LOGGER.warning("[heartos-nb-debug] %s %s", event, payload)
 
 
 def _normalize_feedback_status(raw: Any) -> str:
@@ -336,6 +395,26 @@ def _feedback_attachment_items(raw: Any) -> list[dict[str, Any]]:
             }
         )
     return safe_attachments
+
+
+def _build_file_api_path(file_id: str) -> str:
+    safe_id = str(file_id or "").strip()
+    if not safe_id:
+        return ""
+    return f"/api/files/{safe_id}"
+
+
+def _canonicalize_file_url(file_id: Any, raw_url: Any = "") -> str:
+    safe_file_id = str(file_id or "").strip()
+    if safe_file_id:
+        return _build_file_api_path(safe_file_id)
+    safe_url = str(raw_url or "").strip()
+    if not safe_url:
+        return ""
+    match = re.search(r"/api/files/([^/?#]+)", safe_url)
+    if match:
+        return _build_file_api_path(match.group(1))
+    return safe_url
 
 
 def _feedback_message_item(raw: Any, *, fallback_user: dict[str, Any] | None = None) -> dict[str, Any] | None:
@@ -419,6 +498,8 @@ def _normalize_source_item(raw: Any) -> dict[str, Any] | None:
         "type": str(raw.get("type") or "file").lower(),
         "checked": bool(raw.get("checked")),
     }
+    file_id = str(raw.get("fileId") or raw.get("serverFileId") or "").strip()
+    file_url = _canonicalize_file_url(file_id, raw.get("fileUrl"))
     for key in (
         "fileId",
         "serverFileId",
@@ -437,18 +518,140 @@ def _normalize_source_item(raw: Any) -> dict[str, Any] | None:
         "finding",
         "finding_text",
         "mime",
+        "analysisFileId",
+        "fromAnalysisResult",
     ):
         if key in raw:
             item[key] = raw.get(key)
+    if file_id:
+        item["fileId"] = file_id
+        item["serverFileId"] = str(raw.get("serverFileId") or file_id)
+    if file_url:
+        item["fileUrl"] = file_url
     return item
 
 
+def _normalize_result_file_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    result_id = str(raw.get("id") or "").strip()
+    name = str(raw.get("name") or "").strip()
+    if not result_id and not name:
+        return None
+    file_id = str(raw.get("fileId") or raw.get("serverFileId") or "").strip()
+    item = {
+        "id": result_id or ("rf_" + uuid.uuid4().hex[:12]),
+        "name": name or "analysis.txt",
+        "type": str(raw.get("type") or "txt").lower(),
+        "mime": str(raw.get("mime") or "text/plain;charset=utf-8"),
+        "content": str(raw.get("content") or ""),
+        "source": str(raw.get("source") or ""),
+        "sourceName": str(raw.get("sourceName") or ""),
+        "sourceId": str(raw.get("sourceId") or ""),
+        "batchId": str(raw.get("batchId") or ""),
+        "parentSourceId": str(raw.get("parentSourceId") or ""),
+        "generatedBy": str(raw.get("generatedBy") or ""),
+        "sampleRate": int(raw.get("sampleRate") or 0) if str(raw.get("sampleRate") or "").strip() else None,
+        "sampleRateSource": str(raw.get("sampleRateSource") or ""),
+        "createdAt": raw.get("createdAt") or "",
+        "fileId": file_id,
+        "serverFileId": str(raw.get("serverFileId") or file_id),
+        "fileUrl": _canonicalize_file_url(file_id, raw.get("fileUrl")),
+    }
+    return item
+
+
+def _normalize_result_file_bucket_entry(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, dict):
+        items = entry.get("items")
+        updated_at = entry.get("updatedAt")
+        normalized_items = [
+            item for item in (_normalize_result_file_item(raw) for raw in (items or [])) if item
+        ] if isinstance(items, list) else []
+        return {
+            "items": normalized_items,
+            "updatedAt": int(updated_at or 0),
+        }
+    if isinstance(entry, list):
+        return {
+            "items": [item for item in (_normalize_result_file_item(raw) for raw in entry) if item],
+            "updatedAt": 0,
+        }
+    return {"items": [], "updatedAt": 0}
+
+
+def _load_notebook_result_files_db() -> dict[str, Any]:
+    with NOTEBOOK_RESULT_FILES_DB_LOCK:
+        return _load_json_file(NOTEBOOK_RESULT_FILES_PATH)
+
+
+def _save_notebook_result_files_db(payload: dict[str, Any]) -> None:
+    with NOTEBOOK_RESULT_FILES_DB_LOCK:
+        _save_json_file(NOTEBOOK_RESULT_FILES_PATH, payload)
+
+
+def _get_user_notebook_result_files(uid: str) -> dict[str, Any]:
+    _purge_legacy_placeholder_notebooks(uid)
+    db = _load_notebook_result_files_db()
+    bucket = db.get(uid, {})
+    return bucket if isinstance(bucket, dict) else {}
+
+
+def _get_notebook_result_files(uid: str, notebook_id: str) -> list[dict[str, Any]]:
+    bucket = _get_user_notebook_result_files(uid)
+    entry = _normalize_result_file_bucket_entry(bucket.get(str(notebook_id)))
+    items = entry.get("items") or []
+    return items if isinstance(items, list) else []
+
+
+def _get_notebook_result_files_updated_at(uid: str, notebook_id: str) -> int:
+    bucket = _get_user_notebook_result_files(uid)
+    entry = _normalize_result_file_bucket_entry(bucket.get(str(notebook_id)))
+    try:
+        return int(entry.get("updatedAt") or 0)
+    except Exception:
+        return 0
+
+
+def _set_notebook_result_files(uid: str, notebook_id: str, items: list[dict[str, Any]], *, updated_at: int = 0) -> bool:
+    with NOTEBOOK_RESULT_FILES_DB_LOCK:
+        db = _load_json_file(NOTEBOOK_RESULT_FILES_PATH)
+        bucket = db.get(uid, {})
+        if not isinstance(bucket, dict):
+            bucket = {}
+        safe_updated_at = int(updated_at or 0)
+        existing_entry = _normalize_result_file_bucket_entry(bucket.get(str(notebook_id)))
+        existing_updated_at = int(existing_entry.get("updatedAt") or 0)
+        normalized_items = [item for item in (_normalize_result_file_item(raw) for raw in (items or [])) if item]
+        if safe_updated_at and existing_updated_at and existing_updated_at > safe_updated_at:
+            return False
+        bucket[str(notebook_id)] = {
+            "items": normalized_items,
+            "updatedAt": safe_updated_at,
+        }
+        db[uid] = bucket
+        _save_json_file(NOTEBOOK_RESULT_FILES_PATH, db)
+        return True
+
+
+def _delete_notebook_result_files(uid: str, notebook_id: str) -> None:
+    with NOTEBOOK_RESULT_FILES_DB_LOCK:
+        db = _load_json_file(NOTEBOOK_RESULT_FILES_PATH)
+        bucket = db.get(uid, {})
+        if isinstance(bucket, dict) and str(notebook_id) in bucket:
+            del bucket[str(notebook_id)]
+            db[uid] = bucket
+            _save_json_file(NOTEBOOK_RESULT_FILES_PATH, db)
+
+
 def _load_notebook_sources_db() -> dict[str, Any]:
-    return _load_json_file(NOTEBOOK_SOURCES_PATH)
+    with NOTEBOOK_SOURCES_DB_LOCK:
+        return _load_json_file(NOTEBOOK_SOURCES_PATH)
 
 
 def _save_notebook_sources_db(payload: dict[str, Any]) -> None:
-    _save_json_file(NOTEBOOK_SOURCES_PATH, payload)
+    with NOTEBOOK_SOURCES_DB_LOCK:
+        _save_json_file(NOTEBOOK_SOURCES_PATH, payload)
 
 
 def _is_placeholder_notebook_id(notebook_id: Any) -> bool:
@@ -460,16 +663,17 @@ def _purge_legacy_placeholder_notebooks(uid: str) -> None:
     if not safe_uid:
         return
 
-    notebooks_db = _load_json_file(NOTEBOOKS_PATH)
-    notebook_items = notebooks_db.get(safe_uid, [])
-    if isinstance(notebook_items, list):
-        cleaned_items = [
-            item for item in notebook_items
-            if not (isinstance(item, dict) and _is_placeholder_notebook_id(item.get("id")))
-        ]
-        if len(cleaned_items) != len(notebook_items):
-            notebooks_db[safe_uid] = cleaned_items
-            _save_json_file(NOTEBOOKS_PATH, notebooks_db)
+    with NOTEBOOKS_DB_LOCK:
+        notebooks_db = _load_json_file(NOTEBOOKS_PATH)
+        notebook_items = notebooks_db.get(safe_uid, [])
+        if isinstance(notebook_items, list):
+            cleaned_items = [
+                item for item in notebook_items
+                if not (isinstance(item, dict) and _is_placeholder_notebook_id(item.get("id")))
+            ]
+            if len(cleaned_items) != len(notebook_items):
+                notebooks_db[safe_uid] = cleaned_items
+                _save_json_file(NOTEBOOKS_PATH, notebooks_db)
 
     sources_db = _load_notebook_sources_db()
     source_bucket = sources_db.get(safe_uid, {})
@@ -482,6 +686,18 @@ def _purge_legacy_placeholder_notebooks(uid: str) -> None:
         if removed:
             sources_db[safe_uid] = source_bucket
             _save_notebook_sources_db(sources_db)
+
+    result_files_db = _load_notebook_result_files_db()
+    result_file_bucket = result_files_db.get(safe_uid, {})
+    if isinstance(result_file_bucket, dict):
+        removed = False
+        for notebook_id in list(result_file_bucket.keys()):
+            if _is_placeholder_notebook_id(notebook_id):
+                del result_file_bucket[notebook_id]
+                removed = True
+        if removed:
+            result_files_db[safe_uid] = result_file_bucket
+            _save_notebook_result_files_db(result_files_db)
 
     tombstones_db = _load_notebook_tombstones_db()
     tombstone_bucket = tombstones_db.get(safe_uid, {})
@@ -496,7 +712,26 @@ def _purge_legacy_placeholder_notebooks(uid: str) -> None:
             _save_notebook_tombstones_db(tombstones_db)
 
 
-def _get_user_notebook_sources(uid: str) -> dict[str, list[dict[str, Any]]]:
+def _normalize_source_bucket_entry(entry: Any) -> dict[str, Any]:
+    if isinstance(entry, dict):
+        items = entry.get("items")
+        updated_at = entry.get("updatedAt")
+        normalized_items = [
+            item for item in (_normalize_source_item(raw) for raw in (items or [])) if item
+        ] if isinstance(items, list) else []
+        return {
+            "items": normalized_items,
+            "updatedAt": int(updated_at or 0),
+        }
+    if isinstance(entry, list):
+        return {
+            "items": [item for item in (_normalize_source_item(raw) for raw in entry) if item],
+            "updatedAt": 0,
+        }
+    return {"items": [], "updatedAt": 0}
+
+
+def _get_user_notebook_sources(uid: str) -> dict[str, Any]:
     _purge_legacy_placeholder_notebooks(uid)
     db = _load_notebook_sources_db()
     bucket = db.get(uid, {})
@@ -505,27 +740,48 @@ def _get_user_notebook_sources(uid: str) -> dict[str, list[dict[str, Any]]]:
 
 def _get_conversation_sources(uid: str, notebook_id: str) -> list[dict[str, Any]]:
     bucket = _get_user_notebook_sources(uid)
-    items = bucket.get(str(notebook_id), [])
+    entry = _normalize_source_bucket_entry(bucket.get(str(notebook_id)))
+    items = entry.get("items") or []
     return items if isinstance(items, list) else []
 
 
-def _set_conversation_sources(uid: str, notebook_id: str, sources: list[dict[str, Any]]) -> None:
-    db = _load_notebook_sources_db()
-    bucket = db.get(uid, {})
-    if not isinstance(bucket, dict):
-        bucket = {}
-    bucket[str(notebook_id)] = sources
-    db[uid] = bucket
-    _save_notebook_sources_db(db)
+def _get_conversation_sources_updated_at(uid: str, notebook_id: str) -> int:
+    bucket = _get_user_notebook_sources(uid)
+    entry = _normalize_source_bucket_entry(bucket.get(str(notebook_id)))
+    try:
+        return int(entry.get("updatedAt") or 0)
+    except Exception:
+        return 0
+
+
+def _set_conversation_sources(uid: str, notebook_id: str, sources: list[dict[str, Any]], *, updated_at: int = 0) -> bool:
+    with NOTEBOOK_SOURCES_DB_LOCK:
+        db = _load_json_file(NOTEBOOK_SOURCES_PATH)
+        bucket = db.get(uid, {})
+        if not isinstance(bucket, dict):
+            bucket = {}
+        safe_updated_at = int(updated_at or 0)
+        existing_entry = _normalize_source_bucket_entry(bucket.get(str(notebook_id)))
+        existing_updated_at = int(existing_entry.get("updatedAt") or 0)
+        if safe_updated_at and existing_updated_at and existing_updated_at > safe_updated_at:
+            return False
+        bucket[str(notebook_id)] = {
+            "items": sources if isinstance(sources, list) else [],
+            "updatedAt": safe_updated_at,
+        }
+        db[uid] = bucket
+        _save_json_file(NOTEBOOK_SOURCES_PATH, db)
+        return True
 
 
 def _delete_conversation_sources(uid: str, notebook_id: str) -> None:
-    db = _load_notebook_sources_db()
-    bucket = db.get(uid, {})
-    if isinstance(bucket, dict) and str(notebook_id) in bucket:
-        del bucket[str(notebook_id)]
-        db[uid] = bucket
-        _save_notebook_sources_db(db)
+    with NOTEBOOK_SOURCES_DB_LOCK:
+        db = _load_json_file(NOTEBOOK_SOURCES_PATH)
+        bucket = db.get(uid, {})
+        if isinstance(bucket, dict) and str(notebook_id) in bucket:
+            del bucket[str(notebook_id)]
+            db[uid] = bucket
+            _save_json_file(NOTEBOOK_SOURCES_PATH, db)
 
 
 def _source_file_ids(items: list[dict[str, Any]] | None) -> list[str]:
@@ -545,11 +801,12 @@ def _count_user_source_file_refs(uid: str, file_id: str, *, exclude_notebook_id:
         return 0
     bucket = _get_user_notebook_sources(uid)
     refs = 0
-    for notebook_id, items in bucket.items():
+    for notebook_id, raw_entry in bucket.items():
         if exclude_notebook_id and str(notebook_id) == str(exclude_notebook_id):
             continue
+        items = _normalize_source_bucket_entry(raw_entry).get("items") or []
         if not isinstance(items, list):
-            continue
+            items = []
         refs += sum(1 for candidate in _source_file_ids(items) if candidate == file_id)
     return refs
 
@@ -577,11 +834,13 @@ def _delete_uploaded_file_record(file_id: str, *, expected_user_id: str = "") ->
 
 
 def _load_notebook_tombstones_db() -> dict[str, Any]:
-    return _load_json_file(NOTEBOOK_TOMBSTONES_PATH)
+    with NOTEBOOK_TOMBSTONES_DB_LOCK:
+        return _load_json_file(NOTEBOOK_TOMBSTONES_PATH)
 
 
 def _save_notebook_tombstones_db(payload: dict[str, Any]) -> None:
-    _save_json_file(NOTEBOOK_TOMBSTONES_PATH, payload)
+    with NOTEBOOK_TOMBSTONES_DB_LOCK:
+        _save_json_file(NOTEBOOK_TOMBSTONES_PATH, payload)
 
 
 def _get_user_notebook_tombstones(uid: str) -> dict[str, int]:
@@ -663,7 +922,7 @@ def _store_upload_bytes(
         "original_name": filename,
     }
     _save_file_meta(meta)
-    url = f"{settings.public_base_url}/api/files/{safe_name}"
+    url = _build_file_api_path(safe_name)
     return {
         "id": safe_name,
         "name": filename or safe_name,
@@ -2726,21 +2985,102 @@ def _normalize_notebook_item(raw: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="notebook id is required")
     msgs = raw.get("msgs")
     events = raw.get("events")
-    analysis_files = raw.get("analysisFiles")
+    source_items = [src for src in (_normalize_source_item(item) for item in (raw.get("sources") or [])) if src] if isinstance(raw.get("sources"), list) else []
+    analysis_files = [
+        item for item in (_normalize_result_file_item(entry) for entry in (raw.get("analysisFiles") or [])) if item
+    ] if isinstance(raw.get("analysisFiles"), list) else []
+    updated_at = int(raw.get("updatedAt") or 0)
+    analysis_files_updated_at = int(raw.get("analysisFilesUpdatedAt") or updated_at or 0)
     return {
         "id": nid,
         "title": str(raw.get("title") or "New Conversation"),
         "icon": str(raw.get("icon") or "📔"),
         "color": str(raw.get("color") or "#e8f0fe"),
         "date": str(raw.get("date") or ""),
-        "sources": [],
-        "msgs": msgs if isinstance(msgs, list) else [],
-        "events": events if isinstance(events, list) else [],
-        "analysisFiles": analysis_files if isinstance(analysis_files, list) else [],
+        "sources": source_items,
+        "msgs": _normalize_notebook_msgs(msgs),
+        "events": _normalize_notebook_events(events),
+        "analysisFiles": analysis_files,
+        "analysisFilesUpdatedAt": analysis_files_updated_at,
         "sumHtml": str(raw.get("sumHtml") or ""),
         "suggHtml": str(raw.get("suggHtml") or ""),
-        "updatedAt": int(raw.get("updatedAt") or 0),
+        "updatedAt": updated_at,
     }
+
+
+def _normalize_notebook_msg_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    item: dict[str, Any] = {}
+    for key, value in raw.items():
+        if value is None:
+            continue
+        if key == "_html":
+            html = str(value or "")
+            if html and len(html) <= MAX_PERSISTED_NOTEBOOK_MSG_HTML:
+                item["_html"] = html
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            item[key] = value
+            continue
+        if isinstance(value, list):
+            try:
+                item[key] = json.loads(json.dumps(value, ensure_ascii=False))
+            except Exception:
+                continue
+            continue
+        if isinstance(value, dict):
+            try:
+                item[key] = json.loads(json.dumps(value, ensure_ascii=False))
+            except Exception:
+                continue
+    if not item.get("content") and raw.get("content"):
+        item["content"] = str(raw.get("content") or "")
+    if not item.get("role") and raw.get("role"):
+        item["role"] = str(raw.get("role") or "")
+    if not item.get("kind") and raw.get("kind"):
+        item["kind"] = str(raw.get("kind") or "")
+    if not item.get("type") and raw.get("type"):
+        item["type"] = str(raw.get("type") or "")
+    if "createdAt" not in item and raw.get("createdAt") is not None:
+        item["createdAt"] = raw.get("createdAt")
+    return item or None
+
+
+def _normalize_notebook_msgs(raw_msgs: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_msgs, list):
+        return []
+    return [item for item in (_normalize_notebook_msg_item(entry) for entry in raw_msgs) if item]
+
+
+def _normalize_notebook_event_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    item: dict[str, Any] = {}
+    for key, value in raw.items():
+        if value is None:
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            item[key] = value
+            continue
+        if isinstance(value, list):
+            try:
+                item[key] = json.loads(json.dumps(value, ensure_ascii=False))
+            except Exception:
+                continue
+            continue
+        if isinstance(value, dict):
+            try:
+                item[key] = json.loads(json.dumps(value, ensure_ascii=False))
+            except Exception:
+                continue
+    return item or None
+
+
+def _normalize_notebook_events(raw_events: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_events, list):
+        return []
+    return [item for item in (_normalize_notebook_event_item(entry) for entry in raw_events) if item]
 
 
 def _notebook_summary(raw: dict[str, Any], source_count: int | None = None) -> dict[str, Any]:
@@ -2760,27 +3100,200 @@ def _notebook_summary(raw: dict[str, Any], source_count: int | None = None) -> d
     }
 
 
+def _merged_result_files_for_notebook(raw: dict[str, Any], linked_items: list[dict[str, Any]], linked_updated_at: int) -> list[dict[str, Any]]:
+    migrated = [
+        item for item in (_normalize_result_file_item(entry) for entry in (raw.get("analysisFiles") or [])) if item
+    ] if isinstance(raw.get("analysisFiles"), list) else []
+    notebook_updated_at = int(raw.get("analysisFilesUpdatedAt") or raw.get("updatedAt") or 0)
+    if not linked_items:
+        return migrated
+    if migrated and notebook_updated_at > int(linked_updated_at or 0) and len(migrated) >= len(linked_items):
+        return migrated
+    return linked_items
+
+
+def _merged_source_items_for_notebook(raw: dict[str, Any], linked_sources: list[dict[str, Any]], source_updated_at: int) -> list[dict[str, Any]]:
+    migrated = [src for src in (_normalize_source_item(item) for item in (raw.get("sources") or [])) if src] if isinstance(raw.get("sources"), list) else []
+    notebook_updated_at = int(raw.get("updatedAt") or 0)
+    if not linked_sources:
+        return migrated
+    if migrated and notebook_updated_at > int(source_updated_at or 0) and len(migrated) >= len(linked_sources):
+        return migrated
+    return linked_sources
+
+
+def _pick_notebook_component_items(
+    primary_items: list[dict[str, Any]],
+    primary_updated_at: int,
+    secondary_items: list[dict[str, Any]],
+    secondary_updated_at: int,
+) -> tuple[list[dict[str, Any]], int]:
+    safe_primary = primary_items if isinstance(primary_items, list) else []
+    safe_secondary = secondary_items if isinstance(secondary_items, list) else []
+    primary_ts = int(primary_updated_at or 0)
+    secondary_ts = int(secondary_updated_at or 0)
+    if primary_ts and secondary_ts:
+        if primary_ts > secondary_ts:
+            return safe_primary, primary_ts
+        if primary_ts < secondary_ts:
+            return safe_secondary, secondary_ts
+    if len(safe_primary) > len(safe_secondary):
+        return safe_primary, primary_ts or secondary_ts
+    if len(safe_primary) < len(safe_secondary):
+        return safe_secondary, secondary_ts or primary_ts
+    if primary_ts >= secondary_ts:
+        return safe_primary, primary_ts or secondary_ts
+    return safe_secondary, secondary_ts or primary_ts
+
+
+def _merge_notebook_aggregate(
+    raw: dict[str, Any],
+    legacy_sources: list[dict[str, Any]] | None = None,
+    legacy_sources_updated_at: int = 0,
+    legacy_result_files: list[dict[str, Any]] | None = None,
+    legacy_result_files_updated_at: int = 0,
+) -> dict[str, Any]:
+    item = _normalize_notebook_item(raw)
+    merged_sources, _ = _pick_notebook_component_items(
+        item.get("sources") if isinstance(item.get("sources"), list) else [],
+        int(item.get("updatedAt") or 0),
+        legacy_sources or [],
+        int(legacy_sources_updated_at or 0),
+    )
+    merged_analysis_files, merged_analysis_updated_at = _pick_notebook_component_items(
+        item.get("analysisFiles") if isinstance(item.get("analysisFiles"), list) else [],
+        int(item.get("analysisFilesUpdatedAt") or item.get("updatedAt") or 0),
+        legacy_result_files or [],
+        int(legacy_result_files_updated_at or 0),
+    )
+    item["sources"] = merged_sources
+    item["analysisFiles"] = merged_analysis_files
+    item["analysisFilesUpdatedAt"] = int(
+        max(
+            int(item.get("analysisFilesUpdatedAt") or 0),
+            int(merged_analysis_updated_at or 0),
+            int(item.get("updatedAt") or 0),
+        )
+    )
+    return item
+
+
+def _notebook_items_match(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return _normalize_notebook_item(left) == _normalize_notebook_item(right)
+
+
+def _persist_notebook_legacy_mirrors(uid: str, item: dict[str, Any]) -> None:
+    notebook_id = str(item.get("id") or "")
+    if not notebook_id:
+        return
+    _set_conversation_sources(
+        uid,
+        notebook_id,
+        item.get("sources") if isinstance(item.get("sources"), list) else [],
+        updated_at=int(item.get("updatedAt") or 0),
+    )
+    _set_notebook_result_files(
+        uid,
+        notebook_id,
+        item.get("analysisFiles") if isinstance(item.get("analysisFiles"), list) else [],
+        updated_at=int(item.get("analysisFilesUpdatedAt") or item.get("updatedAt") or 0),
+    )
+
+
+def _save_notebook_item(uid: str, item: dict[str, Any]) -> None:
+    normalized = _normalize_notebook_item(item)
+    with NOTEBOOKS_DB_LOCK:
+        db = _load_json_file(NOTEBOOKS_PATH)
+        items = db.get(uid, [])
+        if not isinstance(items, list):
+            items = []
+        replaced = False
+        for index, existing in enumerate(items):
+            if isinstance(existing, dict) and str(existing.get("id") or "") == normalized["id"]:
+                items[index] = normalized
+                replaced = True
+                break
+        if not replaced:
+            items.insert(0, normalized)
+        db[uid] = items
+        _save_json_file(NOTEBOOKS_PATH, db)
+    _notebook_debug(
+        "save_notebook_item",
+        uid=uid,
+        notebookId=normalized["id"],
+        sourceCount=len(normalized.get("sources") or []),
+        analysisCount=len(normalized.get("analysisFiles") or []),
+        updatedAt=int(normalized.get("updatedAt") or 0),
+        analysisFilesUpdatedAt=int(normalized.get("analysisFilesUpdatedAt") or 0),
+    )
+
+
+def _load_merged_notebook_item(uid: str, notebook_id: str, *, persist: bool = False) -> dict[str, Any] | None:
+    safe_id = str(notebook_id or "")
+    if not safe_id:
+        return None
+    with NOTEBOOKS_DB_LOCK:
+        db = _load_json_file(NOTEBOOKS_PATH)
+        items = db.get(uid, [])
+        if not isinstance(items, list):
+            items = []
+    raw_item = None
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id") or "") == safe_id:
+            raw_item = item
+            break
+    if raw_item is None:
+        return None
+    merged = _merge_notebook_aggregate(
+        raw_item,
+        _get_conversation_sources(uid, safe_id),
+        _get_conversation_sources_updated_at(uid, safe_id),
+        _get_notebook_result_files(uid, safe_id),
+        _get_notebook_result_files_updated_at(uid, safe_id),
+    )
+    _notebook_debug(
+        "load_merged_notebook_item",
+        uid=uid,
+        notebookId=safe_id,
+        persist=persist,
+        rawSourceCount=len(raw_item.get("sources") or []) if isinstance(raw_item.get("sources"), list) else 0,
+        rawAnalysisCount=len(raw_item.get("analysisFiles") or []) if isinstance(raw_item.get("analysisFiles"), list) else 0,
+        mergedSourceCount=len(merged.get("sources") or []) if isinstance(merged.get("sources"), list) else 0,
+        mergedAnalysisCount=len(merged.get("analysisFiles") or []) if isinstance(merged.get("analysisFiles"), list) else 0,
+        updatedAt=int(merged.get("updatedAt") or 0),
+        analysisFilesUpdatedAt=int(merged.get("analysisFilesUpdatedAt") or 0),
+    )
+    if persist and not _notebook_items_match(raw_item, merged):
+        _save_notebook_item(uid, merged)
+        _persist_notebook_legacy_mirrors(uid, merged)
+    elif persist:
+        _persist_notebook_legacy_mirrors(uid, merged)
+    return merged
+
+
 @app.get("/api/notebooks")
 async def list_notebooks(summary_only: bool = False, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
     _purge_legacy_placeholder_notebooks(uid)
-    db = _load_json_file(NOTEBOOKS_PATH)
-    items = db.get(uid, [])
-    if not isinstance(items, list):
-        items = []
-    source_bucket = _get_user_notebook_sources(uid)
+    with NOTEBOOKS_DB_LOCK:
+        db = _load_json_file(NOTEBOOKS_PATH)
+        items = db.get(uid, [])
+        if not isinstance(items, list):
+            items = []
+    merged_items = [
+        _load_merged_notebook_item(uid, str(item.get("id") or ""), persist=True)
+        for item in items
+        if isinstance(item, dict)
+    ]
+    merged_items = [item for item in merged_items if isinstance(item, dict)]
     if summary_only:
         return {
             "items": [
-                _notebook_summary(
-                    item,
-                    len(source_bucket.get(str(item.get("id") or ""), [])) if isinstance(source_bucket.get(str(item.get("id") or ""), []), list) else None,
-                )
-                for item in items
-                if isinstance(item, dict)
+                _notebook_summary(item)
+                for item in merged_items
             ]
         }
-    return {"items": items}
+    return {"items": merged_items}
 
 
 @app.get("/api/notebooks/{notebook_id}")
@@ -2789,21 +3302,18 @@ async def get_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_curr
     _purge_legacy_placeholder_notebooks(uid)
     if _is_placeholder_notebook_id(notebook_id):
         raise HTTPException(status_code=404, detail="notebook not found")
-    db = _load_json_file(NOTEBOOKS_PATH)
-    items = db.get(uid, [])
-    if not isinstance(items, list):
-        items = []
-    for item in items:
-        if isinstance(item, dict) and str(item.get("id")) == str(notebook_id):
-            linked_sources = _get_conversation_sources(uid, notebook_id)
-            if not linked_sources and isinstance(item.get("sources"), list) and item.get("sources"):
-                migrated = [src for src in (_normalize_source_item(raw) for raw in item.get("sources")) if src]
-                if migrated:
-                    _set_conversation_sources(uid, notebook_id, migrated)
-                    linked_sources = migrated
-            merged = dict(item)
-            merged["sources"] = linked_sources
-            return {"item": merged}
+    merged = _load_merged_notebook_item(uid, notebook_id, persist=True)
+    if merged:
+        _notebook_debug(
+            "get_notebook",
+            uid=uid,
+            notebookId=notebook_id,
+            sourceCount=len(merged.get("sources") or []) if isinstance(merged.get("sources"), list) else 0,
+            analysisCount=len(merged.get("analysisFiles") or []) if isinstance(merged.get("analysisFiles"), list) else 0,
+            updatedAt=int(merged.get("updatedAt") or 0),
+            analysisFilesUpdatedAt=int(merged.get("analysisFilesUpdatedAt") or 0),
+        )
+        return {"item": merged}
     raise HTTPException(status_code=404, detail="notebook not found")
 
 
@@ -2812,37 +3322,103 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
     uid = str(user.get("id") or "")
     _purge_legacy_placeholder_notebooks(uid)
     raw_payload = payload if isinstance(payload, dict) else {}
-    raw_sources = raw_payload.get("sources")
-    source_items = [src for src in (_normalize_source_item(raw) for raw in raw_sources) if src] if isinstance(raw_sources, list) else []
-    item = _normalize_notebook_item(payload if isinstance(payload, dict) else {})
+    has_sources_field = "sources" in raw_payload
+    has_analysis_files_field = "analysisFiles" in raw_payload
+    item = _normalize_notebook_item(raw_payload)
+    _notebook_debug(
+        "upsert_notebook_incoming",
+        uid=uid,
+        notebookId=item.get("id"),
+        hasSourcesField=has_sources_field,
+        hasAnalysisFilesField=has_analysis_files_field,
+        sourceCount=len(item.get("sources") or []) if isinstance(item.get("sources"), list) else 0,
+        analysisCount=len(item.get("analysisFiles") or []) if isinstance(item.get("analysisFiles"), list) else 0,
+        updatedAt=int(item.get("updatedAt") or 0),
+        analysisFilesUpdatedAt=int(item.get("analysisFilesUpdatedAt") or 0),
+    )
     if _is_placeholder_notebook_id(item["id"]):
         raise HTTPException(status_code=422, detail="placeholder notebook id is not allowed")
 
-    db = _load_json_file(NOTEBOOKS_PATH)
-    items = db.get(uid, [])
-    if not isinstance(items, list):
-        items = []
-    tombstone_ts = _get_notebook_tombstone(uid, item["id"])
-    if tombstone_ts and int(item.get("updatedAt") or 0) <= tombstone_ts:
-        return {"ok": True, "id": item["id"], "stale": True, "deleted": True}
+    existing_merged = _load_merged_notebook_item(uid, item["id"], persist=True)
+    with NOTEBOOKS_DB_LOCK:
+        db = _load_json_file(NOTEBOOKS_PATH)
+        items = db.get(uid, [])
+        if not isinstance(items, list):
+            items = []
+        tombstone_ts = _get_notebook_tombstone(uid, item["id"])
+        if tombstone_ts and int(item.get("updatedAt") or 0) <= tombstone_ts:
+            _notebook_debug("upsert_notebook_deleted_stale", uid=uid, notebookId=item["id"], tombstoneTs=tombstone_ts, incomingUpdatedAt=int(item.get("updatedAt") or 0))
+            return {"ok": True, "id": item["id"], "stale": True, "deleted": True}
 
-    replaced = False
-    for i, existing in enumerate(items):
-        if isinstance(existing, dict) and str(existing.get("id")) == item["id"]:
-            if item["updatedAt"] and int(existing.get("updatedAt") or 0) > item["updatedAt"]:
-                return {"ok": True, "id": item["id"], "stale": True}
-            items[i] = item
-            replaced = True
-            break
-    if not replaced:
-        items.insert(0, item)
+        replaced = False
+        for i, existing in enumerate(items):
+            if isinstance(existing, dict) and str(existing.get("id")) == item["id"]:
+                existing_aggregate = existing_merged if existing_merged and str(existing_merged.get("id") or "") == item["id"] else _merge_notebook_aggregate(existing)
+                if item["updatedAt"] and int(existing_aggregate.get("updatedAt") or 0) > item["updatedAt"]:
+                    _notebook_debug(
+                        "upsert_notebook_stale",
+                        uid=uid,
+                        notebookId=item["id"],
+                        incomingUpdatedAt=int(item.get("updatedAt") or 0),
+                        existingUpdatedAt=int(existing_aggregate.get("updatedAt") or 0),
+                        existingAnalysisUpdatedAt=int(existing_aggregate.get("analysisFilesUpdatedAt") or 0),
+                        existingAnalysisCount=len(existing_aggregate.get("analysisFiles") or []) if isinstance(existing_aggregate.get("analysisFiles"), list) else 0,
+                    )
+                    return {"ok": True, "id": item["id"], "stale": True}
+                existing_analysis_updated_at = int(existing_aggregate.get("analysisFilesUpdatedAt") or existing_aggregate.get("updatedAt") or 0)
+                incoming_analysis_updated_at = int(item.get("analysisFilesUpdatedAt") or item.get("updatedAt") or 0)
+                existing_analysis_files = existing_aggregate.get("analysisFiles") if isinstance(existing_aggregate.get("analysisFiles"), list) else []
+                incoming_analysis_files = item.get("analysisFiles") if isinstance(item.get("analysisFiles"), list) else []
+                if (
+                    existing_analysis_updated_at
+                    and incoming_analysis_updated_at
+                    and (
+                        incoming_analysis_updated_at < existing_analysis_updated_at
+                        or (
+                            incoming_analysis_updated_at == existing_analysis_updated_at
+                            and len(incoming_analysis_files) < len(existing_analysis_files)
+                        )
+                    )
+                ):
+                    item["analysisFiles"] = existing_analysis_files
+                    item["analysisFilesUpdatedAt"] = existing_analysis_updated_at
+                existing_sources = existing_aggregate.get("sources") if isinstance(existing_aggregate.get("sources"), list) else []
+                if not has_analysis_files_field:
+                    item["analysisFiles"] = existing_analysis_files
+                    item["analysisFilesUpdatedAt"] = existing_analysis_updated_at
+                if not has_sources_field:
+                    item["sources"] = existing_sources
+                elif (not item.get("sources")) and existing_sources:
+                    item["sources"] = existing_sources
+                _notebook_debug(
+                    "upsert_notebook_merge_existing",
+                    uid=uid,
+                    notebookId=item["id"],
+                    mergedSourceCount=len(item.get("sources") or []) if isinstance(item.get("sources"), list) else 0,
+                    mergedAnalysisCount=len(item.get("analysisFiles") or []) if isinstance(item.get("analysisFiles"), list) else 0,
+                    updatedAt=int(item.get("updatedAt") or 0),
+                    analysisFilesUpdatedAt=int(item.get("analysisFilesUpdatedAt") or 0),
+                )
+                items[i] = item
+                replaced = True
+                break
+        if not replaced:
+            items.insert(0, item)
 
-    db[uid] = items
-    _save_json_file(NOTEBOOKS_PATH, db)
+        db[uid] = items
+        _save_json_file(NOTEBOOKS_PATH, db)
     if tombstone_ts:
         _clear_notebook_tombstone(uid, item["id"])
-    if isinstance(raw_sources, list):
-        _set_conversation_sources(uid, item["id"], source_items)
+    _persist_notebook_legacy_mirrors(uid, item)
+    _notebook_debug(
+        "upsert_notebook_saved",
+        uid=uid,
+        notebookId=item["id"],
+        sourceCount=len(item.get("sources") or []) if isinstance(item.get("sources"), list) else 0,
+        analysisCount=len(item.get("analysisFiles") or []) if isinstance(item.get("analysisFiles"), list) else 0,
+        updatedAt=int(item.get("updatedAt") or 0),
+        analysisFilesUpdatedAt=int(item.get("analysisFilesUpdatedAt") or 0),
+    )
     return {"ok": True, "id": item["id"]}
 
 
@@ -2854,15 +3430,17 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
         return {"ok": True, "deleted": 0, "deleted_file_count": 0, "kept_file_ids": []}
     linked_sources = _get_conversation_sources(uid, notebook_id)
     file_ids = sorted(set(_source_file_ids(linked_sources)))
-    db = _load_json_file(NOTEBOOKS_PATH)
-    items = db.get(uid, [])
-    if not isinstance(items, list):
-        items = []
-    before = len(items)
-    items = [it for it in items if not (isinstance(it, dict) and str(it.get("id")) == str(notebook_id))]
-    db[uid] = items
+    with NOTEBOOKS_DB_LOCK:
+        db = _load_json_file(NOTEBOOKS_PATH)
+        items = db.get(uid, [])
+        if not isinstance(items, list):
+            items = []
+        before = len(items)
+        items = [it for it in items if not (isinstance(it, dict) and str(it.get("id")) == str(notebook_id))]
+        db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
     _delete_conversation_sources(uid, notebook_id)
+    _delete_notebook_result_files(uid, notebook_id)
     _set_notebook_tombstone(uid, notebook_id, int(time.time() * 1000))
     deleted_files = 0
     kept_files: list[str] = []
@@ -2883,7 +3461,75 @@ async def get_notebook_sources(notebook_id: str, user: dict[str, Any] = Depends(
     _purge_legacy_placeholder_notebooks(uid)
     if _is_placeholder_notebook_id(notebook_id):
         return {"items": []}
-    return {"items": _get_conversation_sources(uid, notebook_id)}
+    item = _load_merged_notebook_item(uid, notebook_id, persist=True)
+    return {"items": item.get("sources") if isinstance(item, dict) and isinstance(item.get("sources"), list) else []}
+
+
+@app.get("/api/notebooks/{notebook_id}/result-files")
+async def get_notebook_result_files_endpoint(notebook_id: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
+    if _is_placeholder_notebook_id(notebook_id):
+        return {"items": [], "updatedAt": 0}
+    item = _load_merged_notebook_item(uid, notebook_id, persist=True)
+    return {
+        "items": item.get("analysisFiles") if isinstance(item, dict) and isinstance(item.get("analysisFiles"), list) else [],
+        "updatedAt": int(item.get("analysisFilesUpdatedAt") or item.get("updatedAt") or 0) if isinstance(item, dict) else 0,
+    }
+
+
+@app.put("/api/notebooks/{notebook_id}/result-files")
+async def replace_notebook_result_files(
+    notebook_id: str,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    uid = str(user.get("id") or "")
+    _purge_legacy_placeholder_notebooks(uid)
+    if _is_placeholder_notebook_id(notebook_id):
+        raise HTTPException(status_code=422, detail="placeholder notebook id is not allowed")
+    raw_items = payload.get("items") if isinstance(payload, dict) else []
+    if not isinstance(raw_items, list):
+        raise HTTPException(status_code=422, detail="items must be a list")
+    updated_at = int(payload.get("updatedAt") or 0) if isinstance(payload, dict) else 0
+    items = [item for item in (_normalize_result_file_item(raw) for raw in raw_items) if item]
+    _notebook_debug(
+        "replace_notebook_result_files_incoming",
+        uid=uid,
+        notebookId=notebook_id,
+        analysisCount=len(items),
+        updatedAt=updated_at,
+    )
+    merged = _load_merged_notebook_item(uid, notebook_id, persist=True)
+    if not merged:
+        raise HTTPException(status_code=404, detail="notebook not found")
+    current_updated_at = int(merged.get("analysisFilesUpdatedAt") or merged.get("updatedAt") or 0)
+    current_items = merged.get("analysisFiles") if isinstance(merged.get("analysisFiles"), list) else []
+    if updated_at and current_updated_at and (
+        current_updated_at > updated_at or (current_updated_at == updated_at and len(current_items) > len(items))
+    ):
+        _notebook_debug(
+            "replace_notebook_result_files_stale",
+            uid=uid,
+            notebookId=notebook_id,
+            incomingUpdatedAt=updated_at,
+            existingUpdatedAt=current_updated_at,
+            incomingCount=len(items),
+            existingCount=len(current_items),
+        )
+        return {"ok": True, "count": len(current_items), "stale": True}
+    merged["analysisFiles"] = items
+    merged["analysisFilesUpdatedAt"] = int(updated_at or current_updated_at or merged.get("updatedAt") or 0)
+    _save_notebook_item(uid, merged)
+    _persist_notebook_legacy_mirrors(uid, merged)
+    _notebook_debug(
+        "replace_notebook_result_files_saved",
+        uid=uid,
+        notebookId=notebook_id,
+        analysisCount=len(items),
+        updatedAt=int(merged.get("analysisFilesUpdatedAt") or 0),
+    )
+    return {"ok": True, "count": len(items)}
 
 
 @app.put("/api/notebooks/{notebook_id}/sources")
@@ -2900,7 +3546,43 @@ async def replace_notebook_sources(
     if not isinstance(raw_items, list):
         raise HTTPException(status_code=422, detail="items must be a list")
     source_items = [src for src in (_normalize_source_item(raw) for raw in raw_items) if src]
-    _set_conversation_sources(uid, notebook_id, source_items)
+    updated_at = int(payload.get("updatedAt") or 0) if isinstance(payload, dict) else 0
+    _notebook_debug(
+        "replace_notebook_sources_incoming",
+        uid=uid,
+        notebookId=notebook_id,
+        sourceCount=len(source_items),
+        updatedAt=updated_at,
+    )
+    merged = _load_merged_notebook_item(uid, notebook_id, persist=True)
+    if not merged:
+        raise HTTPException(status_code=404, detail="notebook not found")
+    current_updated_at = int(merged.get("updatedAt") or 0)
+    current_items = merged.get("sources") if isinstance(merged.get("sources"), list) else []
+    if updated_at and current_updated_at and (
+        current_updated_at > updated_at or (current_updated_at == updated_at and len(current_items) > len(source_items))
+    ):
+        _notebook_debug(
+            "replace_notebook_sources_stale",
+            uid=uid,
+            notebookId=notebook_id,
+            incomingUpdatedAt=updated_at,
+            existingUpdatedAt=current_updated_at,
+            incomingCount=len(source_items),
+            existingCount=len(current_items),
+        )
+        return {"ok": True, "count": len(current_items), "stale": True}
+    merged["sources"] = source_items
+    merged["updatedAt"] = int(updated_at or current_updated_at or time.time() * 1000)
+    _save_notebook_item(uid, merged)
+    _persist_notebook_legacy_mirrors(uid, merged)
+    _notebook_debug(
+        "replace_notebook_sources_saved",
+        uid=uid,
+        notebookId=notebook_id,
+        sourceCount=len(source_items),
+        updatedAt=int(merged.get("updatedAt") or 0),
+    )
     return {"ok": True, "count": len(source_items)}
 
 
@@ -3541,7 +4223,7 @@ async def upload_file(
     meta[safe_name] = {"user_id": user.get("id"), "username": user.get("username"), "source": source}
     _save_file_meta(meta)
 
-    url = f"{settings.public_base_url}/api/files/{safe_name}"
+    url = _build_file_api_path(safe_name)
     return {
         "id": safe_name,
         "name": file.filename,
@@ -3666,7 +4348,7 @@ async def list_files(user: dict[str, Any] = Depends(get_current_user)) -> dict[s
                 "id": p.name,
                 "name": p.name,
                 "size": p.stat().st_size,
-                "url": f"{settings.public_base_url}/api/files/{p.name}",
+                "url": _build_file_api_path(p.name),
                 "user_id": user.get("id"),
                 "username": user.get("username"),
             }
