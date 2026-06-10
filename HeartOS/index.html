@@ -2103,7 +2103,7 @@ function buildChatPreviewHtml(rawMeta){
       parts.push('<div style="margin:6px 0 10px;padding:12px;border:1px dashed #cbd5e1;border-radius:10px;color:#64748b;font-size:12px;">图片预览恢复中...</div>');
     }
   });
-  return '<div class="ai-av">AI</div><div class="ai-body">' + parts.join('') + '</div>';
+  return '<div class="ai-av">OS</div><div class="ai-body">' + parts.join('') + '</div>';
 }
 
 async function hydrateNotebookFileCaches(nb){
@@ -2815,6 +2815,78 @@ async function loadNotebookDetail(id){
     analysisFilesUpdatedAt: Number(item.analysisFilesUpdatedAt || 0)
   });
   return normalizeNotebookItem(item, true);
+}
+
+// ── 多端冲突合并 ──────────────────────────────────────────
+// 保存被服务端以 stale 拒绝时（其他设备/标签页写入了更新版本），
+// 拉取服务端版本，把本地独有的条目按 id 并集合并，再保存回去。
+// 取并集而非覆盖：宁可偶尔复活一条已删条目，不静默丢数据。
+
+function __conflictEntryKey(item, getId){
+  if(!item) return '';
+  const id = getId(item);
+  if(id) return 'id:' + id;
+  return 'k:' + String(item.role || item.type || '') + '|' + String(item.createdAt || '') + '|' + String(item.content || '').slice(0, 80);
+}
+
+function unionNotebookEntriesById(serverList, localList, getId){
+  const out = Array.isArray(serverList) ? serverList.slice() : [];
+  const seen = new Set(out.map(function(item){ return __conflictEntryKey(item, getId); }).filter(Boolean));
+  (Array.isArray(localList) ? localList : []).forEach(function(item){
+    const key = __conflictEntryKey(item, getId);
+    if(!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(item);
+  });
+  return out;
+}
+
+function mergeConflictedNotebook(server, local){
+  if(!server) return local || null;
+  if(!local) return server;
+  const msgId = function(m){ return m && m.id ? String(m.id) : ''; };
+  const entryId = function(x){ return x && x.id != null ? String(x.id) : ''; };
+  server.msgs = unionNotebookEntriesById(server.msgs, local.msgs, msgId).sort(function(a, b){
+    return (Number(a && a.createdAt) || 0) - (Number(b && b.createdAt) || 0);
+  });
+  server.events = unionNotebookEntriesById(server.events, local.events, function(){ return ''; });
+  server.sources = unionNotebookEntriesById(server.sources, local.sources, entryId);
+  server.analysisFiles = unionNotebookEntriesById(server.analysisFiles, local.analysisFiles, entryId);
+  server.srcs = Array.isArray(server.sources) ? server.sources.length : Number(server.srcs || 0);
+  mergeRichChatFieldsFromLocal(server, local);
+  return server;
+}
+
+const __staleNotebookConflictInFlight = new Set();
+function resolveStaleNotebookConflict(notebookId){
+  const id = String(notebookId || '');
+  if(!id || __staleNotebookConflictInFlight.has(id)) return;
+  __staleNotebookConflictInFlight.add(id);
+  (async function(){
+    const local = (curNb && String(curNb.id) === id)
+      ? curNb
+      : (Array.isArray(notebooks) ? notebooks.find(function(n){ return n && String(n.id) === id; }) : null);
+    const server = await loadNotebookDetail(id);
+    const merged = mergeConflictedNotebook(server, local);
+    if(!merged) return;
+    const idx = notebooks.findIndex(function(n){ return n && String(n.id) === id; });
+    if(idx >= 0) notebooks[idx] = merged;
+    if(curNb && String(curNb.id) === id){
+      applyNotebookToWorkspace(merged);
+      const ml = document.getElementById('msgsList');
+      if(ml) ml.innerHTML = '';
+      window.__heartosJustSwitchedNotebook = true;
+      renderSrcs(); renderChat(); renderStudio(); updateCiSrc();
+    }
+    nextNotebookUpdatedAt(merged);
+    persistNotebookDetailCache(merged);
+    await enqueueNotebookSave(merged);
+    showToast('检测到其他设备/标签页的更新，已自动合并');
+  })().catch(function(){
+    showToast('该对话在其他设备有更新，本次修改未能保存，请刷新页面同步');
+  }).finally(function(){
+    __staleNotebookConflictInFlight.delete(id);
+  });
 }
 
 // 用本地缓存修复后端版本缺失的富消息字段：旧版后端裁掉的 _html、
@@ -3810,6 +3882,13 @@ async function persistNotebookPayload(payload){
     stale: !!(out && out.stale),
     deleted: !!(out && out.deleted)
   });
+  if(out && out.stale && !out.deleted){
+    // 服务端已有更新版本，本次提交被拒绝——不能标记为已同步，
+    // 否则其他设备/标签页的并发修改会导致本地改动被静默丢弃
+    markSessionSyncState({ lastSyncedAt: Date.now(), dirty:true });
+    resolveStaleNotebookConflict(String(payload && payload.id || ''));
+    return;
+  }
   markSessionSyncState({ lastSyncedAt: Date.now(), dirty:false });
 }
 
@@ -3917,13 +3996,24 @@ function persistNotebookKeepalive(nb){
   }catch(_){ }
 }
 
+// 同一对话排队中尚未开始的保存只保留最新载荷：
+// 连续触发（如切标签页的多路保存别名）合并为一次全量上传，也避免多份大快照驻留内存
+const __nbSavePendingPayload = new Map();
+
 function enqueueNotebookSave(nb){
   const payload = buildNotebookPayload(nb);
   if(!payload) return Promise.resolve();
   const id = payload.id;
+  if(__nbSavePendingPayload.has(id)){
+    __nbSavePendingPayload.set(id, payload);
+    return __nbSaveQueues.get(id) || Promise.resolve();
+  }
+  __nbSavePendingPayload.set(id, payload);
   const previous = __nbSaveQueues.get(id) || Promise.resolve();
   const next = previous.catch(function(){}).then(function(){
-    return persistNotebookPayload(payload);
+    const latest = __nbSavePendingPayload.get(id) || payload;
+    __nbSavePendingPayload.delete(id);
+    return persistNotebookPayloadWithRetry(latest);
   });
   __nbSaveQueues.set(id, next);
   next.finally(function(){
@@ -3932,8 +4022,52 @@ function enqueueNotebookSave(nb){
   return next;
 }
 
+// 保存失败：先短退避重试两次，仍失败则转入 30 秒周期的后台恢复，
+// 数据保留在 localStorage（dirty），不再依赖用户下一次操作才补救
+const __nbSaveRecoveryTimers = new Map();
+const HEARTOS_SAVE_RETRY_DELAYS_MS = [2000, 8000];
+const HEARTOS_SAVE_RECOVERY_INTERVAL_MS = 30000;
+
+async function persistNotebookPayloadWithRetry(payload){
+  for(let attempt = 0; ; attempt += 1){
+    try{
+      await persistNotebookPayload(payload);
+      const recoveryTimer = __nbSaveRecoveryTimers.get(String(payload.id || ''));
+      if(recoveryTimer){
+        clearTimeout(recoveryTimer);
+        __nbSaveRecoveryTimers.delete(String(payload.id || ''));
+      }
+      return;
+    }catch(err){
+      if(attempt >= HEARTOS_SAVE_RETRY_DELAYS_MS.length){
+        scheduleNotebookSaveRecovery(String(payload.id || ''));
+        throw err;
+      }
+      await new Promise(function(resolve){ setTimeout(resolve, HEARTOS_SAVE_RETRY_DELAYS_MS[attempt]); });
+    }
+  }
+}
+
+function scheduleNotebookSaveRecovery(id){
+  if(!id || __nbSaveRecoveryTimers.has(id)) return;
+  const timer = setTimeout(function(){
+    __nbSaveRecoveryTimers.delete(id);
+    const nb = (curNb && String(curNb.id) === id)
+      ? curNb
+      : (Array.isArray(notebooks) ? notebooks.find(function(n){ return n && String(n.id) === id; }) : null);
+    if(!nb) return;
+    // 失败会再次进入 persistNotebookPayloadWithRetry → 再次安排恢复，循环直至成功
+    enqueueNotebookSave(nb).catch(function(){});
+  }, HEARTOS_SAVE_RECOVERY_INTERVAL_MS);
+  __nbSaveRecoveryTimers.set(id, timer);
+}
+
+let __nbSaveFailureToastAt = 0;
 function reportNotebookSaveError(){
-  showToast('对话保存失败，请检查网络后重试');
+  const now = Date.now();
+  if(now - __nbSaveFailureToastAt < 30000) return;
+  __nbSaveFailureToastAt = now;
+  showToast('对话保存失败，已转入后台自动重试');
 }
 
 async function saveNotebook(nb){
@@ -6151,7 +6285,7 @@ function appendSourceChatCard(src){
   if(id && w.querySelector(`[data-source-import-card="${id}"]`)) return;
   const wrap = document.createElement('div');
   wrap.className = 'msg-ai';
-  wrap.innerHTML = `<div class="ai-av">AI</div><div class="ai-body">${buildSourceChatCardHTML(src, true)}</div>`;
+  wrap.innerHTML = `<div class="ai-av">OS</div><div class="ai-body">${buildSourceChatCardHTML(src, true)}</div>`;
   w.appendChild(wrap);
   scrollChat();
 }
@@ -6161,7 +6295,7 @@ function appendBatchSourceChatCard(batch){
   if(!w || !Array.isArray(batch) || !batch.length) return;
   const wrap = document.createElement('div');
   wrap.className = 'msg-ai';
-  wrap.innerHTML = `<div class="ai-av">AI</div><div class="ai-body">${buildBatchSourceChatCardHTML(batch)}</div>`;
+  wrap.innerHTML = `<div class="ai-av">OS</div><div class="ai-body">${buildBatchSourceChatCardHTML(batch)}</div>`;
   w.appendChild(wrap);
   scrollChat();
 }
@@ -8064,7 +8198,7 @@ function appendConversationGuidedBubble(resp, userText){
         return '<button class="' + conversationActionButtonClass(item.kind) + '" onclick="runConversationGuidedAction(\'' + action + '\')">' + esc(String(item.label || '继续')) + '</button>';
       }).join('') + '</div>'
     : '';
-  var html = '<div class="ai-av">AI</div><div class="ai-body">' +
+  var html = '<div class="ai-av">OS</div><div class="ai-body">' +
     '<p><strong>' + esc(headline) + '</strong></p>' +
     '<p>' + esc(body) + '</p>' +
     tipsHtml +
@@ -8088,7 +8222,7 @@ function appendConversationPlanBubble(resp, userText){
         '</div>';
       }).join('') + '</div>'
     : '';
-  var html = '<div class="ai-av">AI</div><div class="ai-body">' +
+  var html = '<div class="ai-av">OS</div><div class="ai-body">' +
     '<p><strong>' + esc(headline) + '</strong></p>' +
     '<p>' + esc(body) + '</p>' +
     optionsHtml +
@@ -8172,7 +8306,7 @@ function appendConversationConfirmBubble(resp, userText){
     userText: userText || ''
   };
   var description = String((resp && resp.description) || '');
-  var html = '<div class="ai-av">AI</div><div class="ai-body" id="' + confirmId + '">' +
+  var html = '<div class="ai-av">OS</div><div class="ai-body" id="' + confirmId + '">' +
     '<p>' + esc(String((resp && resp.message) || '我理解你想执行这个任务，是否继续？')) + '</p>' +
     (description ? '<p style="font-size:12px;color:var(--text3);">' + esc(description) + '</p>' : '') +
     '<div class="conversation-confirm-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' +
@@ -8496,8 +8630,9 @@ function appendAI(text, _noRecord){
   if(!w) return;
   const d = document.createElement('div');
   d.className='msg-ai';
-  const html = text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').map(l=>l?`<p>${l}</p>`:'').join('');
-  d.innerHTML=`<div class="ai-av">AI</div><div class="ai-body">${html}</div>`;
+  // 先转义再渲染粗体，防止模型输出（或被注入的文件名/内容）携带 HTML 执行
+  const html = esc(text).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').map(l=>l?`<p>${l}</p>`:'').join('');
+  d.innerHTML=`<div class="ai-av">OS</div><div class="ai-body">${html}</div>`;
   w.appendChild(d); scrollChat();
   if(!_noRecord){
     recordChatMessage({role:'assistant', kind:'chat', type:'text', content:text, createdAt:Date.now()});
@@ -8528,7 +8663,7 @@ function showTyping(){
   const w = document.getElementById('msgsList');
   const d = document.createElement('div');
   d.id='typingRow'; d.className='typing-row';
-  d.innerHTML=`<div class="ai-av">AI</div><div class="dots"><span></span><span></span><span></span></div>`;
+  d.innerHTML=`<div class="ai-av">OS</div><div class="dots"><span></span><span></span><span></span></div>`;
   w.appendChild(d); scrollChat();
 }
 function removeTyping(){const t=document.getElementById('typingRow');if(t)t.remove();}
@@ -8704,7 +8839,7 @@ function appendImagePreviewInChat(src){
   const d = document.createElement('div');
   d.className='msg-ai';
   const innerHtml =
-    `<div class="ai-av">AI</div>
+    `<div class="ai-av">OS</div>
      <div class="ai-body">
        <p><strong>已加载图片来源</strong>：${esc(src.name || 'image')}</p>
        <img src="${src.imageDataUrl}" alt="${esc(src.name || 'ecg-image')}" onclick="openChatImageZoom('${src.imageDataUrl}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />
@@ -8777,7 +8912,7 @@ function appendReconstructCompareMessage(src, inputLeadMap, outputLeadMap, sampl
   const afterSvg = buildReconWaveSvg(outputLeadMap, '#047857');
   const d = document.createElement('div');
   d.className = 'msg-ai';
-  const innerHtml = '<div class="ai-av">AI</div><div class="ai-body">' +
+  const innerHtml = '<div class="ai-av">OS</div><div class="ai-body">' +
     '<div class="recon-chat-card">' +
       '<div class="recon-chat-head"><div><div class="recon-chat-title">' + esc((src && src.name) || 'ECG 信号') + ' · 补全前后对比</div>' +
       '<div class="recon-chat-sub">结果文件已保存在分析结果中；此处用于质量核查。</div></div></div>' +
@@ -8872,7 +9007,7 @@ function renderChestPainRiskResult(src, out){
         '<div style="font-size:13px;color:var(--text3);line-height:1.7;">' + esc(lowRisk.join('、') || '无') + '</div>' +
       '</div>' +
     '</div>';
-  const innerHtml = '<div class="ai-av">AI</div><div class="ai-body">' +
+  const innerHtml = '<div class="ai-av">OS</div><div class="ai-body">' +
     '<div class="recon-chat-card">' +
       '<div class="recon-chat-head"><div><div class="recon-chat-title">' + esc(srcName) + ' · 准心风险评估</div>' +
       '<div class="recon-chat-sub">已生成风险报告，并保存到分析结果文件中。</div></div></div>' +
@@ -10660,7 +10795,7 @@ function renderEcgReconstructResult(src, out, options){
       if(w){
         const d = document.createElement('div');
         d.className = 'msg-ai';
-        const reconImgHtml = '<div class="ai-av">AI</div><div class="ai-body"><p><strong>ECG 信号补全回传图像</strong></p><img src="' + imageDataUrl + '" alt="ecg-reconstruct-chat-preview" onclick="openChatImageZoom(\'' + imageDataUrl + '\')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>';
+        const reconImgHtml = '<div class="ai-av">OS</div><div class="ai-body"><p><strong>ECG 信号补全回传图像</strong></p><img src="' + imageDataUrl + '" alt="ecg-reconstruct-chat-preview" onclick="openChatImageZoom(\'' + imageDataUrl + '\')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" /></div>';
         d.innerHTML = reconImgHtml;
         w.appendChild(d);
         scrollChat();
@@ -10731,7 +10866,7 @@ function appendAutoDigitizePreviewMessage(src, options){
   const comparePart = compareImage
     ? `<p><strong>原图与拟合波形对比</strong></p><img src="${compareImage}" alt="auto-digitize-compare-preview" onclick="openChatImageZoom('${compareImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />`
     : '';
-  const autoDigHtml = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>${esc(src && src.name || '未命名来源')} 自动数字化预览</strong></p>${debugPart}${comparePart}</div>`;
+  const autoDigHtml = `<div class="ai-av">OS</div><div class="ai-body"><p><strong>${esc(src && src.name || '未命名来源')} 自动数字化预览</strong></p>${debugPart}${comparePart}</div>`;
   d.innerHTML = autoDigHtml;
   w.appendChild(d);
   scrollChat();
@@ -14163,9 +14298,8 @@ function showToast(msg){
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'hidden' && curNb && __nbLoaded){
     syncCurrentNotebookState();
+    // Sources/ResultFiles 的保存与 Notebook 是同一个全量保存的别名，调一次即可
     scheduleSaveCurrentNotebook(true);
-    scheduleSaveCurrentNotebookSources(true);
-    scheduleSaveCurrentNotebookResultFiles(true);
   }
 });
 
@@ -14173,12 +14307,10 @@ window.addEventListener('pagehide', function(){
   if(curNb && __nbLoaded){
     persistRefreshInterruptionNotice();
     flushCurrentNotebookToLocalCache();
+    // 卸载阶段普通 fetch 会被浏览器中止，只依赖 keepalive 通道
     persistNotebookKeepalive(curNb);
     persistNotebookSourcesKeepalive(curNb);
     persistNotebookResultFilesKeepalive(curNb);
-    scheduleSaveCurrentNotebook(true);
-    scheduleSaveCurrentNotebookSources(true);
-    scheduleSaveCurrentNotebookResultFiles(true);
   }
 });
 
@@ -15863,7 +15995,7 @@ document.addEventListener('keydown',function(e){
     var parsed = { leads: leads, data: waveforms };
     var svgHtml = buildLeadWaveSvg(parsed, { maxLeads: 12, width: 480, rowH: 56 });
     var innerHtml =
-      '<div class="ai-av">AI</div>' +
+      '<div class="ai-av">OS</div>' +
       '<div class="ai-body">' +
         '<p><strong>手动数字化提取完成</strong>：' + leads.length + ' 导联，采样率 ' + (data.fs||500) + 'Hz。</p>' +
         svgHtml +
@@ -16251,7 +16383,7 @@ document.addEventListener('keydown',function(e){
     var row = document.createElement('div');
     row.className = 'msg-ai';
     row.innerHTML =
-      '<div class="ai-av">AI</div>' +
+      '<div class="ai-av">OS</div>' +
       '<div class="ai-body">' +
         '<p><strong>数字化完成</strong>' + (showName ? '：' + esc(showName) : '') + '</p>' +
         '<div class="hecg-delivery-note"><strong>CSV 已归档至“分析结果”。</strong> 下方展示质量预览与导联参数，便于核对提取波形质量。</div>' +
