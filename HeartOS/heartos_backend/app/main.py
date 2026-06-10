@@ -79,6 +79,9 @@ APP_VERSION = "1.4.1"
 PLATFORM_NAME = "HeartOS"
 LEGACY_PLACEHOLDER_NOTEBOOK_IDS = {"boot"}
 MAX_PERSISTED_NOTEBOOK_MSG_HTML = 20_000
+# 不含内嵌 base64 图片的富消息（如信号补全 SVG 对比卡片）没有 previewMeta 兜底，
+# 丢掉 _html 就无法恢复，所以放宽到更大的上限。
+MAX_PERSISTED_NOTEBOOK_MSG_HTML_NO_IMAGE = 300_000
 NOTEBOOK_DEBUG_ENABLED = str(os.getenv("HEARTOS_NOTEBOOK_DEBUG", "0")).strip().lower() in {"1", "true", "yes", "on"}
 LOGGER = logging.getLogger("heartos.notebook")
 NOTEBOOK_DEBUG_MAX_STRING = 240
@@ -795,6 +798,32 @@ def _source_file_ids(items: list[dict[str, Any]] | None) -> list[str]:
     return out
 
 
+def _notebook_chat_image_file_ids(item: Any) -> list[str]:
+    """收集对话消息 previewMeta 引用的聊天图片 fileId（每次上传 uuid 唯一，无跨对话共享）。"""
+    out: list[str] = []
+    if not isinstance(item, dict):
+        return out
+    msgs = item.get("msgs")
+    if not isinstance(msgs, list):
+        return out
+    for msg in msgs:
+        if not isinstance(msg, dict):
+            continue
+        meta = msg.get("previewMeta")
+        if not isinstance(meta, dict):
+            continue
+        images = meta.get("images")
+        if not isinstance(images, list):
+            continue
+        for image in images:
+            if not isinstance(image, dict):
+                continue
+            file_id = str(image.get("fileId") or "").strip()
+            if file_id:
+                out.append(file_id)
+    return out
+
+
 def _count_user_source_file_refs(uid: str, file_id: str, *, exclude_notebook_id: str = "") -> int:
     file_id = str(file_id or "").strip()
     if not file_id:
@@ -831,6 +860,62 @@ def _delete_uploaded_file_record(file_id: str, *, expected_user_id: str = "") ->
         del meta[safe_id]
         _save_file_meta(meta)
     return True
+
+
+CHAT_IMAGE_FILE_SOURCE = "heartos_chat_image"
+CHAT_IMAGE_ORPHAN_MAX_AGE_SECONDS = 7 * 24 * 3600
+
+
+def _sweep_orphan_chat_image_files() -> int:
+    """清扫聊天图片孤儿文件：上传成功但 fileId 未写回对话（如上传瞬间关闭页面）的残留。
+
+    仅处理 source 为 heartos_chat_image、无任何对话引用、且落盘超过 7 天的文件。
+    """
+    meta = _load_file_meta()
+    candidates = [
+        file_id
+        for file_id, record in meta.items()
+        if isinstance(record, dict) and str(record.get("source") or "") == CHAT_IMAGE_FILE_SOURCE
+    ]
+    if not candidates:
+        return 0
+    with NOTEBOOKS_DB_LOCK:
+        db = _load_json_file(NOTEBOOKS_PATH)
+    referenced: set[str] = set()
+    for items in db.values():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            referenced.update(_notebook_chat_image_file_ids(item))
+    now = time.time()
+    deleted = 0
+    for file_id in candidates:
+        if file_id in referenced:
+            continue
+        path = (UPLOAD_DIR / str(file_id)).resolve()
+        if not str(path).startswith(str(UPLOAD_DIR)):
+            continue
+        try:
+            if path.exists() and now - path.stat().st_mtime < CHAT_IMAGE_ORPHAN_MAX_AGE_SECONDS:
+                continue
+        except Exception:
+            continue
+        if _delete_uploaded_file_record(file_id):
+            deleted += 1
+    return deleted
+
+
+@app.on_event("startup")
+async def _startup_sweep_orphan_chat_images() -> None:
+    def run() -> None:
+        try:
+            deleted = _sweep_orphan_chat_image_files()
+            if deleted:
+                LOGGER.info("swept %d orphan chat image files", deleted)
+        except Exception:
+            LOGGER.exception("orphan chat image sweep failed")
+
+    threading.Thread(target=run, name="chat-image-orphan-sweep", daemon=True).start()
 
 
 def _load_notebook_tombstones_db() -> dict[str, Any]:
@@ -3017,7 +3102,12 @@ def _normalize_notebook_msg_item(raw: Any) -> dict[str, Any] | None:
             continue
         if key == "_html":
             html = str(value or "")
-            if html and len(html) <= MAX_PERSISTED_NOTEBOOK_MSG_HTML:
+            html_limit = (
+                MAX_PERSISTED_NOTEBOOK_MSG_HTML
+                if "data:image" in html
+                else MAX_PERSISTED_NOTEBOOK_MSG_HTML_NO_IMAGE
+            )
+            if html and len(html) <= html_limit:
                 item["_html"] = html
             continue
         if isinstance(value, (str, int, float, bool)):
@@ -3430,12 +3520,16 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
         return {"ok": True, "deleted": 0, "deleted_file_count": 0, "kept_file_ids": []}
     linked_sources = _get_conversation_sources(uid, notebook_id)
     file_ids = sorted(set(_source_file_ids(linked_sources)))
+    chat_image_file_ids: list[str] = []
     with NOTEBOOKS_DB_LOCK:
         db = _load_json_file(NOTEBOOKS_PATH)
         items = db.get(uid, [])
         if not isinstance(items, list):
             items = []
         before = len(items)
+        for it in items:
+            if isinstance(it, dict) and str(it.get("id")) == str(notebook_id):
+                chat_image_file_ids.extend(_notebook_chat_image_file_ids(it))
         items = [it for it in items if not (isinstance(it, dict) and str(it.get("id")) == str(notebook_id))]
         db[uid] = items
     _save_json_file(NOTEBOOKS_PATH, db)
@@ -3452,6 +3546,10 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
             deleted_files += 1
         else:
             kept_files.append(file_id)
+    # 聊天图片文件随对话删除（每条消息上传 uuid 唯一，不会被其他对话引用）
+    for file_id in sorted(set(chat_image_file_ids) - set(file_ids)):
+        if _delete_uploaded_file_record(file_id, expected_user_id=uid):
+            deleted_files += 1
     return {"ok": True, "deleted": before - len(items), "deleted_file_count": deleted_files, "kept_file_ids": kept_files}
 
 
@@ -4256,7 +4354,7 @@ async def pdf_first_page_image(
         if not p.exists() or not p.is_file():
             raise HTTPException(status_code=404, detail="file not found")
         meta = _load_file_meta().get(file_id)
-        if meta and meta.get("user_id") != user.get("id"):
+        if meta and meta.get("user_id") != user.get("id") and not bool(user.get("is_admin")):
             raise HTTPException(status_code=403, detail="forbidden")
         raw = p.read_bytes()
         filename = p.name

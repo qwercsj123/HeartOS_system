@@ -1660,6 +1660,15 @@ function analysisFileLocalCacheKey(file, nb){
   );
 }
 
+function chatMessageAssetCacheKey(msg, nb, assetId){
+  return buildHeartosFileCacheKey(
+    'message',
+    nb && nb.id ? nb.id : (curNb && curNb.id ? curNb.id : ''),
+    String((msg && msg.id) || '') + ':' + String(assetId || 'asset'),
+    ''
+  );
+}
+
 function uniqueCacheKeys(keys){
   const list = [];
   (Array.isArray(keys) ? keys : []).forEach(function(key){
@@ -1758,6 +1767,10 @@ async function cacheAnalysisFileLocally(file, text, nb){
   return writes.some(Boolean);
 }
 
+function isTruncatedLocalSourceContent(content){
+  return typeof content === 'string' && content.indexOf(HEARTOS_LOCAL_CACHE_TRUNCATION_MARK.trim()) >= 0;
+}
+
 async function hydrateSourceFromLocalFileCache(src, nb){
   if(!src) return false;
   let cached = null;
@@ -1766,26 +1779,63 @@ async function hydrateSourceFromLocalFileCache(src, nb){
     cached = await heartosFileCacheGet(keys[i]);
     if(cached) break;
   }
-  if(!cached) return false;
   let changed = false;
-  if(!src.fileObj && isBlobLike(cached.blob)){
-    const fileLike = cachedBlobToFileLike(cached.blob, cached.name || src.name || 'source.bin', cached.mime || src.mime || '');
-    if(fileLike){
-      src.fileObj = fileLike;
+  if(cached){
+    if(!src.fileObj && isBlobLike(cached.blob)){
+      const fileLike = cachedBlobToFileLike(cached.blob, cached.name || src.name || 'source.bin', cached.mime || src.mime || '');
+      if(fileLike){
+        src.fileObj = fileLike;
+        changed = true;
+      }
+    }
+    if((!src.content || isTruncatedLocalSourceContent(src.content)) && typeof cached.text === 'string' && cached.text && !isTruncatedLocalSourceContent(cached.text)){
+      src.content = cached.text;
+      changed = true;
+    }
+    if(!src.imageDataUrl && typeof cached.dataUrl === 'string' && cached.dataUrl.indexOf('data:') === 0){
+      src.imageDataUrl = cached.dataUrl;
+      changed = true;
+    }
+    if(!src.mime && cached.mime){
+      src.mime = String(cached.mime || '');
       changed = true;
     }
   }
-  if(!src.content && typeof cached.text === 'string' && cached.text){
-    src.content = cached.text;
-    changed = true;
-  }
-  if(!src.imageDataUrl && typeof cached.dataUrl === 'string' && cached.dataUrl.indexOf('data:') === 0){
-    src.imageDataUrl = cached.dataUrl;
-    changed = true;
-  }
-  if(!src.mime && cached.mime){
-    src.mime = String(cached.mime || '');
-    changed = true;
+  // IndexedDB 未命中或不完整（换设备/清缓存/截断副本）：凭 fileId 从服务器恢复
+  const hasRemoteFile = !!(src.fileId || src.serverFileId || src.fileUrl);
+  if(hasRemoteFile){
+    const srcType = String(src.type || '').toLowerCase();
+    const isImageType = ['png','jpg','jpeg','bmp','tiff','webp'].indexOf(srcType) >= 0;
+    const isTextType = ['csv','txt','xml','json','hl7'].indexOf(srcType) >= 0;
+    const needImage = isImageType && !src.imageDataUrl;
+    const needContent = isTextType && (!src.content || isTruncatedLocalSourceContent(src.content));
+    if(needImage || needContent){
+      try{
+        const resp = await fetchHeartosStoredFile(src, { logLabel:'source-hydrate' });
+        if(resp && resp.ok){
+          if(needImage){
+            const blob = await resp.blob().catch(function(){ return null; });
+            const dataUrl = blob ? await blobToDataUrlSafe(blob) : '';
+            if(dataUrl && dataUrl.indexOf('data:') === 0){
+              src.imageDataUrl = dataUrl;
+              changed = true;
+            }
+          }else{
+            const text = await resp.text().catch(function(){ return ''; });
+            if(text){
+              src.content = text;
+              changed = true;
+            }
+          }
+          if(changed){
+            cacheSourceFileLocally(src, null, nb || curNb, {
+              text: typeof src.content === 'string' ? src.content : '',
+              dataUrl: typeof src.imageDataUrl === 'string' ? src.imageDataUrl : ''
+            }).catch(function(){});
+          }
+        }
+      }catch(_){ }
+    }
   }
   return changed;
 }
@@ -1803,6 +1853,257 @@ async function hydrateAnalysisFileFromLocalCache(file, nb){
   file.content = cached.text;
   if(!file.mime && cached.mime) file.mime = String(cached.mime || '');
   return true;
+}
+
+function normalizeChatPreviewMeta(rawMeta){
+  if(!rawMeta || typeof rawMeta !== 'object') return null;
+  const images = Array.isArray(rawMeta.images) ? rawMeta.images.map(function(item, index){
+    const image = item && typeof item === 'object' ? item : {};
+    const dataUrl = typeof image.dataUrl === 'string' && image.dataUrl.indexOf('data:image') === 0 ? image.dataUrl : '';
+    const cacheKey = String(image.cacheKey || '').trim();
+    const fileId = String(image.fileId || '').trim();
+    const fileUrl = String(image.fileUrl || '').trim();
+    if(!dataUrl && !cacheKey && !fileId && !fileUrl) return null;
+    return {
+      id: String(image.id || ('img_' + index)),
+      label: String(image.label || ''),
+      alt: String(image.alt || ('chat-preview-' + (index + 1))),
+      dataUrl: dataUrl,
+      cacheKey: cacheKey,
+      fileId: fileId,
+      fileUrl: fileUrl
+    };
+  }).filter(Boolean) : [];
+  if(!images.length) return null;
+  return {
+    kind: String(rawMeta.kind || 'preview'),
+    sourceName: String(rawMeta.sourceName || ''),
+    title: String(rawMeta.title || ''),
+    subtitle: String(rawMeta.subtitle || ''),
+    images: images
+  };
+}
+
+function serializeChatPreviewMeta(rawMeta, options){
+  const meta = normalizeChatPreviewMeta(rawMeta);
+  if(!meta) return null;
+  const opts = options || {};
+  const includeDataUrl = !!opts.includeDataUrl;
+  return {
+    kind: meta.kind,
+    sourceName: meta.sourceName,
+    title: meta.title,
+    subtitle: meta.subtitle,
+    images: meta.images.map(function(image, index){
+      const out = {
+        id: String(image.id || ('img_' + index)),
+        label: image.label,
+        alt: image.alt,
+        cacheKey: String(image.cacheKey || '')
+      };
+      if(image.fileId) out.fileId = String(image.fileId);
+      if(image.fileUrl) out.fileUrl = String(image.fileUrl);
+      // 已上传为后端文件的图片只存引用，不再内联 base64
+      if(includeDataUrl && image.dataUrl && !image.fileId) out.dataUrl = image.dataUrl;
+      return out;
+    })
+  };
+}
+
+function ensureChatPreviewMetaCacheKeys(msg, nb){
+  const meta = normalizeChatPreviewMeta(msg && msg.previewMeta);
+  if(!msg || !msg.id || !meta) return null;
+  let changed = false;
+  for(let i = 0; i < meta.images.length; i += 1){
+    const image = meta.images[i];
+    if(!image || image.cacheKey) continue;
+    image.cacheKey = chatMessageAssetCacheKey(msg, nb, image.id || ('img_' + i));
+    changed = true;
+  }
+  if(changed || msg.previewMeta !== meta) msg.previewMeta = meta;
+  return meta;
+}
+
+async function cacheChatPreviewMetaLocally(msg, nb){
+  const meta = ensureChatPreviewMetaCacheKeys(msg, nb);
+  if(!msg || !msg.id || !meta) return false;
+  let wrote = false;
+  for(let i = 0; i < meta.images.length; i += 1){
+    const image = meta.images[i];
+    if(!image) continue;
+    if(!image.dataUrl || !image.cacheKey) continue;
+    const saved = await heartosFileCachePut({
+      key: image.cacheKey,
+      userKey: notebookCacheUserKey(),
+      kind: 'message',
+      notebookId: String((nb && nb.id) || (curNb && curNb.id) || ''),
+      entryId: String(msg.id || ''),
+      fileId: '',
+      name: image.alt || (msg.type || 'preview'),
+      mime: 'image/png',
+      updatedAt: Date.now(),
+      text: '',
+      dataUrl: image.dataUrl
+    });
+    if(saved) wrote = true;
+  }
+  return wrote;
+}
+
+async function hydrateChatPreviewMetaLocally(msg, nb){
+  const meta = normalizeChatPreviewMeta(msg && msg.previewMeta);
+  if(!msg || !meta) return false;
+  let changed = false;
+  let fetchedFromServer = false;
+  for(let i = 0; i < meta.images.length; i += 1){
+    const image = meta.images[i];
+    if(!image || image.dataUrl) continue;
+    if(image.cacheKey){
+      const cached = await heartosFileCacheGet(image.cacheKey);
+      if(cached && typeof cached.dataUrl === 'string' && cached.dataUrl.indexOf('data:image') === 0){
+        image.dataUrl = cached.dataUrl;
+        changed = true;
+        continue;
+      }
+    }
+    // IndexedDB 未命中（换设备/清缓存）：凭 fileId 从后端取回
+    if(image.fileId || image.fileUrl){
+      const blob = await readStoredEntryBlob({ fileId: image.fileId, fileUrl: image.fileUrl }, { logLabel:'chat-preview-image' });
+      const dataUrl = blob ? await blobToDataUrlSafe(blob) : '';
+      if(dataUrl && dataUrl.indexOf('data:image') === 0){
+        image.dataUrl = dataUrl;
+        changed = true;
+        fetchedFromServer = true;
+      }
+    }
+  }
+  if(changed){
+    msg.previewMeta = meta;
+    // 从后端取回的图写入本地缓存，下次刷新免网络请求
+    if(fetchedFromServer) cacheChatPreviewMetaLocally(msg, nb).catch(function(){});
+  }
+  return changed;
+}
+
+const __chatPreviewUploadInFlight = new WeakSet();
+async function uploadChatPreviewImagesToServer(msg, nb){
+  if(!msg || __chatPreviewUploadInFlight.has(msg)) return false;
+  const meta = ensureChatPreviewMetaCacheKeys(msg, nb);
+  if(!msg.id || !meta) return false;
+  __chatPreviewUploadInFlight.add(msg);
+  const targetNb = nb || curNb;
+  let uploaded = false;
+  try{
+    for(let i = 0; i < meta.images.length; i += 1){
+      const image = meta.images[i];
+      if(!image || !image.dataUrl || image.fileId) continue;
+      try{
+        const file = typeof dataUrlToFile === 'function'
+          ? dataUrlToFile(image.dataUrl, 'chat_' + String(msg.id) + '_' + String(image.id || i) + '.png')
+          : null;
+        if(!file) continue;
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        fd.append('source', 'heartos_chat_image');
+        const resp = await apiFetch('/api/files/upload', { method:'POST', body: fd });
+        const out = await resp.json().catch(function(){ return {}; });
+        if(!resp.ok || !out || !out.id) continue;
+        image.fileId = String(out.id);
+        image.fileUrl = String(out.url || out.fileUrl || '');
+        uploaded = true;
+      }catch(_){ }
+    }
+  }finally{
+    __chatPreviewUploadInFlight.delete(msg);
+  }
+  if(uploaded){
+    msg.previewMeta = meta;
+    // openNb 加载后端数据会整体替换 msgs 数组；若 msg 已脱钩，把 fileId 同步到当前数组中同 id 的活对象，
+    // 否则随后的保存会丢掉 fileId，导致每次会话重复上传
+    const live = (Array.isArray(msgs) ? msgs : []).find(function(x){ return x && x !== msg && String(x.id || '') === String(msg.id); });
+    if(live){
+      if(live.previewMeta){
+        const liveMeta = normalizeChatPreviewMeta(live.previewMeta);
+        if(liveMeta){
+          liveMeta.images.forEach(function(img){
+            const src = meta.images.find(function(u){ return String(u.id) === String(img.id); });
+            if(src && src.fileId && !img.fileId){
+              img.fileId = src.fileId;
+              img.fileUrl = src.fileUrl || img.fileUrl || '';
+            }
+          });
+          live.previewMeta = liveMeta;
+        }
+      }else{
+        live.previewMeta = meta;
+      }
+    }
+    // 重新保存：localStorage 和后端从此只存 fileId 引用，不再内联 base64
+    if(targetNb && curNb && String(targetNb.id || '') === String(curNb.id || '')){
+      scheduleSaveCurrentNotebook(false);
+    }
+  }
+  return uploaded;
+}
+
+// 兜底迁移：对话打开后扫一遍历史消息，把仍内联 base64 的图片（旧数据或上次上传失败）
+// 补传为后端文件引用。每个对话每次会话只扫一次。
+const __chatPreviewUploadSweepDone = new Set();
+function scheduleChatPreviewImageUploadSweep(nb){
+  const id = String((nb && nb.id) || '');
+  if(!id || __chatPreviewUploadSweepDone.has(id)) return;
+  __chatPreviewUploadSweepDone.add(id);
+  setTimeout(function(){
+    if(!curNb || String(curNb.id || '') !== id) return;
+    const msgIds = (Array.isArray(msgs) ? msgs : []).map(function(m){
+      return (m && m.id && m.previewMeta) ? String(m.id) : '';
+    }).filter(Boolean);
+    (async function(){
+      for(let i = 0; i < msgIds.length; i += 1){
+        if(!curNb || String(curNb.id || '') !== id) return;
+        // 每轮都从当前 msgs 取活对象：后端数据到达时 applyNotebookToWorkspace 会整体替换 msgs，
+        // 提前捕获的引用会脱钩，fileId 写上去也会在保存时丢失
+        const m = (Array.isArray(msgs) ? msgs : []).find(function(x){ return x && String(x.id || '') === msgIds[i]; });
+        if(!m || !m.previewMeta) continue;
+        try{
+          // 先从本地缓存恢复 dataUrl（覆盖“写了 IndexedDB 但没来得及上传”的情况）
+          await hydrateChatPreviewMetaLocally(m, curNb);
+          await uploadChatPreviewImagesToServer(m, curNb);
+        }catch(_){ }
+      }
+    })().catch(function(){});
+  }, 2000);
+}
+
+async function purgeNotebookChatImageCaches(nb){
+  if(!nb || !Array.isArray(nb.msgs)) return false;
+  const keys = [];
+  nb.msgs.forEach(function(m){
+    const meta = normalizeChatPreviewMeta(m && m.previewMeta);
+    if(!m || !m.id || !meta) return;
+    meta.images.forEach(function(image, i){
+      const key = (image && image.cacheKey) || chatMessageAssetCacheKey(m, nb, (image && image.id) || ('img_' + i));
+      if(key) keys.push(key);
+    });
+  });
+  return await deleteHeartosFileCacheEntries(keys);
+}
+
+function buildChatPreviewHtml(rawMeta){
+  const meta = normalizeChatPreviewMeta(rawMeta);
+  if(!meta) return '';
+  const parts = [];
+  if(meta.title) parts.push('<p><strong>' + esc(meta.title) + '</strong></p>');
+  if(meta.subtitle) parts.push('<p>' + esc(meta.subtitle) + '</p>');
+  meta.images.forEach(function(image){
+    if(image.label) parts.push('<p><strong>' + esc(image.label) + '</strong></p>');
+    if(image.dataUrl){
+      parts.push('<img src="' + image.dataUrl + '" alt="' + escAttr(image.alt || 'chat-preview') + '" onclick="openChatImageZoom(\'' + image.dataUrl + '\')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin:6px 0 10px;" />');
+    }else{
+      parts.push('<div style="margin:6px 0 10px;padding:12px;border:1px dashed #cbd5e1;border-radius:10px;color:#64748b;font-size:12px;">图片预览恢复中...</div>');
+    }
+  });
+  return '<div class="ai-av">AI</div><div class="ai-body">' + parts.join('') + '</div>';
 }
 
 async function hydrateNotebookFileCaches(nb){
@@ -2060,6 +2361,31 @@ function clearBootDisplayHints(){
   }catch(_){ }
 }
 
+function showHomeShellWithoutHistorySync(){
+  try{
+    document.documentElement.classList.remove('heartos-init-notebook');
+    document.documentElement.classList.remove('heartos-init-feedback');
+    document.documentElement.classList.add('heartos-init-home');
+  }catch(_){ }
+  const homePage = document.getElementById('homePage');
+  const nbPage = document.getElementById('nbPage');
+  const feedbackPage = document.getElementById('feedbackPage');
+  if(homePage) homePage.classList.add('active');
+  if(nbPage) nbPage.classList.remove('active');
+  if(feedbackPage) feedbackPage.classList.remove('active');
+}
+
+function resetRouteToHomeState(replaceHistory){
+  if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
+  const method = replaceHistory === false ? 'pushState' : 'replaceState';
+  try{
+    history[method]({page:'home'}, '', '#conversations');
+  }catch(_){
+    try{ location.hash = '#conversations'; }catch(__){}
+  }
+  syncSessionRouteFromLocation();
+}
+
 function isFeedbackRouteHash(hash){
   const raw = String(typeof hash === 'string' ? hash : (window.location.hash || ''));
   return raw === '#feedback' || raw.indexOf('#feedback/') === 0;
@@ -2231,7 +2557,13 @@ function clearNotebookWorkspace(){
   msgs = [];
   chatEvents = [];
   analysisFiles = [];
+  currentStudioCardType = '';
   window.__heartosLastImageSource = null;
+  setSessionWorkspaceState({
+    activeNotebookId: '',
+    activeNotebookTitle: '',
+    selectedStudioCard: ''
+  });
   updateSourceEntryAvailability();
 }
 
@@ -2340,12 +2672,104 @@ function canUseCachedNotebookDetailOptimistically(summaryNb, cachedDetail){
   );
 }
 
+function notebookTitleQualityScore(nb){
+  if(!nb) return 0;
+  return defaultNotebookTitle(nb.title) ? 0 : 1;
+}
+
+function compareNotebookRichness(left, right){
+  const leftDetail = left && left._detailsLoaded ? 1 : 0;
+  const rightDetail = right && right._detailsLoaded ? 1 : 0;
+  if(leftDetail !== rightDetail) return leftDetail - rightDetail;
+  const leftUpdatedAt = Number((left && left.updatedAt) || 0);
+  const rightUpdatedAt = Number((right && right.updatedAt) || 0);
+  if(leftUpdatedAt !== rightUpdatedAt) return leftUpdatedAt - rightUpdatedAt;
+  const leftCountScore = notebookSourceCount(left) + notebookMessageCount(left) + notebookAnalysisCount(left);
+  const rightCountScore = notebookSourceCount(right) + notebookMessageCount(right) + notebookAnalysisCount(right);
+  if(leftCountScore !== rightCountScore) return leftCountScore - rightCountScore;
+  return notebookTitleQualityScore(left) - notebookTitleQualityScore(right);
+}
+
+function pickRicherNotebookVersion(left, right){
+  if(!left) return right || null;
+  if(!right) return left || null;
+  return compareNotebookRichness(left, right) >= 0 ? left : right;
+}
+
+function shouldPreferLocalNotebookSummary(serverNb, localNb){
+  if(!localNb) return false;
+  if(!serverNb) return true;
+  if(localNb._detailsLoaded && shouldUseCachedNotebookDetail(serverNb, localNb)) return true;
+  const serverUpdatedAt = Number((serverNb && serverNb.updatedAt) || 0);
+  const localUpdatedAt = Number((localNb && localNb.updatedAt) || 0);
+  const serverSourceCount = notebookSourceCount(serverNb);
+  const localSourceCount = notebookSourceCount(localNb);
+  const serverMessageCount = notebookMessageCount(serverNb);
+  const localMessageCount = notebookMessageCount(localNb);
+  const serverAnalysisCount = notebookAnalysisCount(serverNb);
+  const localAnalysisCount = notebookAnalysisCount(localNb);
+  if(localUpdatedAt > serverUpdatedAt) return true;
+  if(localUpdatedAt < serverUpdatedAt) return false;
+  if(localSourceCount > serverSourceCount) return true;
+  if(localSourceCount < serverSourceCount) return false;
+  if(localMessageCount > serverMessageCount) return true;
+  if(localMessageCount < serverMessageCount) return false;
+  if(localAnalysisCount > serverAnalysisCount) return true;
+  if(localAnalysisCount < serverAnalysisCount) return false;
+  return notebookTitleQualityScore(localNb) > notebookTitleQualityScore(serverNb);
+}
+
+function shouldRetainLocalOnlyNotebookSummary(nb){
+  if(!nb || !nb.id || nb._draft || isNotebookBootPlaceholder(nb)) return false;
+  if(Number(nb.updatedAt || 0) > 0) return true;
+  if(notebookSourceCount(nb) > 0) return true;
+  if(notebookMessageCount(nb) > 0) return true;
+  if(notebookAnalysisCount(nb) > 0) return true;
+  return notebookTitleQualityScore(nb) > 0;
+}
+
+function collectLocalNotebookCandidates(){
+  const map = new Map();
+  function addCandidate(nb){
+    if(!nb || !nb.id || nb._draft || isNotebookBootPlaceholder(nb)) return;
+    const safeId = String(nb.id || '');
+    if(!safeId) return;
+    const current = map.get(safeId) || null;
+    map.set(safeId, pickRicherNotebookVersion(current, nb));
+  }
+  (Array.isArray(notebooks) ? notebooks : []).forEach(addCandidate);
+  loadNotebookSummariesFromLocal().forEach(addCandidate);
+  return map;
+}
+
+function mergeNotebookListWithLocalCache(serverItems){
+  const localMap = collectLocalNotebookCandidates();
+  const merged = (Array.isArray(serverItems) ? serverItems : []).map(function(serverNb){
+    const safeId = String((serverNb && serverNb.id) || '');
+    const localNb = safeId ? (localMap.get(safeId) || null) : null;
+    if(safeId) localMap.delete(safeId);
+    return shouldPreferLocalNotebookSummary(serverNb, localNb) ? localNb : serverNb;
+  });
+  const localOnly = Array.from(localMap.values()).filter(shouldRetainLocalOnlyNotebookSummary);
+  localOnly.sort(function(a, b){
+    return Number((b && b.updatedAt) || 0) - Number((a && a.updatedAt) || 0);
+  });
+  const result = merged.concat(localOnly);
+  notebookDebugLog('mergeNotebookListWithLocalCache', {
+    serverCount: Array.isArray(serverItems) ? serverItems.length : 0,
+    localCandidateCount: localMap.size + localOnly.length,
+    localOnlyCount: localOnly.length,
+    mergedCount: result.length
+  });
+  return result;
+}
+
 async function loadNotebooksFromServer(){
   const resp = await apiFetch('/api/notebooks?summary_only=true', { method:'GET' });
   if(!resp.ok) throw new Error('加载笔记失败');
   const out = await resp.json().catch(function(){ return {items:[]}; });
   const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
-  notebooks = items;
+  notebooks = mergeNotebookListWithLocalCache(items);
   __nbLoaded = true;
   __notebookListReady = true;
   renderHome();
@@ -2391,6 +2815,48 @@ async function loadNotebookDetail(id){
     analysisFilesUpdatedAt: Number(item.analysisFilesUpdatedAt || 0)
   });
   return normalizeNotebookItem(item, true);
+}
+
+// 用本地缓存修复后端版本缺失的富消息字段：旧版后端裁掉的 _html、
+// 上传竞态丢失的 fileId 等，本地缓存里往往还在；按消息 id 合并回来。
+function mergeRichChatFieldsFromLocal(full, cached){
+  const fullMsgs = full && Array.isArray(full.msgs) ? full.msgs : [];
+  const cacheMsgs = cached && Array.isArray(cached.msgs) ? cached.msgs : [];
+  if(!fullMsgs.length || !cacheMsgs.length) return false;
+  const byId = new Map();
+  cacheMsgs.forEach(function(m){ if(m && m.id) byId.set(String(m.id), m); });
+  let merged = false;
+  fullMsgs.forEach(function(m){
+    if(!m || !m.id) return;
+    const c = byId.get(String(m.id));
+    if(!c) return;
+    if(!m._html && typeof c._html === 'string' && c._html){
+      m._html = c._html;
+      // 超出持久化上限的 _html 只用于当场显示，不触发回传，避免每次打开都重复保存
+      const htmlLimit = c._html.indexOf('data:image') >= 0 ? HEARTOS_PERSIST_MAX_MSG_HTML : HEARTOS_PERSIST_MAX_MSG_HTML_NO_IMAGE;
+      if(c._html.length <= htmlLimit) merged = true;
+    }
+    if(!m.previewMeta && c.previewMeta){
+      m.previewMeta = c.previewMeta;
+      merged = true;
+    }else if(m.previewMeta && c.previewMeta){
+      const fullMeta = normalizeChatPreviewMeta(m.previewMeta);
+      const cachedMeta = normalizeChatPreviewMeta(c.previewMeta);
+      if(fullMeta && cachedMeta){
+        let imgMerged = false;
+        fullMeta.images.forEach(function(img){
+          const src = cachedMeta.images.find(function(u){ return String(u.id) === String(img.id); });
+          if(src && src.fileId && !img.fileId){
+            img.fileId = src.fileId;
+            img.fileUrl = src.fileUrl || img.fileUrl || '';
+            imgMerged = true;
+          }
+        });
+        if(imgMerged){ m.previewMeta = fullMeta; merged = true; }
+      }
+    }
+  });
+  return merged;
 }
 
 function ensureNotebookDetailLoaded(id){
@@ -2442,9 +2908,19 @@ function ensureNotebookDetailLoaded(id){
       )
     );
     if(!keepCurrent){
+      const localDetail = (current && Array.isArray(current.msgs) && current.msgs.length)
+        ? current
+        : loadNotebookDetailFromLocal(safeId);
+      const repaired = mergeRichChatFieldsFromLocal(full, localDetail);
       if(idx >= 0) notebooks[idx] = full;
       else notebooks.unshift(full);
       persistNotebookDetailCache(full);
+      if(repaired){
+        // 把本地修复的内容回传后端，让服务端数据恢复完整
+        nextNotebookUpdatedAt(full);
+        persistNotebookDetailCache(full);
+        enqueueNotebookSave(full).catch(reportNotebookSaveError);
+      }
     }
     notebookDebugLog('ensureNotebookDetailLoaded:resolved', {
       notebookId: safeId,
@@ -2549,6 +3025,10 @@ async function deleteNotebook(id, evt){
       __nbResultFileSaveTimers.delete(notebookId);
     }
     notebooks = notebooks.filter(n => String(n.id) !== notebookId);
+    try{
+      const cachedDetail = (curNb && String(curNb.id) === notebookId) ? curNb : loadNotebookDetailFromLocal(notebookId);
+      if(cachedDetail) purgeNotebookChatImageCaches(cachedDetail).catch(function(){});
+    }catch(_){ }
     try{ localStorage.removeItem(notebookDetailCacheKey(id)); }catch(_){ }
     persistNotebookSummaryCache();
     pruneNotebookDetailCaches(notebooks.map(function(item){ return item && item.id; }));
@@ -2774,9 +3254,13 @@ function persistNotebookLocally(nb){
 }
 
 const HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT = 120000;
+const HEARTOS_LOCAL_CACHE_TRUNCATION_MARK = '\n...[truncated for local cache]';
 const HEARTOS_LOCAL_CACHE_MAX_IMAGE_DATA_URL = 240000;
 const HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT = 24000;
 const HEARTOS_PERSIST_MAX_MSG_HTML = 20000;
+// 不含内嵌 base64 图片的富消息（如信号补全 SVG 对比卡片）没有 previewMeta 兜底，
+// 丢掉 _html 就无法恢复，所以放宽到更大的上限。
+const HEARTOS_PERSIST_MAX_MSG_HTML_NO_IMAGE = 300000;
 const HEARTOS_REMOTE_FILE_TIMEOUT_MS = 8000;
 
 function normalizeSourceForPersistence(src, options){
@@ -2790,8 +3274,11 @@ function normalizeSourceForPersistence(src, options){
     if(hasRemoteFile) imageDataUrl = null;
     else if(imageDataUrl && imageDataUrl.length > HEARTOS_LOCAL_CACHE_MAX_IMAGE_DATA_URL) imageDataUrl = null;
     if(content && content.length > HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT){
-      content = content.slice(0, HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT) + '\n...[truncated for local cache]';
+      content = content.slice(0, HEARTOS_LOCAL_CACHE_MAX_SOURCE_CONTENT) + HEARTOS_LOCAL_CACHE_TRUNCATION_MARK;
     }
+  }else if(hasRemoteFile && imageDataUrl){
+    // 文件本体已在服务器（fileId），后端载荷不再内联 base64；加载时由 hydrate 按 fileId 恢复
+    imageDataUrl = null;
   }
   const normalized = {
     id: Number(src.id) || 0,
@@ -2806,11 +3293,18 @@ function normalizeSourceForPersistence(src, options){
   };
   if(src.mime) normalized.mime = String(src.mime);
   if(src.sampleRate != null && src.sampleRate !== '') normalized.sampleRate = src.sampleRate;
+  if(src.sampleRateSource != null && src.sampleRateSource !== '') normalized.sampleRateSource = String(src.sampleRateSource);
   if(src.meta && typeof src.meta === 'object') normalized.meta = src.meta;
   if(src.analysisMeta && typeof src.analysisMeta === 'object') normalized.analysisMeta = src.analysisMeta;
   if(src.derivedFrom != null && src.derivedFrom !== '') normalized.derivedFrom = src.derivedFrom;
   if(src.analysisFileId != null && src.analysisFileId !== '') normalized.analysisFileId = String(src.analysisFileId);
   if(src.fromAnalysisResult != null) normalized.fromAnalysisResult = !!src.fromAnalysisResult;
+  if(src.parentSourceId != null && src.parentSourceId !== '') normalized.parentSourceId = String(src.parentSourceId);
+  if(src.generatedBy != null && src.generatedBy !== '') normalized.generatedBy = String(src.generatedBy);
+  if(src.__fromAnalysisResult != null) normalized.__fromAnalysisResult = !!src.__fromAnalysisResult;
+  if(src.__fromEcgomics != null) normalized.__fromEcgomics = !!src.__fromEcgomics;
+  if(src.__fromReconstruct != null) normalized.__fromReconstruct = !!src.__fromReconstruct;
+  if(src.__fromDigitize != null) normalized.__fromDigitize = !!src.__fromDigitize;
   if(src.serverPath) normalized.serverPath = String(src.serverPath);
   return normalized;
 }
@@ -2837,9 +3331,17 @@ function normalizeNotebookMessageForPersistence(msg, options){
     if(key === '_html'){
       const html = typeof value === 'string' ? value : '';
       if(!html) return;
-      if(!forLocalCache && html.length <= HEARTOS_PERSIST_MAX_MSG_HTML){
+      const htmlLimit = html.indexOf('data:image') >= 0
+        ? HEARTOS_PERSIST_MAX_MSG_HTML
+        : HEARTOS_PERSIST_MAX_MSG_HTML_NO_IMAGE;
+      if(html.length <= htmlLimit){
         normalized._html = html;
       }
+      return;
+    }
+    if(key === 'previewMeta'){
+      const previewMeta = serializeChatPreviewMeta(value, { includeDataUrl: !forLocalCache });
+      if(previewMeta) normalized.previewMeta = previewMeta;
       return;
     }
     if(typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'){
@@ -2900,7 +3402,7 @@ function normalizeAnalysisFileForPersistence(file, options){
   let content = typeof file.content === 'string' ? file.content : '';
   if(hasRemoteFile) content = '';
   else if(forLocalCache && content.length > HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT){
-    content = content.slice(0, HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT) + '\n...[truncated for local cache]';
+    content = content.slice(0, HEARTOS_LOCAL_CACHE_MAX_ANALYSIS_CONTENT) + HEARTOS_LOCAL_CACHE_TRUNCATION_MARK;
   }
   const normalized = {
     id: String(file.id || ''),
@@ -3022,7 +3524,11 @@ async function ensureAnalysisResultFilesPersisted(nb){
   const target = nb || curNb;
   const files = Array.isArray(target && target.analysisFiles) ? target.analysisFiles : [];
   for(let i=0;i<files.length;i++){
-    await persistAnalysisResultFileIfNeeded(files[i]);
+    const file = files[i];
+    const promise = file && file._persistPromise && typeof file._persistPromise.then === 'function'
+      ? file._persistPromise
+      : persistAnalysisResultFileIfNeeded(file);
+    await promise.catch(function(){ return false; });
   }
 }
 
@@ -3570,6 +4076,7 @@ async function openNb(id, autoUpload=false){
     const freshNb = await ensureNotebookDetailLoaded(nextNb.id);
     if(requestSeq !== __nbOpenRequestSeq) return;
     applyNotebookToWorkspace(freshNb);
+    rehydrateChatPreviewImages();
     setNotebookDetailLoadingState('');
     renderSrcs();
     renderChat();
@@ -3866,14 +4373,7 @@ function loadNotebookSummariesFromLocal(){
 function persistNotebookDetailCache(nb){
   if(isNotebookBootPlaceholder(nb)) return;
   if(nb && nb._draft) return;
-  const payload = buildNotebookPayload(nb, { stampUpdatedAt:false });
-  if(!payload || !payload.id) return;
-  writeLocalJson(notebookDetailCacheKey(payload.id), {
-    savedAt: Date.now(),
-    item: payload
-  });
-  persistNotebookBootCache(nb);
-  persistActiveNotebookSnapshot(nb);
+  persistNotebookLocally(nb);
 }
 
 function buildNotebookBootPayload(nb){
@@ -3899,7 +4399,7 @@ function buildNotebookBootPayload(nb){
         fileUrl: src.fileUrl ? String(src.fileUrl) : ''
       };
     }).filter(Boolean),
-    msgs: Array.isArray(nb.msgs) ? nb.msgs.slice(-20) : [],
+    msgs: serializeNotebookMessages(Array.isArray(nb.msgs) ? nb.msgs.slice(-20) : [], { forLocalCache:true }),
     events: Array.isArray(nb.events) ? nb.events.slice(-20) : [],
     analysisFiles: serializeAnalysisFiles(nb.analysisFiles, { forLocalCache:true }),
     analysisFilesUpdatedAt: Number(nb.analysisFilesUpdatedAt || nb.updatedAt || Date.now()),
@@ -4187,6 +4687,7 @@ function applyNotebookToWorkspace(nb){
       renderSrcs();
       renderAnalysisFiles();
     }).catch(function(){});
+    scheduleChatPreviewImageUploadSweep(curNb);
   }
 }
 
@@ -5529,28 +6030,22 @@ async function deleteSource(id, evt){
   const targetNotebook = curNb;
   if(!confirm(`确认删除来源：${src.name} ？`)) return;
 
-  const fileId = src.fileId || src.serverFileId || '';
-  if(fileId){
-    try{
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'DELETE' });
-      if(!resp.ok && resp.status !== 404){
-        let msg = '删除来源文件失败';
-        try{
-          const out = await resp.json().catch(function(){ return {}; });
-          if(out && out.detail) msg = String(out.detail);
-        }catch(_){ }
-        throw new Error(msg);
-      }
-    }catch(e){
-      showToast('删除失败：' + (e && e.message ? e.message : '来源文件未能彻底删除'));
-      return;
-    }
-  }
-
+  // 先删前端展示并持久化记录，服务器文件转后台清理（孤儿文件可被后台清扫兜底）
   sources.splice(idx, 1);
   deleteSourceFileCache(src, targetNotebook).catch(function(){});
   commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:true });
   showToast('来源已移除');
+
+  const fileId = src.fileId || src.serverFileId || '';
+  if(fileId){
+    apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'DELETE' }).then(function(resp){
+      if(!resp.ok && resp.status !== 404){
+        showToast('来源已移除，但服务器文件清理未完成');
+      }
+    }).catch(function(){
+      showToast('来源已移除，但服务器文件清理未完成');
+    });
+  }
 }
 
 async function deleteSelectedSources(evt){
@@ -5559,45 +6054,25 @@ async function deleteSelectedSources(evt){
   if(!selected.length) return;
   if(!confirm(`确认删除已选择的 ${selected.length} 个来源？`)) return;
 
-  const removableIds = new Set();
-  const failedNames = [];
-  for(const src of selected){
-    const fileId = String(src.fileId || src.serverFileId || '');
-    if(!fileId){
-      removableIds.add(src.id);
-      continue;
-    }
-    try{
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(fileId), { method:'DELETE' });
-      if(!resp.ok && resp.status !== 404){
-        let msg = '';
-        try{
-          const out = await resp.json().catch(function(){ return {}; });
-          msg = out && out.detail ? String(out.detail) : '';
-        }catch(_){ }
-        throw new Error(msg || '来源文件未能彻底删除');
-      }
-      removableIds.add(src.id);
-    }catch(_){
-      failedNames.push(src.name || '未命名来源');
-    }
-  }
-  if(!removableIds.size){
-    showToast('删除失败：所选来源文件未能彻底删除');
-    return;
-  }
-  const removedSources = sources.filter(function(s){ return removableIds.has(sourceIdKey(s && s.id)); });
+  // 先删前端展示并持久化记录，服务器文件转后台并行清理
+  const removableIds = new Set(selected.map(function(s){ return sourceIdKey(s && s.id); }));
   sources = sources.filter(function(s){ return !removableIds.has(sourceIdKey(s && s.id)); });
   window.sources = sources;
-  removedSources.forEach(function(src){
+  selected.forEach(function(src){
     deleteSourceFileCache(src, curNb).catch(function(){});
   });
   commitCurrentSourceState({ saveNotebookImmediate:false, saveSourcesImmediate:true });
-  if(failedNames.length){
-    showToast(`已删除 ${removableIds.size} 个来源，${failedNames.length} 个删除失败`);
-  }else{
-    showToast(`已移除 ${removableIds.size} 个来源`);
-  }
+  showToast(`已移除 ${selected.length} 个来源`);
+
+  const fileIds = selected.map(function(src){ return String(src.fileId || src.serverFileId || ''); }).filter(Boolean);
+  Promise.allSettled(fileIds.map(function(fileId){
+    return apiFetch('/api/files/' + encodeURIComponent(fileId), { method:'DELETE' }).then(function(resp){
+      if(!resp.ok && resp.status !== 404) throw new Error('delete failed');
+    });
+  })).then(function(results){
+    const failed = results.filter(function(r){ return r.status === 'rejected'; }).length;
+    if(failed) showToast(`${failed} 个来源的服务器文件清理未完成`);
+  });
 }
 
 async function openHandEcgFromSource(id, evt){
@@ -6532,16 +7007,18 @@ async function convertPdfSourceToImageDataUrl(src){
     const arr = new Uint8Array(raw.length);
     for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
     pdfBytes = arr.buffer;
-  }else if(src.fileId || src.serverFileId){
+  }else{
     try{
-      const fileId = src.fileId || src.serverFileId;
-      const resp = await apiFetch('/api/files/' + encodeURIComponent(String(fileId)), { method:'GET' });
-      if(resp && resp.ok){
-        pdfBytes = await (await resp.blob()).arrayBuffer();
+      const blob = await readStoredEntryBlob(src, { timeoutMs: 4500, logLabel:'pdf-source-bytes' });
+      if(isBlobLike(blob)){
+        pdfBytes = await blob.arrayBuffer();
+        cacheSourceFileLocally(src, cachedBlobToFileLike(
+          blob,
+          src.name || src.fileId || src.serverFileId || 'source.pdf',
+          src.mime || blob.type || 'application/pdf'
+        ), curNb, { blob:blob }).catch(function(){});
       }
     }catch(_){ }
-  }else{
-    return '';
   }
   const fileIdForBackend = src.fileId || src.serverFileId || '';
   if(!pdfBytes && !fileIdForBackend) return '';
@@ -6568,13 +7045,13 @@ async function convertPdfSourceToImageDataUrlBackend(src, pdfBytes, frontErr){
   try{
     const fd = new FormData();
     const fileId = src && (src.fileId || src.serverFileId || '');
-    if(fileId){
-      fd.append('file_id', String(fileId));
-    }else if(isBlobLike(src && src.fileObj)){
-      fd.append('file', src.fileObj, (src && src.name) || (src.fileObj && src.fileObj.name) || 'source.pdf');
-    }else if(pdfBytes){
+    if(pdfBytes){
       const blob = new Blob([pdfBytes], { type:'application/pdf' });
       fd.append('file', blob, (src && src.name) || 'source.pdf');
+    }else if(isBlobLike(src && src.fileObj)){
+      fd.append('file', src.fileObj, (src && src.name) || (src.fileObj && src.fileObj.name) || 'source.pdf');
+    }else if(fileId){
+      fd.append('file_id', String(fileId));
     }else{
       throw new Error('缺少可转换的 PDF 数据');
     }
@@ -6848,19 +7325,23 @@ async function _callAiDigitizeWithLayout(parsed, srcName, layout){
   const reqCtrl = new AbortController();
   const reqTimer = setTimeout(()=>{ try{ reqCtrl.abort(); }catch(_){} }, 12000);
   try{
-    const resp = await apiFetch('/api/ai-ecg-digitize', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      signal: reqCtrl.signal,
-      body: JSON.stringify({
-        image_base64: parsed.base64,
-        image_mime: parsed.mime || 'image/png',
-        image_name: srcName || 'ecg_image.png',
-        options: {
-          layout_substring: layout,
-          return_image: true
-        }
-      })
+    const payload = {
+      image_base64: parsed.base64,
+      image_mime: parsed.mime || 'image/png',
+      image_name: srcName || 'ecg_image.png',
+      options: {
+        layout_substring: layout,
+        return_image: true
+      }
+    };
+    const resp = await apiFetchWithLocalDigitizeFallback('/api/ai-ecg-digitize', function(baseUrl){
+      return {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        signal: reqCtrl.signal,
+        body: JSON.stringify(payload),
+        __baseUrl: baseUrl
+      };
     });
     const out = await resp.json().catch(()=>({}));
     if(!resp.ok) throw new Error(out.detail || ('HTTP ' + resp.status));
@@ -6933,6 +7414,50 @@ function _extractReturnedImageDataUrl(obj){
     }
   }
   return '';
+}
+
+function shouldRetryLocalDigitizeResponse(resp){
+  if(!resp) return true;
+  const status = Number(resp.status || 0);
+  if(!status) return true;
+  if(status === 401 || status === 403 || status === 404 || status === 422) return false;
+  return status >= 500;
+}
+
+function shouldRetryLocalDigitizeError(err){
+  const msg = String((err && err.message) || err || '').toLowerCase();
+  if(!msg) return true;
+  if(/未登录|invalid or expired token|手机号或密码错误|forbidden|401|403/.test(msg)) return false;
+  return true;
+}
+
+async function apiFetchWithLocalDigitizeFallback(path, buildOptions){
+  const preferredBase = normalizeBackendBaseUrl(HEARTOS_BACKEND_BASE_URL);
+  const localCandidates = buildBackendBaseCandidates(preferredBase).filter(function(base){
+    return isLocalBackendBase(base);
+  });
+  const candidates = localCandidates.length ? localCandidates : [preferredBase];
+  let lastResponse = null;
+  let lastError = null;
+  for(let i = 0; i < candidates.length; i += 1){
+    const baseUrl = normalizeBackendBaseUrl(candidates[i]);
+    if(!baseUrl) continue;
+    try{
+      const resp = await apiFetch(path, buildOptions(baseUrl));
+      if(resp.ok) return resp;
+      lastResponse = resp;
+      if(!shouldRetryLocalDigitizeResponse(resp) || i === candidates.length - 1){
+        return resp;
+      }
+    }catch(err){
+      lastError = err;
+      if(!shouldRetryLocalDigitizeError(err) || i === candidates.length - 1){
+        throw err;
+      }
+    }
+  }
+  if(lastResponse) return lastResponse;
+  throw (lastError || new Error('自动数字化请求失败'));
 }
 
 function _autoEcgLoadImage(dataUrl){
@@ -7949,6 +8474,23 @@ async function sendMsg(){
   chatAbortController = null;
 }
 
+function recordChatMessage(msg){
+  if(!msg) return;
+  if(!msg.id) msg.id = 'msg_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+  if(msg.previewMeta) ensureChatPreviewMetaCacheKeys(msg, curNb);
+  msgs.push(msg);
+  syncCurrentNotebookState();
+  if(curNb) finalizeDraftNotebook(curNb);
+  scheduleSaveCurrentNotebook(false);
+  if(msg.previewMeta){
+    const msgNb = curNb;
+    // 先写 IndexedDB 保证本机可恢复，再后台上传换取 fileId 引用
+    cacheChatPreviewMetaLocally(msg, msgNb).catch(function(){}).then(function(){
+      return uploadChatPreviewImagesToServer(msg, msgNb);
+    }).catch(function(){});
+  }
+}
+
 function appendAI(text, _noRecord){
   const w = document.getElementById('msgsList');
   if(!w) return;
@@ -7958,10 +8500,7 @@ function appendAI(text, _noRecord){
   d.innerHTML=`<div class="ai-av">AI</div><div class="ai-body">${html}</div>`;
   w.appendChild(d); scrollChat();
   if(!_noRecord){
-    msgs.push({role:'assistant', kind:'chat', type:'text', content:text, createdAt:Date.now()});
-    syncCurrentNotebookState();
-    if(curNb) finalizeDraftNotebook(curNb);
-    scheduleSaveCurrentNotebook(false);
+    recordChatMessage({role:'assistant', kind:'chat', type:'text', content:text, createdAt:Date.now()});
   }
 }
 
@@ -8000,10 +8539,7 @@ function pushRichMsg(msg){
   }
   if(msg && !msg.kind) msg.kind = 'chat';
   if(msg && !msg.createdAt) msg.createdAt = Date.now();
-  msgs.push(msg);
-  syncCurrentNotebookState();
-  if(curNb) finalizeDraftNotebook(curNb);
-  scheduleSaveCurrentNotebook(false);
+  recordChatMessage(msg);
 }
 
 function pushChatEvent(event){
@@ -8058,8 +8594,35 @@ function replayMsgToDom(m){
     scrollChat();
     return;
   }
+  if(m.previewMeta){
+    const d = document.createElement('div');
+    d.className = 'msg-ai';
+    if(m.id) d.dataset.msgId = m.id;
+    d.innerHTML = buildChatPreviewHtml(m.previewMeta);
+    w.appendChild(d);
+    scrollChat();
+    hydrateChatPreviewMetaLocally(m, curNb).then(function(){
+      d.innerHTML = buildChatPreviewHtml(m.previewMeta);
+    }).catch(function(){});
+    return;
+  }
   // 降级：当作普通文本
   if(m.content) appendAI(m.content, true);
+}
+
+function rehydrateChatPreviewImages(){
+  const w = document.getElementById('msgsList');
+  if(!w) return;
+  (Array.isArray(msgs) ? msgs : []).forEach(function(m){
+    if(!m || !m.id || !m.previewMeta) return;
+    const d = w.querySelector('[data-msg-id="' + m.id + '"]');
+    if(!d) return;
+    const meta = normalizeChatPreviewMeta(m.previewMeta);
+    if(!meta) return;
+    const hasDataUrl = meta.images.some(function(img){ return img && img.dataUrl; });
+    if(!hasDataUrl) return;
+    d.innerHTML = buildChatPreviewHtml(m.previewMeta);
+  });
 }
 
 function replayEventToDom(evt){
@@ -8149,7 +8712,20 @@ function appendImagePreviewInChat(src){
   d.innerHTML = innerHtml;
   w.appendChild(d);
   scrollChat();
-  pushRichMsg({ role:'assistant', type:'image_preview', content:'已加载图片来源：' + (src.name||''), _html: innerHtml });
+  pushRichMsg({
+    role:'assistant',
+    type:'image_preview',
+    content:'已加载图片来源：' + (src.name||''),
+    _html: innerHtml,
+    previewMeta: {
+      kind: 'image_preview',
+      sourceName: String(src.name || ''),
+      title: '已加载图片来源：' + String(src.name || 'image'),
+      images: [
+        { id:'loaded-image', alt:String(src.name || 'ecg-image'), dataUrl:String(src.imageDataUrl || '') }
+      ]
+    }
+  });
 }
 function scrollChat(){const a=document.getElementById('chatArea');setTimeout(()=>a.scrollTop=a.scrollHeight,60);}
 
@@ -8501,8 +9077,9 @@ function findReplaceableAnalysisResultIndex(item){
   }) : -1;
 }
 
-function addAnalysisResultFile(file){
+function addAnalysisResultFile(file, options){
   if(!file || !file.content) return null;
+  const settings = options || {};
   const ext = String(file.ext || file.type || 'txt').replace(/^\./,'').toLowerCase() || 'txt';
   const preferredName = normalizeResultFileName(file.name || file.fileName, ext);
   const item = {
@@ -8528,17 +9105,21 @@ function addAnalysisResultFile(file){
   cacheAnalysisFileLocally(item, item.content, curNb).catch(function(){});
   if(curNb) curNb.analysisFiles = analysisFiles;
   if(curNb) nextAnalysisFilesUpdatedAt(curNb);
-  syncCurrentNotebookState();
   if(curNb){
-    finalizeDraftNotebook(curNb);
-    persistNotebookLocally(curNb);
-    scheduleSaveCurrentNotebookResultFiles(true);
+    if(!settings.deferNotebookPersist){
+      syncCurrentNotebookState();
+      finalizeDraftNotebook(curNb);
+      persistNotebookLocally(curNb);
+      scheduleSaveCurrentNotebookResultFiles(true);
+    }
     item._persistPromise = persistAnalysisResultFileIfNeeded(item).then(function(saved){
       if(!saved || !curNb) return;
       nextAnalysisFilesUpdatedAt(curNb);
-      syncCurrentNotebookState();
-      persistNotebookLocally(curNb);
-      scheduleSaveCurrentNotebookResultFiles(true);
+      if(!settings.deferNotebookPersist){
+        syncCurrentNotebookState();
+        persistNotebookLocally(curNb);
+        scheduleSaveCurrentNotebookResultFiles(true);
+      }
       return true;
     }).catch(function(){});
   }
@@ -8826,7 +9407,11 @@ async function importAnalysisFileAsSource(id, evt){
     src.generatedBy = f.generatedBy || (src.__fromReconstruct ? 'reconstruct' : (src.__fromDigitize ? 'digitize' : ''));
     src.sampleRate = normalizedSampleRate(f.sampleRate);
     src.sampleRateSource = f.sampleRateSource || (src.sampleRate && src.__fromDigitize ? 'platform' : '');
-    if(src) await finalizeSourceImport([src], curNb);
+    if(src){
+      // 本地状态已就绪，先反馈给用户；finalizeSourceImport 内部完成渲染和持久化
+      showToast('结果文件已加入来源');
+      await finalizeSourceImport([src], curNb);
+    }
   }catch(err){
     if(err && err.code === 'DUPLICATE_SOURCE'){
       showToast('该结果文件已在来源列表中');
@@ -8835,26 +9420,15 @@ async function importAnalysisFileAsSource(id, evt){
     showToast('结果文件加入来源失败，请稍后重试');
     return;
   }
-  if(src){
-    syncCurrentNotebookState();
-    persistNotebookLocally(curNb);
-    try{ persistNotebookKeepalive(curNb); }catch(_){}
-    try{ persistNotebookSourcesKeepalive(curNb); }catch(_){}
-    scheduleSaveCurrentNotebook(true);
-    scheduleSaveCurrentNotebookSources(true);
-    renderSrcs();
-    updateCiSrc();
-    if(rawFile){
-      persistSourceFileIfNeeded(src, rawFile, curNb).then(function(saved){
-        if(!saved) return;
-        syncCurrentNotebookState();
-        persistNotebookLocally(curNb);
-        try{ persistNotebookSourcesKeepalive(curNb); }catch(_){}
-        scheduleSaveCurrentNotebookSources(true);
-      }).catch(function(){});
-    }
+  if(src && rawFile){
+    // 文件后台上传，成功后回写 fileId 并通过防抖保存同步（finalize 已完成首轮保存，这里不必 immediate）
+    persistSourceFileIfNeeded(src, rawFile, curNb).then(function(saved){
+      if(!saved) return;
+      syncCurrentNotebookState();
+      persistNotebookLocally(curNb);
+      scheduleSaveCurrentNotebookSources(false);
+    }).catch(function(){});
   }
-  showToast('结果文件已加入来源');
 }
 
 function deleteAnalysisFile(id, evt){
@@ -10090,31 +10664,135 @@ function renderEcgReconstructResult(src, out, options){
         d.innerHTML = reconImgHtml;
         w.appendChild(d);
         scrollChat();
-        pushRichMsg({ role:'assistant', type:'recon_image', content:'ECG 信号补全回传图像', _html: reconImgHtml });
+        pushRichMsg({
+          role:'assistant',
+          type:'recon_image',
+          content:'ECG 信号补全回传图像',
+          _html: reconImgHtml,
+          previewMeta: {
+            kind: 'recon_image',
+            sourceName: String((src && src.name) || ''),
+            title: 'ECG 信号补全回传图像',
+            images: [
+              { id:'recon-image', alt:'ecg-reconstruct-chat-preview', dataUrl:String(imageDataUrl || '') }
+            ]
+          }
+        });
       }
     }
   }catch(_){ }
   return currentResultFileName;
 }
 
+function scheduleAutoDigitizeDeferredWork(label, work){
+  const runner = function(){
+    Promise.resolve().then(work).catch(function(err){
+      heartosConsoleDebug(
+        'heartos-auto-digitize',
+        String(label || 'deferred work failed'),
+        err && err.message ? err.message : err
+      );
+    });
+  };
+  if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+    try{
+      window.requestIdleCallback(function(){ runner(); }, { timeout: 100 });
+      return;
+    }catch(_){ }
+  }
+  setTimeout(runner, 32);
+}
+
+function scheduleAutoDigitizeChatRecord(msg, label){
+  const payload = msg && typeof msg === 'object' ? Object.assign({}, msg) : null;
+  if(!payload) return;
+  scheduleAutoDigitizeDeferredWork(label || 'persist auto-digitize chat failed', function(){
+    if(!payload.content && payload._html){
+      payload.content = htmlToPlainText(payload._html).slice(0, 2000);
+    }
+    if(!payload.kind) payload.kind = 'chat';
+    if(!payload.createdAt) payload.createdAt = Date.now();
+    recordChatMessage(payload);
+  });
+}
+
+function appendAutoDigitizePreviewMessage(src, options){
+  const settings = options || {};
+  const returnedImage = String(settings.returnedImage || '');
+  const compareImage = String(settings.compareImage || '');
+  if(!returnedImage && !compareImage) return false;
+  const w = document.getElementById('msgsList');
+  if(!w) return false;
+  const d = document.createElement('div');
+  d.className = 'msg-ai';
+  const debugPart = returnedImage
+    ? `<p><strong>接口回传四图</strong></p><img src="${returnedImage}" alt="auto-digitize-debug-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin:6px 0 10px;" />`
+    : '';
+  const comparePart = compareImage
+    ? `<p><strong>原图与拟合波形对比</strong></p><img src="${compareImage}" alt="auto-digitize-compare-preview" onclick="openChatImageZoom('${compareImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />`
+    : '';
+  const autoDigHtml = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>${esc(src && src.name || '未命名来源')} 自动数字化预览</strong></p>${debugPart}${comparePart}</div>`;
+  d.innerHTML = autoDigHtml;
+  w.appendChild(d);
+  scrollChat();
+  const chatMsg = {
+    role:'assistant',
+    type:'auto_digitize_preview',
+    content:(src && src.name || '未命名来源') + ' 自动数字化预览',
+    _html: autoDigHtml,
+    previewMeta: {
+      kind: 'auto_digitize_preview',
+      sourceName: String(src && src.name || ''),
+      title: String(src && src.name || '未命名来源') + ' 自动数字化预览',
+      images: [
+        returnedImage ? { id:'returned-image', label:'接口回传四图', alt:'auto-digitize-debug-preview', dataUrl:returnedImage } : null,
+        compareImage ? { id:'compare-image', label:'原图与拟合波形对比', alt:'auto-digitize-compare-preview', dataUrl:compareImage } : null
+      ].filter(Boolean)
+    }
+  };
+  if(settings.deferPersist) scheduleAutoDigitizeChatRecord(chatMsg, 'persist auto-digitize preview failed');
+  else pushRichMsg(chatMsg);
+  return true;
+}
+
 async function autoDigitizeSingleSource(src, task, requestController){
-  let fileObj = isBlobLike(src.fileObj) ? src.fileObj : null;
-  if(!fileObj || !/^image\//i.test(String(fileObj.type||''))){
+  let fileObj = null;
+  let preferredDataUrl = '';
+  try{
+    preferredDataUrl = String(src && src.imageDataUrl || '');
+    if(!preferredDataUrl || preferredDataUrl.indexOf('data:image') !== 0){
+      preferredDataUrl = await sourceDataUrl(src);
+    }
+    if(preferredDataUrl && preferredDataUrl.indexOf('data:image') === 0){
+      preferredDataUrl = await normalizeToolImageDataUrl(preferredDataUrl, 2200);
+      if(preferredDataUrl && preferredDataUrl.indexOf('data:image') === 0){
+        src.imageDataUrl = preferredDataUrl;
+        const uploadName = String((src && src.name) || 'ecg_image').replace(/\.[^.]+$/, '') + '.png';
+        fileObj = dataUrlToFile(preferredDataUrl, uploadName);
+      }
+    }
+  }catch(_){}
+  if(!fileObj && isBlobLike(src.fileObj) && /^image\//i.test(String(src.fileObj.type||''))){
+    fileObj = src.fileObj;
+  }
+  if(!fileObj && src.imageDataUrl){
     fileObj = dataUrlToFile(src.imageDataUrl, src.name || 'ecg_image.png');
   }
   if(!fileObj) throw new Error('图像文件构造失败。');
 
-  const fd = new FormData();
-  fd.append('file', fileObj, src.name || fileObj.name || 'ecg_image.png');
-  fd.append('layout_substring', 'standard_6x2');
-  fd.append('return_image', 'true');
   const ctrl = requestController || (task && task.controller ? task.controller : new AbortController());
   activeToolAbortController = ctrl;
   const timer = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 300000);
   let resp = null;
   let out = {};
   try{
-    resp = await apiFetch('/api/ai-ecg-digitize', { method:'POST', body: fd, signal: ctrl.signal });
+    resp = await apiFetchWithLocalDigitizeFallback('/api/ai-ecg-digitize', function(baseUrl){
+      const fd = new FormData();
+      fd.append('file', fileObj, src.name || fileObj.name || 'ecg_image.png');
+      fd.append('layout_substring', 'standard_6x2');
+      fd.append('return_image', 'true');
+      return { method:'POST', body: fd, signal: ctrl.signal, __baseUrl: baseUrl };
+    });
     out = await resp.json().catch(()=>({}));
   }finally{
     clearTimeout(timer);
@@ -10135,37 +10813,21 @@ async function autoDigitizeSingleSource(src, task, requestController){
   if(!csv) throw new Error('导联数据转换 CSV 失败。');
   let csvName = _normalizeCsvNameBySource('', src.name || 'ecg');
   currentResultText = csv;
-  const resultFile = addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'自动数字化', sourceName:String((src && src.name) || ''), sourceId:String((src && src.id) || ''), parentSourceId:String((src && src.id) || ''), generatedBy:'auto_digitize', sampleRate:Number(data && data.fs) || 500, sampleRateSource:'platform' });
+  const resultFile = addAnalysisResultFile({ name: csvName, type:'csv', mime:'text/csv;charset=utf-8', content: csv, source:'自动数字化', sourceName:String((src && src.name) || ''), sourceId:String((src && src.id) || ''), parentSourceId:String((src && src.id) || ''), generatedBy:'auto_digitize', sampleRate:Number(data && data.fs) || 500, sampleRateSource:'platform' }, { deferNotebookPersist:true });
   if(resultFile) csvName = resultFile.name;
-  if(resultFile) await persistSingleAnalysisResultNow(resultFile, curNb);
   currentResultFileName = csvName;
   const returnedImage = _extractReturnedImageDataUrl(data);
-  let compareImage = '';
-  try{
-    compareImage = await buildAutoDigitizeSideBySideDataUrl(src.imageDataUrl, leadMap, { crop:'', leftTitle:'Original ECG image' });
-  }catch(cmpErr){
-    heartosConsoleDebug('heartos-auto-digitize', 'side-by-side preview failed', cmpErr && cmpErr.message ? cmpErr.message : cmpErr);
-  }
   if(studioTaskWasStopped(task)) throw new DOMException('Stopped', 'AbortError');
   const leadNames = Object.keys(leadMap).filter(k => Array.isArray(leadMap[k]));
   const totalPoints = leadNames.reduce((acc, name)=>acc + ((leadMap[name] || []).length), 0);
-  if(compareImage || returnedImage){
-    const w = document.getElementById('msgsList');
-    if(w){
-      const d = document.createElement('div');
-      d.className = 'msg-ai';
-      const debugPart = returnedImage
-        ? `<p><strong>接口回传四图</strong></p><img src="${returnedImage}" alt="auto-digitize-debug-preview" onclick="openChatImageZoom('${returnedImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin:6px 0 10px;" />`
-        : '';
-      const comparePart = compareImage
-        ? `<p><strong>原图与拟合波形对比</strong></p><img src="${compareImage}" alt="auto-digitize-compare-preview" onclick="openChatImageZoom('${compareImage}')" style="cursor:zoom-in;max-width:260px;max-height:180px;border-radius:8px;border:1px solid #e5e7eb;display:block;margin-top:6px;" />`
-        : '';
-      const autoDigHtml = `<div class="ai-av">AI</div><div class="ai-body"><p><strong>${esc(src.name || '未命名来源')} 自动数字化预览</strong></p>${debugPart}${comparePart}</div>`;
-      d.innerHTML = autoDigHtml;
-      w.appendChild(d);
-      scrollChat();
-      pushRichMsg({ role:'assistant', type:'auto_digitize_preview', content:(src.name||'未命名来源') + ' 自动数字化预览', _html: autoDigHtml });
-    }
+  if(returnedImage){
+    appendAutoDigitizePreviewMessage(src, { returnedImage: returnedImage, deferPersist:true });
+  }
+  if(src && src.imageDataUrl){
+    scheduleAutoDigitizeDeferredWork('side-by-side preview failed', async function(){
+      const compareImage = await buildAutoDigitizeSideBySideDataUrl(src.imageDataUrl, leadMap, { crop:'', leftTitle:'Original ECG image' });
+      if(compareImage) appendAutoDigitizePreviewMessage(src, { compareImage: compareImage, deferPersist:true });
+    });
   }
   return { source:src, csvName:csvName, leadCount:scored.leadCount, totalPoints:totalPoints };
 }
@@ -10346,14 +11008,24 @@ async function runStudio(type, opts){
       }
       if(studioTaskWasStopped(task)) return;
       const counts = batchCounts(task.batchItems);
-      await persistAnalysisFilesNow(curNb);
+      const resultNotebook = curNb;
+      scheduleAutoDigitizeDeferredWork('persist analysis files failed', function(){
+        return persistAnalysisFilesNow(resultNotebook);
+      });
       showResultBatchTask(task, '自动数字化批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', '', false);
-      appendAI('自动数字化批量处理完成：共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个。\n' +
+      const summaryText = '自动数字化批量处理完成：共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个。\n' +
         task.batchItems.map(function(item){
           return item.name + '：' + (item.status === 'success'
             ? ('SUCCESS · CSV：' + item.outputName + (item.message ? (' · ' + item.message) : ''))
             : ('FAIL · ' + item.message));
-        }).join('\n'));
+        }).join('\n');
+      appendAI(summaryText, true);
+      scheduleAutoDigitizeChatRecord({
+        role:'assistant',
+        kind:'chat',
+        type:'text',
+        content: summaryText
+      }, 'persist auto-digitize completion failed');
     }finally{
       if(activeStudioTask === task) ecgsmartInFlight = false;
       finishStudioTask(task);
@@ -10434,7 +11106,10 @@ async function runStudio(type, opts){
       }
       if(studioTaskWasStopped(task)) return;
       const counts = batchCounts(task.batchItems);
-      await persistAnalysisFilesNow(curNb);
+      const resultNotebook = curNb;
+      scheduleAutoDigitizeDeferredWork('persist reconstruct analysis files failed', function(){
+        return persistAnalysisFilesNow(resultNotebook);
+      });
       showResultBatchTask(task, 'ECG 信号补全批量处理完成', '共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个', 'green', false);
       appendAI('ECG 信号补全批量处理完成：共 ' + counts.total + ' 个文件，成功 ' + counts.success + ' 个，失败 ' + counts.failed + ' 个。\n' +
         task.batchItems.map(function(item){ return item.name + '：' + (item.status === 'success' ? ('SUCCESS · CSV：' + item.outputName) : ('FAIL · ' + item.message)); }).join('\n'));
@@ -11151,9 +11826,10 @@ async function finalizeSourceImport(imported, nb){
     if(idx >= 0) notebooks[idx] = targetNotebook;
   }
   if(targetNotebook === curNb){
-    await persistNotebookAndSourcesNow(curNb);
+    // 先渲染（来源立即可见、可操作），再等待后端保存；保存失败仍抛错给上层回滚
     renderSrcs(); updateCiSrc(); renderChat(); renderStudio();
     updateNotebookDebugBadge();
+    await persistNotebookAndSourcesNow(curNb);
     return;
   }
   if(targetNotebook){
@@ -11364,8 +12040,8 @@ function buildBackendBaseCandidates(preferredBase){
   try{ lastGood = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_last_good') || ''); }catch(_){}
   add(preferredBase);
   add(manualOverride);
-  add(lastGood);
   add(configured);
+  add(lastGood);
   const host = String((window.location && window.location.hostname) || '').toLowerCase();
   if(isLocalHostName(host)){
     add('http://127.0.0.1:9000');
@@ -11382,7 +12058,7 @@ function resolveBackendBaseUrl(){
   try{ manualOverride = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_override') || ''); }catch(_){}
   try{ configured = normalizeBackendBaseUrl(window.HEARTOS_BACKEND_BASE_URL || ''); }catch(_){}
   try{ lastGood = normalizeBackendBaseUrl(localStorage.getItem('heartos_backend_base_last_good') || ''); }catch(_){}
-  var normalized = manualOverride || lastGood || configured;
+  var normalized = manualOverride || configured || lastGood;
   var host = String((window.location && window.location.hostname) || '').toLowerCase();
   var isLocalHost = isLocalHostName(host);
   if(isLocalHost && !normalized) normalized = 'http://127.0.0.1:9000';
@@ -11454,9 +12130,17 @@ function setAuthSession(token, user){
 }
 
 function clearAuthSession(){
+  clearLastOpenedNotebookId();
   localStorage.removeItem('heartos_auth_token');
   localStorage.removeItem('heartos_auth_user');
   __authMeCheckedAt = 0;
+  heartosSessionState.route = { page:'home', notebookId:'', feedbackId:'' };
+  heartosSessionState.workspace = Object.assign({}, heartosSessionState.workspace, {
+    activeNotebookId: '',
+    activeNotebookTitle: '',
+    selectedStudioCard: ''
+  });
+  persistSessionState();
   try{ document.documentElement.classList.remove('heartos-has-session'); }catch(_){}
   updateUserAvatarUI();
 }
@@ -12729,10 +13413,9 @@ async function submitAuthLogin(){
     __preferHomeAfterFreshLogin = true;
     updateUserAvatarUI();
     setAppAuthed(true);
-    document.getElementById('homePage')?.classList.add('active');
-    document.getElementById('nbPage')?.classList.remove('active');
-    if(!__heartosHistoryReady) ensureHistoryReadyFromLocation();
-    history.replaceState({page:'home'}, '', '#conversations');
+    clearNotebookWorkspace();
+    showHomeShellWithoutHistorySync();
+    resetRouteToHomeState(true);
     setAuthMsg('');
     setAuthSubmitting(false);
     hydrateNotebookSummariesFromLocal();
@@ -13171,6 +13854,10 @@ function logoutCurrentUser(){
   cleanupAdminFeedbackPreviewUrls();
   clearAuthSession();
   closeSystemModal('accountModal');
+  clearNotebookWorkspace();
+  showHomeShellWithoutHistorySync();
+  resetRouteToHomeState(true);
+  setSessionViewState('idle', '', '');
   setAuthModeAndShow('login');
 }
 
