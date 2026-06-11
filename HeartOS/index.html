@@ -240,7 +240,9 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .send-b.stop{background:#dc2626;}
 .send-b.stop:hover{background:#b91c1c;}
 .send-b.stop svg{width:11px;height:11px;}
-.chat-hint{font-size:11px;color:var(--text3);text-align:center;margin-top:7px;}
+.chat-hint{font-size:11px;color:var(--text3);text-align:center;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;}
+.chat-hint span{position:relative;}
+.chat-hint span+span::before{content:'';position:absolute;left:-6px;top:50%;width:1px;height:10px;background:var(--border2);transform:translateY(-50%);}
 
 /* STUDIO */
 .studio-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);border-left:1px solid var(--border);}
@@ -845,6 +847,15 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .hconfirm-btn.primary:hover{background:#2856c2;}
 .hconfirm-btn.danger{background:#dc2626;border-color:transparent;color:#fff;}
 .hconfirm-btn.danger:hover{background:#b91c1c;}
+/* ── 自定义 tooltip（即时、可控样式、覆盖纯图标按钮的可发现性） ── */
+.heartos-tip{position:fixed;z-index:30500;max-width:240px;padding:6px 10px;background:#1f2937;color:#fff;font-size:12px;line-height:1.5;border-radius:8px;box-shadow:0 6px 20px rgba(15,23,42,.28);pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .12s ease,transform .12s ease;white-space:nowrap;}
+.heartos-tip.show{opacity:1;transform:translateY(0);}
+.heartos-tip::after{content:'';position:absolute;width:7px;height:7px;background:#1f2937;transform:rotate(45deg);}
+.heartos-tip[data-pos="top"]::after{left:50%;bottom:-3px;margin-left:-3.5px;}
+.heartos-tip[data-pos="bottom"]::after{left:50%;top:-3px;margin-left:-3.5px;}
+.heartos-tip-kbd{display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.16);font-size:11px;font-weight:600;}
+/* 菜单项内联图标，与文字对齐 */
+.menu-ico{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
 /* ── 首页空状态引导 ── */
 .home-guide{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 24px 12px;color:var(--text2);}
 .home-guide-icon{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#eff4ff,#e3ecff);display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:16px;}
@@ -1160,7 +1171,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="tb-spacer"></div>
     <div class="tb-actions">
       <button class="tb-btn" type="button" onclick="openFeedbackCenterModal()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 反馈中心</button>
-      <div class="avatar" id="homeUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
+      <div class="avatar" id="homeUserAvatar" onclick="onUserAvatarClick()" data-tip="点击查看账号">U</div>
     </div>
   </div>
     <div class="home-content">
@@ -1204,7 +1215,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="tb-actions">
       <button class="tb-btn primary" onclick="startNewNotebook()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 创建对话</button>
       <button class="tb-btn" type="button" onclick="openFeedbackCenterModal()"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 反馈中心</button>
-      <div class="avatar" id="nbUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
+      <div class="avatar" id="nbUserAvatar" onclick="onUserAvatarClick()" data-tip="点击查看账号">U</div>
     </div>
   </div>
   <div class="nb-layout" id="nbLayout">
@@ -1212,7 +1223,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="panel" id="sourcePanel">
       <div class="ph">
         <span class="ph-title">来源</span>
-        <button class="pib" id="sourceCollapseBtn" onclick="toggleSourcePanel()" title="收缩来源">◧</button>
+        <button class="pib" id="sourceCollapseBtn" onclick="toggleSourcePanel()" data-tip="收缩来源栏" aria-label="收缩来源栏"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
       </div>
       <button class="add-src-btn" onclick="openUploadModal()">
         <span class="add-src-btn-icon">＋</span> 添加来源
@@ -1220,7 +1231,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
       <div class="srcs-list" id="srcsList"></div>
       <div class="source-mini-rail" id="sourceMiniRail"></div>
     </div>
-    <div class="nb-resizer" id="sourceResizer" title="拖动调整来源栏宽度"></div>
+    <div class="nb-resizer" id="sourceResizer" data-tip="拖动调整来源栏宽度"></div>
 
     <!-- CENTER -->
     <div class="chat-panel">
@@ -1228,12 +1239,12 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
         <span class="chat-head-label">对话</span>
         <div style="flex:1"></div>
         <div class="chat-more-wrap" style="position:relative;">
-          <button class="pib" id="chatMoreBtn" title="更多" onclick="toggleChatMoreMenu(event)"><svg class="ui-icon sm" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+          <button class="pib" id="chatMoreBtn" data-tip="更多操作" aria-label="更多操作" onclick="toggleChatMoreMenu(event)"><svg class="ui-icon sm" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
           <div class="nb-menu-pop" id="chatMoreMenu" style="top:38px;right:0;width:160px;" onclick="event.stopPropagation()">
-            <button onclick="chatMenuRename()">✎ 修改标题</button>
-            <button onclick="chatMenuClearMsgs()">🧹 清空消息</button>
-            <button onclick="chatMenuExport()">⬇ 导出对话</button>
-            <button class="danger" onclick="chatMenuDelete()">🗑 删除对话</button>
+            <button onclick="chatMenuRename()"><svg class="menu-ico" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>修改标题</button>
+            <button onclick="chatMenuClearMsgs()"><svg class="menu-ico" viewBox="0 0 24 24"><path d="M20 20H7l-4-4a2 2 0 0 1 0-2.8l8.5-8.5a2 2 0 0 1 2.8 0l5.4 5.4a2 2 0 0 1 0 2.8L13 20"/></svg>清空消息</button>
+            <button onclick="chatMenuExport()"><svg class="menu-ico" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>导出对话</button>
+            <button class="danger" onclick="chatMenuDelete()"><svg class="menu-ico" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>删除对话</button>
           </div>
         </div>
       </div>
@@ -1246,20 +1257,20 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
           <textarea id="chatInput" placeholder="开始输入…" rows="1"
             onkeydown="handleKey(event)" oninput="autoRes(this)"></textarea>
           <span class="ci-src" id="ciSrc">0 个来源</span>
-          <button class="send-b" id="chatSendBtn" onclick="sendMsg()" title="发送">
+          <button class="send-b" id="chatSendBtn" onclick="sendMsg()" data-tip="发送消息" data-tip-kbd="Enter" aria-label="发送消息">
             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
-        <div class="chat-hint">AI 内容未必准确，请仔细核实。</div>
+        <div class="chat-hint"><span>Enter 发送 · Shift+Enter 换行</span><span style="opacity:.6;">AI 内容未必准确，请仔细核实</span></div>
       </div>
     </div>
 
     <!-- RIGHT: STUDIO -->
-    <div class="nb-resizer" id="studioResizer" title="拖动调整 Studio 宽度"></div>
+    <div class="nb-resizer" id="studioResizer" data-tip="拖动调整 Studio 宽度"></div>
     <div class="studio-panel" id="studioPanel">
       <div class="studio-head">
         <span class="studio-title">Studio</span>
-        <button class="pib" id="studioCollapseBtn" onclick="toggleStudioPanel()" title="收缩 Studio">◨</button>
+        <button class="pib" id="studioCollapseBtn" onclick="toggleStudioPanel()" data-tip="收缩 Studio 栏" aria-label="收缩 Studio 栏"><svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
       </div>
       <!-- Upper: method cards (2-col grid) -->
       <div class="studio-top" id="studioTop"></div>
@@ -1293,7 +1304,7 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
     <div class="tb-spacer"></div>
     <div class="tb-actions">
       <button class="tb-btn" type="button" onclick="goHome()">返回首页</button>
-      <div class="avatar" id="feedbackUserAvatar" onclick="onUserAvatarClick()" title="未登录">U</div>
+      <div class="avatar" id="feedbackUserAvatar" onclick="onUserAvatarClick()" data-tip="点击查看账号">U</div>
     </div>
   </div>
   <div class="feedback-page-shell">
@@ -2363,8 +2374,8 @@ function renderHome(){
     return `<div class="nb-card nb-inner ${isLoading ? 'loading' : ''} ${isPlaceholder ? 'loading' : ''}" onclick="${isPlaceholder ? '' : ("openNb('" + escAttr(nb.id) + "', false)")}">
       ${isPlaceholder ? '' : `<button class="nb-menu" onclick="toggleNotebookMenu('${escAttr(nb.id)}', event)">⋮</button>`}
       <div class="nb-menu-pop" id="nbMenu-${escAttr(nb.id)}" onclick="event.stopPropagation()">
-        <button onclick="renameNotebook('${escAttr(nb.id)}', event)">✎ 修改标题</button>
-        <button class="danger" onclick="deleteNotebook('${escAttr(nb.id)}', event)">🗑 删除</button>
+        <button onclick="renameNotebook('${escAttr(nb.id)}', event)"><svg class="menu-ico" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>修改标题</button>
+        <button class="danger" onclick="deleteNotebook('${escAttr(nb.id)}', event)"><svg class="menu-ico" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>删除</button>
       </div>
       <div class="nb-cover" style="background:${escAttr(nb.color || '#e8f0fe')}">${esc(nb.icon || '📔')}</div>
       <div class="nb-title" title="${escAttr(title || 'New Conversation')}">${esc(title || 'New Conversation')}</div>
@@ -4334,15 +4345,19 @@ function syncPanelCollapseState(){
   }
   if(sourcePanel) sourcePanel.classList.toggle('collapsed', !!sourcePanelCollapsed);
   if(studioPanel) studioPanel.classList.toggle('collapsed', !!studioPanelCollapsed);
+  var chevL = '<svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>';
+  var chevR = '<svg class="ui-icon sm" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>';
   if(sourceBtn){
     sourceBtn.classList.toggle('active', !!sourcePanelCollapsed);
-    sourceBtn.textContent = sourcePanelCollapsed ? '◨' : '◧';
-    sourceBtn.title = sourcePanelCollapsed ? '展开来源' : '收缩来源';
+    sourceBtn.innerHTML = sourcePanelCollapsed ? chevR : chevL;
+    sourceBtn.setAttribute('data-tip', sourcePanelCollapsed ? '展开来源栏' : '收缩来源栏');
+    sourceBtn.setAttribute('aria-label', sourcePanelCollapsed ? '展开来源栏' : '收缩来源栏');
   }
   if(studioBtn){
     studioBtn.classList.toggle('active', !!studioPanelCollapsed);
-    studioBtn.textContent = studioPanelCollapsed ? '◧' : '◨';
-    studioBtn.title = studioPanelCollapsed ? '展开 Studio' : '收缩 Studio';
+    studioBtn.innerHTML = studioPanelCollapsed ? chevL : chevR;
+    studioBtn.setAttribute('data-tip', studioPanelCollapsed ? '展开 Studio 栏' : '收缩 Studio 栏');
+    studioBtn.setAttribute('aria-label', studioPanelCollapsed ? '展开 Studio 栏' : '收缩 Studio 栏');
   }
 }
 
@@ -12372,7 +12387,8 @@ function updateUserAvatarUI(){
     var el = document.getElementById(id);
     if(!el) return;
     el.textContent = txt;
-    el.title = tip;
+    el.setAttribute('data-tip', tip);
+    el.removeAttribute('title');
   });
 }
 
@@ -14451,6 +14467,58 @@ function isHeartosConfirmOpen(){
   var mask = document.getElementById('heartosConfirmMask');
   return !!(mask && mask.classList.contains('open'));
 }
+
+// 自定义 tooltip：用单个浮层跟随 [data-tip] 元素，即时显示、样式可控、支持快捷键标记。
+var __heartosTipEl = null, __heartosTipTimer = null, __heartosTipTarget = null;
+function __ensureHeartosTip(){
+  if(!__heartosTipEl){
+    __heartosTipEl = document.createElement('div');
+    __heartosTipEl.className = 'heartos-tip';
+    document.body.appendChild(__heartosTipEl);
+  }
+  return __heartosTipEl;
+}
+function __showHeartosTip(target){
+  var text = target.getAttribute('data-tip');
+  if(!text) return;
+  var kbd = target.getAttribute('data-tip-kbd');
+  var tip = __ensureHeartosTip();
+  tip.innerHTML = escapeHtml(text) + (kbd ? '<span class="heartos-tip-kbd">' + escapeHtml(kbd) + '</span>' : '');
+  tip.classList.add('show');
+  var r = target.getBoundingClientRect();
+  // 先放下方测量，空间不足再翻到上方
+  tip.style.left = '0px'; tip.style.top = '0px';
+  var tw = tip.offsetWidth, th = tip.offsetHeight;
+  var below = r.bottom + 8 + th < window.innerHeight;
+  var top = below ? r.bottom + 8 : r.top - th - 8;
+  var left = r.left + r.width / 2 - tw / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+  tip.setAttribute('data-pos', below ? 'bottom' : 'top');
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
+function __hideHeartosTip(){
+  if(__heartosTipTimer){ clearTimeout(__heartosTipTimer); __heartosTipTimer = null; }
+  __heartosTipTarget = null;
+  if(__heartosTipEl) __heartosTipEl.classList.remove('show');
+}
+document.addEventListener('mouseover', function(e){
+  var target = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if(!target || target === __heartosTipTarget) return;
+  __heartosTipTarget = target;
+  if(__heartosTipTimer) clearTimeout(__heartosTipTimer);
+  __heartosTipTimer = setTimeout(function(){
+    if(__heartosTipTarget === target) __showHeartosTip(target);
+  }, 320);
+});
+document.addEventListener('mouseout', function(e){
+  var target = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+  if(target && target === __heartosTipTarget) __hideHeartosTip();
+});
+document.addEventListener('click', function(e){
+  // 点击后立刻隐藏，避免操作完 tooltip 还赖着
+  if(e.target && e.target.closest && e.target.closest('[data-tip]')) __hideHeartosTip();
+}, true);
 
 // 全局 Esc 关闭最上层弹窗，统一键盘交互。只处理一层，避免一次按键连关多个。
 document.addEventListener('keydown', function(e){
