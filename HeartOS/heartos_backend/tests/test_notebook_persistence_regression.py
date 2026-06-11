@@ -460,6 +460,64 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         # 幂等：标记已写，第二次不再扫
         self.assertEqual(main_module._externalize_all_legacy_inline_assets(), 0)
 
+    def _register_user(self, phone: str, password: str = "abc12345") -> tuple[str, dict[str, str]]:
+        send = self.client.post("/api/auth/send-code", json={"phone": phone, "purpose": "register"})
+        self.assertEqual(send.status_code, 200, send.text)
+        register = self.client.post(
+            "/api/auth/register",
+            json={
+                "phone": phone,
+                "password": password,
+                "code": send.json()["debug_code"],
+                "name": "用户" + phone[-4:],
+                "organization": "测试医院",
+                "user_type": "doctor",
+                "use_case": "test",
+            },
+        )
+        self.assertEqual(register.status_code, 200, register.text)
+        out = register.json()
+        return str(out["user_id"]), {"Authorization": "Bearer " + out["token"]}
+
+    def test_admin_toggle_rules(self) -> None:
+        """管理员勾选规则：可互相授予/取消；超级管理员不可取消；不能改自己。"""
+        user_id, user_headers = self._register_user("13700001111")
+
+        # 普通用户无权访问管理接口
+        resp = self.client.post(f"/api/admin/users/{user_id}/admin", json={"is_admin": True}, headers=user_headers)
+        self.assertEqual(resp.status_code, 403)
+
+        # 超级管理员授予其管理员身份
+        resp = self.client.post(f"/api/admin/users/{user_id}/admin", json={"is_admin": True}, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertTrue(dbstore.user_get(user_id=user_id)["is_admin"])
+
+        # 新管理员立即可访问管理接口（is_admin 实时读库）
+        resp = self.client.get("/api/admin/users", headers=user_headers)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        items = resp.json()["items"]
+        super_item = next(i for i in items if i["user_id"] == "u_admin")
+        self.assertTrue(super_item["is_super_admin"])
+
+        # 不能修改自己的身份
+        resp = self.client.post(f"/api/admin/users/{user_id}/admin", json={"is_admin": False}, headers=user_headers)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("自己", resp.json()["detail"])
+
+        # 超级管理员身份不可取消
+        resp = self.client.post("/api/admin/users/u_admin/admin", json={"is_admin": False}, headers=user_headers)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("超级管理员", resp.json()["detail"])
+
+        # 超级管理员可以取消其他管理员
+        resp = self.client.post(f"/api/admin/users/{user_id}/admin", json={"is_admin": False}, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertFalse(dbstore.user_get(user_id=user_id)["is_admin"])
+
+        # 被取消后立即失去管理接口访问权
+        resp = self.client.get("/api/admin/users", headers=user_headers)
+        self.assertEqual(resp.status_code, 403)
+
     def test_user_persists_in_sqlite_after_register(self) -> None:
         send = self.client.post(
             "/api/auth/send-code",

@@ -174,6 +174,7 @@ class UserAdminItem(BaseModel):
     use_case: str = ""
     email: str = ""
     is_admin: bool = False
+    is_super_admin: bool = False
     active: bool = True
     created_at: int = 0
     last_login_at: int = 0

@@ -32,6 +32,7 @@ from .auth import (
     reset_password,
     send_password_reset_code,
     send_verification_code,
+    set_user_admin,
     issue_verification_ticket,
     sync_local_user,
     update_profile,
@@ -2863,6 +2864,22 @@ async def admin_users(user: dict[str, Any] = Depends(get_current_user)) -> UserA
     if not bool(user.get("is_admin")):
         raise HTTPException(status_code=403, detail="仅管理员可查看用户列表")
     return UserAdminListResponse(items=list_users_for_admin())
+
+
+@app.post("/api/admin/users/{user_id}/admin")
+async def admin_set_user_admin(
+    user_id: str,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    if not bool(user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="仅管理员可调整管理员身份")
+    make_admin = bool((payload or {}).get("is_admin"))
+    try:
+        updated = set_user_admin(str(user.get("id") or ""), user_id, make_admin)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "user_id": str(updated.get("id") or ""), "is_admin": bool(updated.get("is_admin"))}
 
 
 @app.get("/api/admin/feedback")

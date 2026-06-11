@@ -590,9 +590,32 @@ def list_users_for_admin() -> list[dict[str, Any]]:
     for item in store.user_all():
         pub = _public_user(item)
         pub["user_id"] = pub.get("id") or ""
+        pub["is_super_admin"] = str(pub.get("id") or "") == SUPER_ADMIN_USER_ID
         items.append(pub)
     items.sort(key=lambda item: (item.get("created_at") or 0), reverse=True)
     return items
+
+
+SUPER_ADMIN_USER_ID = "u_admin"
+
+
+def set_user_admin(actor_id: str, target_user_id: str, make_admin: bool) -> dict[str, Any]:
+    """管理员给其他用户授予/取消管理员身份。
+
+    规则：内置超级管理员（u_admin）永远是管理员、不可取消；
+    管理员不能修改自己的身份，避免误操作导致权限丢失。
+    """
+    _ensure_default_admin()
+    target = store.user_get(user_id=target_user_id)
+    if not target or not target.get("active", True):
+        raise ValueError("账号不存在")
+    if str(target.get("id") or "") == str(actor_id or ""):
+        raise ValueError("不能修改自己的管理员身份，请由其他管理员操作")
+    if str(target.get("id") or "") == SUPER_ADMIN_USER_ID and not make_admin:
+        raise ValueError("内置超级管理员的身份不可取消")
+    target["is_admin"] = bool(make_admin)
+    store.user_upsert(target)
+    return _public_user(target)
 
 def issue_token(user: dict[str, Any]) -> str:
     now = int(time.time())
