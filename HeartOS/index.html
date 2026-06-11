@@ -828,6 +828,33 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 
 .system-modal{position:fixed;inset:0;z-index:26200;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.42);backdrop-filter:blur(4px);}
 .system-modal.open{display:flex;}
+/* ── 自定义确认框（替代原生 confirm，z-index 高于其它弹窗） ── */
+.hconfirm-mask{position:fixed;inset:0;z-index:27000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.46);backdrop-filter:blur(4px);}
+.hconfirm-mask.open{display:flex;}
+.hconfirm-box{width:min(420px,calc(100vw - 32px));background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.26);overflow:hidden;transform:translateY(8px);opacity:0;transition:transform .16s ease,opacity .16s ease;}
+.hconfirm-mask.open .hconfirm-box{transform:translateY(0);opacity:1;}
+.hconfirm-head{display:flex;align-items:center;gap:12px;padding:20px 22px 0;}
+.hconfirm-ico{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:#eef4ff;}
+.hconfirm-ico.danger{background:#fef2f2;}
+.hconfirm-title{font-size:16px;font-weight:750;color:var(--text);line-height:1.4;}
+.hconfirm-msg{padding:12px 22px 4px;font-size:13.5px;color:var(--text2);line-height:1.7;}
+.hconfirm-actions{display:flex;gap:10px;justify-content:flex-end;padding:16px 22px 20px;}
+.hconfirm-btn{height:38px;padding:0 18px;border-radius:11px;border:1px solid var(--border2);background:#fff;color:var(--text2);font:inherit;font-size:13px;font-weight:650;cursor:pointer;transition:all .15s;}
+.hconfirm-btn:hover{background:var(--bg2);}
+.hconfirm-btn.primary{background:var(--accent);border-color:transparent;color:#fff;}
+.hconfirm-btn.primary:hover{background:#2856c2;}
+.hconfirm-btn.danger{background:#dc2626;border-color:transparent;color:#fff;}
+.hconfirm-btn.danger:hover{background:#b91c1c;}
+/* ── 首页空状态引导 ── */
+.home-guide{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:30px 24px 12px;color:var(--text2);}
+.home-guide-icon{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#eff4ff,#e3ecff);display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:16px;}
+.home-guide h3{font-size:18px;font-weight:750;color:var(--text);margin-bottom:8px;}
+.home-guide p{font-size:13.5px;line-height:1.75;max-width:440px;margin-bottom:18px;}
+.home-guide-steps{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;}
+.home-guide-step{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text2);background:#fff;border:1px solid var(--border);border-radius:12px;padding:9px 14px;box-shadow:var(--sh0);}
+.home-guide-step b{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.home-guide-cta{height:42px;padding:0 24px;border-radius:13px;border:none;background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(47,99,217,.22);transition:all .15s;}
+.home-guide-cta:hover{background:#2856c2;transform:translateY(-1px);}
 .system-dialog{width:min(700px,calc(100vw - 32px));max-height:min(86vh,760px);display:flex;flex-direction:column;background:#fff;border:1px solid rgba(226,232,240,.95);border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.22);overflow:hidden;}
 .system-dialog.narrow{width:min(560px,calc(100vw - 32px));}
 .system-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 22px 14px;border-bottom:1px solid #eef2f7;}
@@ -2305,11 +2332,28 @@ function renderHome(){
     </div>`;
     return;
   }
+  const realNotebooks = notebooks.filter(function(nb){ return !(nb && nb._draft); });
+  // 新用户首次进入（没有任何对话）：给一段引导，而不是只甩一个空的"新建对话"卡片
+  if(!realNotebooks.length){
+    g.innerHTML = `<div class="home-guide">
+      <div class="home-guide-icon">💓</div>
+      <h3>欢迎使用 HeartOS</h3>
+      <p>从上传一份心电资料开始：图片、PDF、XML 或波形 CSV 都可以。系统会帮你完成心电图数字化、心电组学分析与信号补全。</p>
+      <div class="home-guide-steps">
+        <div class="home-guide-step"><b>1</b>新建对话</div>
+        <div class="home-guide-step"><b>2</b>上传心电资料</div>
+        <div class="home-guide-step"><b>3</b>查看分析结果</div>
+      </div>
+      <button class="home-guide-cta" type="button" onclick="startNewNotebook()">＋ 新建第一个对话</button>
+    </div>`;
+    persistNotebookSummaryCache();
+    return;
+  }
   let h = `<div class="nb-card nb-new-card nb-inner" onclick="startNewNotebook()">
     <div class="nb-new-icon">＋</div>
     <span style="font-size:14px;font-weight:500;">新建对话</span>
   </div>`;
-  h += notebooks.filter(function(nb){ return !(nb && nb._draft); }).map(nb => {
+  h += realNotebooks.map(nb => {
     const isLoading = __nbOpeningId === String(nb.id);
     const isPlaceholder = isNotebookBootPlaceholder(nb);
     const fileCount = nb._detailsLoaded ? (Array.isArray(nb.sources) ? nb.sources.length : Number(nb.srcs || 0)) : Number(nb.srcs || 0);
@@ -3078,7 +3122,7 @@ async function deleteNotebook(id, evt){
   if(evt) evt.stopPropagation();
   const nb = notebooks.find(n => n.id === id);
   if(!nb) return;
-  if(!confirm('确认删除历史对话：' + (defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title) + '？')) return;
+  if(!(await heartosConfirm({ title:'删除历史对话', message:'确认删除"' + (defaultNotebookTitle(nb.title) ? inferNotebookTitle(nb) : nb.title) + '"？删除后对话内容和已上传来源将无法恢复。', confirmText:'删除', danger:true }))) return;
   if(curNb && curNb.id === id && (busy || activeStudioTask)) cancelActiveChatWork();
   const notebookId = String(id);
   const wasCurrent = !!(curNb && String(curNb.id) === notebookId);
@@ -3149,7 +3193,7 @@ async function deleteNotebook(id, evt){
     }else{
       renderHome();
     }
-    showToast('删除失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('删除失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -3178,11 +3222,11 @@ function chatMenuRename(){
   if(!curNb){ showToast('请先打开一个对话'); return; }
   renameNotebook(curNb.id);
 }
-function chatMenuClearMsgs(){
+async function chatMenuClearMsgs(){
   closeChatMoreMenuOnce();
   if(!curNb){ showToast('请先打开一个对话'); return; }
   if((!Array.isArray(msgs) || !msgs.length) && (!Array.isArray(chatEvents) || !chatEvents.length)){ showToast('当前对话还没有消息'); return; }
-  if(!confirm('确认清空当前对话的所有消息？此操作不会删除已上传的来源。')) return;
+  if(!(await heartosConfirm({ title:'清空对话消息', message:'确认清空当前对话的所有消息？此操作不会删除已上传的来源，但消息记录无法恢复。', confirmText:'清空', danger:true }))) return;
   msgs = [];
   chatEvents = [];
   if(curNb) curNb.msgs = [];
@@ -6196,7 +6240,7 @@ async function deleteSource(id, evt){
   if(idx < 0) return;
   const src = sources[idx];
   const targetNotebook = curNb;
-  if(!confirm(`确认删除来源：${src.name} ？`)) return;
+  if(!(await heartosConfirm({ title:'删除来源', message:'确认删除来源"' + src.name + '"？相关的分析结果可能一并失效。', confirmText:'删除', danger:true }))) return;
 
   // 先删前端展示并持久化记录，服务器文件转后台清理（孤儿文件可被后台清扫兜底）
   sources.splice(idx, 1);
@@ -6220,7 +6264,7 @@ async function deleteSelectedSources(evt){
   if(evt) evt.stopPropagation();
   const selected = sources.filter(s => s && s.checked);
   if(!selected.length) return;
-  if(!confirm(`确认删除已选择的 ${selected.length} 个来源？`)) return;
+  if(!(await heartosConfirm({ title:'批量删除来源', message:'确认删除已选择的 ' + selected.length + ' 个来源？删除后无法恢复。', confirmText:'删除', danger:true }))) return;
 
   // 先删前端展示并持久化记录，服务器文件转后台并行清理
   const removableIds = new Set(selected.map(function(s){ return sourceIdKey(s && s.id); }));
@@ -9600,11 +9644,11 @@ async function importAnalysisFileAsSource(id, evt){
   }
 }
 
-function deleteAnalysisFile(id, evt){
+async function deleteAnalysisFile(id, evt){
   if(evt) evt.stopPropagation();
   const idx = analysisFiles.findIndex(x => x && x.id === id);
   if(idx < 0) return;
-  if(!confirm('确认删除这个分析结果文件？')) return;
+  if(!(await heartosConfirm({ title:'删除分析结果', message:'确认删除这个分析结果文件？删除后无法恢复。', confirmText:'删除', danger:true }))) return;
   const removed = analysisFiles[idx];
   analysisFiles.splice(idx, 1);
   deleteAnalysisFileCache(removed, curNb).catch(function(){});
@@ -12621,7 +12665,7 @@ async function submitFeedback(evt, reopenCenter){
       await openFeedbackPage(true);
     }
   }catch(e){
-    showToast('反馈提交失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('反馈提交失败：' + friendlyError(e, '请稍后重试'));
   }finally{
     feedbackSubmitting = false;
     if(submitBtn){
@@ -13123,7 +13167,7 @@ async function submitFeedbackReply(evt, feedbackId){
     await refreshFeedbackPage();
     showToast('留言已发送');
   }catch(e){
-    showToast('发送失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('发送失败：' + friendlyError(e, '请稍后重试'));
   }finally{
     feedbackReplySubmitting = false;
     if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = '发送回复'; }
@@ -13143,7 +13187,7 @@ async function updateAdminFeedbackStatus(feedbackId, selectEl){
     await refreshFeedbackPage();
     showToast('反馈状态已更新');
   }catch(e){
-    showToast('更新反馈状态失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('更新反馈状态失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -13680,7 +13724,7 @@ async function sendForgotPasswordCode(){
     setForgotPasswordMsg(sentMsg, false);
     showToast(sentMsg);
   }catch(e){
-    var errMsg = '发送失败：' + (e && e.message ? e.message : '请稍后重试');
+    var errMsg = '发送失败：' + friendlyError(e, '请稍后重试');
     setForgotPasswordMsg(errMsg, true);
     showToast(errMsg);
   }finally{
@@ -13727,7 +13771,7 @@ async function verifyForgotPasswordCode(){
     }
     throw new Error(out.detail || '验证码校验失败');
   }catch(e){
-    var errMsg = '验证失败：' + (e && e.message ? e.message : '请稍后重试');
+    var errMsg = '验证失败：' + friendlyError(e, '请稍后重试');
     setForgotPasswordMsg(errMsg, true);
     showToast(errMsg);
   }finally{
@@ -13760,7 +13804,7 @@ async function submitForgotPassword(evt){
     closeSystemModal('forgotPasswordModal');
     showToast('密码已重置，请使用新密码登录');
   }catch(e){
-    showToast('重置失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('重置失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -13896,7 +13940,7 @@ async function submitAccountProfile(evt){
     openAccountModal();
     showToast('资料已更新');
   }catch(e){
-    showToast('保存失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('保存失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -13935,7 +13979,7 @@ async function submitChangePassword(evt){
     closeSystemModal('changePasswordModal');
     showToast('密码已修改');
   }catch(e){
-    showToast('修改失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('修改失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -13969,7 +14013,7 @@ async function openAdminUsersModal(){
     ensureSystemModal('adminUsersModal', '用户列表', '管理员可查看账号档案、最近登录情况，并管理管理员身份。', html, false);
     openSystemModal('adminUsersModal');
   }catch(e){
-    showToast('读取用户列表失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('读取用户列表失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -13988,7 +14032,7 @@ async function toggleUserAdmin(userId, checkbox){
   }catch(e){
     // 失败回滚勾选状态
     if(checkbox) checkbox.checked = !makeAdmin;
-    showToast('操作失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('操作失败：' + friendlyError(e, '请稍后重试'));
   }finally{
     if(checkbox) checkbox.disabled = false;
   }
@@ -14051,7 +14095,7 @@ async function openAdminFeedbackModal(){
     openSystemModal('adminFeedbackModal');
     hydrateAdminFeedbackPreviews().catch(function(){});
   }catch(e){
-    showToast('读取反馈列表失败：' + (e && e.message ? e.message : '请稍后重试'));
+    showToast('读取反馈列表失败：' + friendlyError(e, '请稍后重试'));
   }
 }
 
@@ -14364,6 +14408,94 @@ function showToast(msg){
   document.body.appendChild(t);
   requestAnimationFrame(()=>{ t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)'; });
   setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(10px)'; setTimeout(()=>t.remove(), 220); }, 2200);
+}
+
+// 自定义确认框，替代原生 confirm()。返回 Promise<boolean>，与 UI 风格一致，危险操作可标红。
+var __hconfirmResolve = null;
+function heartosConfirm(opts){
+  var o = opts || {};
+  var danger = !!o.danger;
+  return new Promise(function(resolve){
+    // 同一时刻只允许一个确认框；若已有，先把旧的当作取消处理
+    if(__hconfirmResolve){ try{ __hconfirmResolve(false); }catch(_){} __hconfirmResolve = null; }
+    var mask = document.getElementById('heartosConfirmMask');
+    if(!mask){
+      mask = document.createElement('div');
+      mask.id = 'heartosConfirmMask';
+      mask.className = 'hconfirm-mask';
+      document.body.appendChild(mask);
+      mask.addEventListener('click', function(e){ if(e.target === mask) settleHeartosConfirm(false); });
+    }
+    mask.innerHTML = '<div class="hconfirm-box" role="alertdialog" aria-modal="true">'
+      + '<div class="hconfirm-head"><div class="hconfirm-ico' + (danger ? ' danger' : '') + '">' + (danger ? '🗑' : '❓') + '</div>'
+      + '<div class="hconfirm-title">' + escapeHtml(o.title || '确认操作') + '</div></div>'
+      + (o.message ? '<div class="hconfirm-msg">' + escapeHtml(o.message) + '</div>' : '')
+      + '<div class="hconfirm-actions">'
+      + '<button class="hconfirm-btn" type="button" onclick="settleHeartosConfirm(false)">' + escapeHtml(o.cancelText || '取消') + '</button>'
+      + '<button class="hconfirm-btn ' + (danger ? 'danger' : 'primary') + '" type="button" onclick="settleHeartosConfirm(true)">' + escapeHtml(o.confirmText || '确认') + '</button>'
+      + '</div></div>';
+    __hconfirmResolve = resolve;
+    requestAnimationFrame(function(){ mask.classList.add('open'); });
+    setTimeout(function(){
+      var btn = mask.querySelector('.hconfirm-btn.' + (danger ? 'danger' : 'primary'));
+      if(btn) btn.focus();
+    }, 30);
+  });
+}
+function settleHeartosConfirm(result){
+  var mask = document.getElementById('heartosConfirmMask');
+  if(mask) mask.classList.remove('open');
+  if(__hconfirmResolve){ var r = __hconfirmResolve; __hconfirmResolve = null; r(!!result); }
+}
+function isHeartosConfirmOpen(){
+  var mask = document.getElementById('heartosConfirmMask');
+  return !!(mask && mask.classList.contains('open'));
+}
+
+// 全局 Esc 关闭最上层弹窗，统一键盘交互。只处理一层，避免一次按键连关多个。
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Escape') return;
+  if(isHeartosConfirmOpen()){ settleHeartosConfirm(false); e.stopPropagation(); return; }
+  var openSelectors = ['.system-modal.open', '.mo.open', '.tool-error-modal.open', '.studio-intro-modal.open', '.csv-xml-modal.open', '.lab-modal.open'];
+  var candidates = [];
+  openSelectors.forEach(function(sel){
+    document.querySelectorAll(sel).forEach(function(el){ candidates.push(el); });
+  });
+  if(!candidates.length) return;
+  candidates.sort(function(a, b){
+    return (Number(getComputedStyle(b).zIndex) || 0) - (Number(getComputedStyle(a).zIndex) || 0);
+  });
+  var top = candidates[0];
+  if(!top) return;
+  if(top.classList.contains('system-modal')){ closeSystemModal(top.id); }
+  else { top.classList.remove('open'); }
+  e.stopPropagation();
+}, true);
+
+// 把技术性错误翻译成用户能看懂的话。e 可为 Error / 字符串 / 响应文本。
+function friendlyError(e, fallback){
+  var raw = '';
+  if(e == null) raw = '';
+  else if(typeof e === 'string') raw = e;
+  else if(e.message) raw = String(e.message);
+  else raw = String(e);
+  var low = raw.toLowerCase();
+  if(!raw) return fallback || '操作失败，请稍后重试';
+  if(low.indexOf('failed to fetch') >= 0 || low.indexOf('networkerror') >= 0 || low.indexOf('load failed') >= 0 || low.indexOf('err_network') >= 0)
+    return '网络连接中断，请检查网络后重试';
+  if(low.indexOf('timeout') >= 0 || low.indexOf('aborted') >= 0 || low.indexOf('timed out') >= 0)
+    return '请求超时，请稍后重试';
+  if(low.indexOf('401') >= 0 || low.indexOf('unauthorized') >= 0 || low.indexOf('token') >= 0)
+    return '登录状态已失效，请重新登录';
+  if(low.indexOf('403') >= 0 || low.indexOf('forbidden') >= 0)
+    return '没有操作权限，请联系管理员';
+  if(low.indexOf('413') >= 0 || low.indexOf('too large') >= 0)
+    return '文件过大，请压缩后再上传';
+  if(low.indexOf('500') >= 0 || low.indexOf('502') >= 0 || low.indexOf('503') >= 0 || low.indexOf('internal server') >= 0)
+    return '服务器繁忙，请稍后重试';
+  if(raw === 'undefined' || raw === 'null' || raw === '[object Object]')
+    return fallback || '操作失败，请稍后重试';
+  return raw;
 }
 
 document.addEventListener('visibilitychange', function(){
