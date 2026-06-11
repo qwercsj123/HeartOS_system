@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import sys
@@ -27,6 +26,7 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from fastapi.testclient import TestClient
 
+from app import db as dbstore
 from app import main as main_module
 
 
@@ -74,25 +74,14 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         self.headers = self._auth_headers()
 
     def _reset_storage(self) -> None:
-        if TEST_USERS_FILE.exists():
-            TEST_USERS_FILE.unlink()
         TEST_DATA_ROOT.mkdir(parents=True, exist_ok=True)
         TEST_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        for path in (
-            main_module.NOTEBOOKS_PATH,
-            main_module.NOTEBOOK_SOURCES_PATH,
-            main_module.NOTEBOOK_RESULT_FILES_PATH,
-            main_module.NOTEBOOK_TOMBSTONES_PATH,
-            main_module.FEEDBACK_PATH,
-        ):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("{}", encoding="utf-8")
+        dbstore.wipe_all_for_tests()
         for child in TEST_UPLOAD_DIR.iterdir():
             if child.is_file():
                 child.unlink()
             elif child.is_dir():
                 shutil.rmtree(child)
-        main_module.FILE_META_PATH.write_text("{}", encoding="utf-8")
 
     def _auth_headers(self) -> dict[str, str]:
         resp = self.client.post(
@@ -103,15 +92,15 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         token = resp.json()["token"]
         return {"Authorization": "Bearer " + token}
 
-    def _read_json(self, path: Path) -> dict[str, object]:
-        if not path.exists():
-            return {}
-        return json.loads(path.read_text(encoding="utf-8"))
-
     def _user_id(self) -> str:
         me = self.client.get("/api/auth/me", headers=self.headers)
         self.assertEqual(me.status_code, 200, me.text)
         return str(me.json()["user_id"])
+
+    def _stored_notebook(self, user_id: str, notebook_id: str) -> dict[str, object]:
+        stored = dbstore.notebook_get(user_id, notebook_id)
+        self.assertIsNotNone(stored, f"notebook {notebook_id} not found in sqlite")
+        return stored
 
     def _create_full_notebook(self, notebook_id: str, updated_at: int = 1000, analysis_updated_at: int = 1001) -> dict[str, object]:
         payload = {
@@ -159,24 +148,24 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         self.assertEqual(len(item["sources"]), 2)
         self.assertEqual(len(item["analysisFiles"]), 2)
         self.assertEqual(item["sources"][0]["fileUrl"], "/api/files/src_pdf_1.pdf")
-        self.assertEqual(item["analysisFiles"][0]["fileUrl"], "")
+        # 分析文件 content 已外部化为 uploads 文件 + fileId 引用
+        self.assertTrue(item["analysisFiles"][0]["fileUrl"].startswith("/api/files/"))
+        self.assertEqual(item["analysisFiles"][0]["content"], "")
 
         refreshed = self.client.get("/api/notebooks/nb_multi_refresh/result-files", headers=self.headers)
         self.assertEqual(refreshed.status_code, 200, refreshed.text)
         self.assertEqual(len(refreshed.json()["items"]), 2)
 
         user_id = self._user_id()
-        notebooks_db = self._read_json(main_module.NOTEBOOKS_PATH)
-        stored_items = notebooks_db.get(user_id, [])
-        self.assertTrue(stored_items)
-        stored = next(item for item in stored_items if item["id"] == "nb_multi_refresh")
+        stored = self._stored_notebook(user_id, "nb_multi_refresh")
         self.assertEqual(len(stored["sources"]), 2)
         self.assertEqual(len(stored["analysisFiles"]), 2)
         self.assertEqual(stored["sources"][0]["fileUrl"], "/api/files/src_pdf_1.pdf")
         self.assertEqual(stored["sources"][1]["fileUrl"], "/api/files/src_pdf_2.pdf")
 
-        result_files_db = self._read_json(main_module.NOTEBOOK_RESULT_FILES_PATH)
-        self.assertEqual(len(result_files_db[user_id]["nb_multi_refresh"]["items"]), 2)
+        entry = dbstore.bucket_entry_get("notebook_result_files", user_id, "nb_multi_refresh")
+        self.assertIsNotNone(entry)
+        self.assertEqual(len(entry["items"]), 2)
 
     def test_missing_fields_do_not_drop_existing_sources_or_analysis_files(self) -> None:
         self._create_full_notebook("nb_missing_fields", updated_at=3000, analysis_updated_at=3001)
@@ -206,67 +195,43 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
     def test_legacy_split_storage_migrates_into_aggregate_notebook(self) -> None:
         user_id = self._user_id()
         notebook_id = "nb_legacy_migration"
-        main_module.NOTEBOOKS_PATH.write_text(
-            json.dumps(
-                {
-                    user_id: [
-                        {
-                            "id": notebook_id,
-                            "title": "旧数据 notebook",
-                            "icon": "📔",
-                            "color": "#e8f0fe",
-                            "date": "2026-06-08",
-                            "sources": [],
-                            "msgs": [],
-                            "events": [],
-                            "analysisFiles": [],
-                            "analysisFilesUpdatedAt": 0,
-                            "sumHtml": "",
-                            "suggHtml": "",
-                            "updatedAt": 4100,
-                        }
-                    ]
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        dbstore.notebook_upsert(
+            user_id,
+            {
+                "id": notebook_id,
+                "title": "旧数据 notebook",
+                "icon": "📔",
+                "color": "#e8f0fe",
+                "date": "2026-06-08",
+                "sources": [],
+                "msgs": [],
+                "events": [],
+                "analysisFiles": [],
+                "analysisFilesUpdatedAt": 0,
+                "sumHtml": "",
+                "suggHtml": "",
+                "updatedAt": 4100,
+            },
         )
-        main_module.NOTEBOOK_SOURCES_PATH.write_text(
-            json.dumps(
-                {
-                    user_id: {
-                        notebook_id: {
-                            "items": [
-                                _source_item("src_pdf_1", "ZS0021801453.pdf"),
-                                _source_item("src_pdf_2", "ZS0023703661.pdf"),
-                            ],
-                            "updatedAt": 4200,
-                        }
-                    }
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        dbstore.bucket_entry_set(
+            "notebook_sources",
+            user_id,
+            notebook_id,
+            [
+                _source_item("src_pdf_1", "ZS0021801453.pdf"),
+                _source_item("src_pdf_2", "ZS0023703661.pdf"),
+            ],
+            4200,
         )
-        main_module.NOTEBOOK_RESULT_FILES_PATH.write_text(
-            json.dumps(
-                {
-                    user_id: {
-                        notebook_id: {
-                            "items": [
-                                _result_item("rf_csv_1", "ZS0021801453_2.csv", "src_pdf_1"),
-                                _result_item("rf_csv_2", "ZS0023703661_2.csv", "src_pdf_2"),
-                            ],
-                            "updatedAt": 4300,
-                        }
-                    }
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        dbstore.bucket_entry_set(
+            "notebook_result_files",
+            user_id,
+            notebook_id,
+            [
+                _result_item("rf_csv_1", "ZS0021801453_2.csv", "src_pdf_1"),
+                _result_item("rf_csv_2", "ZS0023703661_2.csv", "src_pdf_2"),
+            ],
+            4300,
         )
 
         detail = self.client.get("/api/notebooks/" + notebook_id, headers=self.headers)
@@ -276,10 +241,8 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         self.assertEqual(len(item["analysisFiles"]), 2)
         self.assertGreaterEqual(int(item["analysisFilesUpdatedAt"]), 4300)
         self.assertEqual(item["sources"][0]["fileUrl"], "/api/files/src_pdf_1.pdf")
-        self.assertEqual(item["analysisFiles"][0]["fileUrl"], "")
 
-        notebooks_db = self._read_json(main_module.NOTEBOOKS_PATH)
-        stored = next(entry for entry in notebooks_db[user_id] if entry["id"] == notebook_id)
+        stored = self._stored_notebook(user_id, notebook_id)
         self.assertEqual(len(stored["sources"]), 2)
         self.assertEqual(len(stored["analysisFiles"]), 2)
         self.assertEqual(stored["sources"][0]["fileUrl"], "/api/files/src_pdf_1.pdf")
@@ -292,31 +255,23 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         result["fileId"] = "rf_csv_1.csv"
         result["serverFileId"] = "rf_csv_1.csv"
         result["fileUrl"] = "http://127.0.0.1:9010/api/files/rf_csv_1.csv"
-        main_module.NOTEBOOKS_PATH.write_text(
-            json.dumps(
-                {
-                    user_id: [
-                        {
-                            "id": notebook_id,
-                            "title": "绝对地址迁移",
-                            "icon": "📔",
-                            "color": "#e8f0fe",
-                            "date": "2026-06-08",
-                            "sources": [source],
-                            "msgs": [],
-                            "events": [],
-                            "analysisFiles": [result],
-                            "analysisFilesUpdatedAt": 6100,
-                            "sumHtml": "",
-                            "suggHtml": "",
-                            "updatedAt": 6101,
-                        }
-                    ]
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        dbstore.notebook_upsert(
+            user_id,
+            {
+                "id": notebook_id,
+                "title": "绝对地址迁移",
+                "icon": "📔",
+                "color": "#e8f0fe",
+                "date": "2026-06-08",
+                "sources": [source],
+                "msgs": [],
+                "events": [],
+                "analysisFiles": [result],
+                "analysisFilesUpdatedAt": 6100,
+                "sumHtml": "",
+                "suggHtml": "",
+                "updatedAt": 6101,
+            },
         )
 
         detail = self.client.get("/api/notebooks/" + notebook_id, headers=self.headers)
@@ -325,8 +280,7 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         self.assertEqual(item["sources"][0]["fileUrl"], "/api/files/src_pdf_1.pdf")
         self.assertEqual(item["analysisFiles"][0]["fileUrl"], "/api/files/rf_csv_1.csv")
 
-        notebooks_db = self._read_json(main_module.NOTEBOOKS_PATH)
-        stored = next(entry for entry in notebooks_db[user_id] if entry["id"] == notebook_id)
+        stored = self._stored_notebook(user_id, notebook_id)
         self.assertEqual(stored["sources"][0]["fileUrl"], "/api/files/src_pdf_1.pdf")
         self.assertEqual(stored["analysisFiles"][0]["fileUrl"], "/api/files/rf_csv_1.csv")
 
@@ -348,7 +302,7 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
                     "kind": "chat",
                     "type": "auto_digitize_preview",
                     "content": "自动数字化预览已生成",
-                    "_html": huge_html,
+                    "_html": "<div>" + ("A" * 25000) + "<img src='data:image/png;base64,xx'/></div>",
                     "createdAt": 5000,
                 }
             ],
@@ -372,9 +326,174 @@ class NotebookPersistenceRegressionTest(unittest.TestCase):
         self.assertEqual(item["msgs"][0]["content"], "自动数字化预览已生成")
 
         user_id = self._user_id()
-        notebooks_db = self._read_json(main_module.NOTEBOOKS_PATH)
-        stored = next(entry for entry in notebooks_db[user_id] if entry["id"] == notebook_id)
+        stored = self._stored_notebook(user_id, notebook_id)
         self.assertNotIn("_html", stored["msgs"][0])
+
+    def test_inline_assets_are_externalized_to_uploads(self) -> None:
+        """内联 base64 图片 / 大文本 / 分析内容在保存时应剥离为 uploads 文件 + fileId 引用，
+        且通过 /api/files/{id} 能取回原始内容（前端 hydrate 链路依赖此契约）。"""
+        import base64 as b64
+
+        png_bytes = b64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        image_data_url = "data:image/png;base64," + b64.b64encode(png_bytes).decode()
+        big_text = "lead_i,lead_ii\n" + ("0.123,0.456\n" * 4000)  # > 32KB
+        analysis_text = "a,b\n1,2\n"
+        payload = {
+            "id": "nb_externalize",
+            "title": "外部化回归",
+            "icon": "📔",
+            "color": "#e8f0fe",
+            "date": "2026-06-11",
+            "sources": [
+                {
+                    "id": "src_img_1",
+                    "source_id": "src_img_1",
+                    "name": "ecg.png",
+                    "type": "png",
+                    "checked": True,
+                    "imageDataUrl": image_data_url,
+                },
+                {
+                    "id": "src_csv_1",
+                    "source_id": "src_csv_1",
+                    "name": "waveform.csv",
+                    "type": "csv",
+                    "checked": True,
+                    "content": big_text,
+                },
+            ],
+            "msgs": [
+                {
+                    "id": "m1",
+                    "role": "assistant",
+                    "kind": "chat",
+                    "content": "预览",
+                    "previewMeta": {
+                        "kind": "preview",
+                        "title": "四图",
+                        "images": [{"id": "img_0", "label": "I", "dataUrl": image_data_url}],
+                    },
+                    "createdAt": 7000,
+                }
+            ],
+            "events": [],
+            "analysisFiles": [
+                {"id": "rf_1", "name": "result.csv", "type": "csv", "mime": "text/csv;charset=utf-8", "content": analysis_text}
+            ],
+            "analysisFilesUpdatedAt": 7001,
+            "sumHtml": "",
+            "suggHtml": "",
+            "updatedAt": 7002,
+        }
+        resp = self.client.post("/api/notebooks", json=payload, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.text)
+
+        user_id = self._user_id()
+        stored = self._stored_notebook(user_id, "nb_externalize")
+
+        img_source = stored["sources"][0]
+        self.assertNotIn("imageDataUrl", img_source)
+        self.assertTrue(img_source["fileId"])
+        fetched = self.client.get("/api/files/" + img_source["fileId"], headers=self.headers)
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.content, png_bytes)
+
+        csv_source = stored["sources"][1]
+        self.assertEqual(csv_source["content"], "")
+        self.assertTrue(csv_source["fileId"])
+        fetched = self.client.get("/api/files/" + csv_source["fileId"], headers=self.headers)
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.text, big_text)
+
+        analysis = stored["analysisFiles"][0]
+        self.assertEqual(analysis["content"], "")
+        self.assertTrue(analysis["fileId"])
+        fetched = self.client.get("/api/files/" + analysis["fileId"], headers=self.headers)
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.text, analysis_text)
+
+        preview_image = stored["msgs"][0]["previewMeta"]["images"][0]
+        self.assertNotIn("dataUrl", preview_image)
+        self.assertTrue(preview_image["fileId"])
+        fetched = self.client.get("/api/files/" + preview_image["fileId"], headers=self.headers)
+        self.assertEqual(fetched.status_code, 200)
+        self.assertEqual(fetched.content, png_bytes)
+
+        # 再保存一次同样内容：hash 去重，不应产生重复文件（聊天图除外，uuid 命名）
+        ids_before = {img_source["fileId"], csv_source["fileId"], analysis["fileId"]}
+        payload["updatedAt"] = 7003
+        resp = self.client.post("/api/notebooks", json=payload, headers=self.headers)
+        self.assertEqual(resp.status_code, 200, resp.text)
+        stored2 = self._stored_notebook(user_id, "nb_externalize")
+        ids_after = {stored2["sources"][0]["fileId"], stored2["sources"][1]["fileId"], stored2["analysisFiles"][0]["fileId"]}
+        self.assertEqual(ids_before, ids_after)
+
+    def test_legacy_inline_assets_sweep(self) -> None:
+        """启动清理：旧库里已有的内联资产被一次性外部化。"""
+        user_id = self._user_id()
+        big_text = "x,y\n" + ("1.0,2.0\n" * 5000)
+        dbstore.notebook_upsert(
+            user_id,
+            {
+                "id": "nb_legacy_inline",
+                "title": "旧内联数据",
+                "sources": [
+                    {"id": "s1", "source_id": "s1", "name": "old.csv", "type": "csv", "checked": True, "content": big_text}
+                ],
+                "msgs": [],
+                "events": [],
+                "analysisFiles": [
+                    {"id": "rf1", "name": "old_result.csv", "type": "csv", "content": "m,n\n3,4\n"}
+                ],
+                "analysisFilesUpdatedAt": 8000,
+                "updatedAt": 8001,
+            },
+        )
+        changed = main_module._externalize_all_legacy_inline_assets()
+        self.assertGreaterEqual(changed, 1)
+        stored = self._stored_notebook(user_id, "nb_legacy_inline")
+        self.assertEqual(stored["sources"][0]["content"], "")
+        self.assertTrue(stored["sources"][0]["fileId"])
+        self.assertEqual(stored["analysisFiles"][0]["content"], "")
+        # 幂等：标记已写，第二次不再扫
+        self.assertEqual(main_module._externalize_all_legacy_inline_assets(), 0)
+
+    def test_user_persists_in_sqlite_after_register(self) -> None:
+        send = self.client.post(
+            "/api/auth/send-code",
+            json={"phone": "13900001111", "purpose": "register"},
+        )
+        self.assertEqual(send.status_code, 200, send.text)
+        code = send.json().get("debug_code")
+        self.assertTrue(code)
+
+        register = self.client.post(
+            "/api/auth/register",
+            json={
+                "phone": "13900001111",
+                "password": "abc12345",
+                "code": code,
+                "name": "回归测试用户",
+                "organization": "回归测试医院",
+                "user_type": "doctor",
+                "use_case": "regression",
+            },
+        )
+        self.assertEqual(register.status_code, 200, register.text)
+        user_id = register.json()["user_id"]
+
+        stored = dbstore.user_get(user_id=user_id)
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored["phone"], "13900001111")
+        self.assertEqual(stored["organization"], "回归测试医院")
+
+        login = self.client.post(
+            "/api/auth/login",
+            json={"username": "13900001111", "password": "abc12345", "phone": ""},
+        )
+        self.assertEqual(login.status_code, 200, login.text)
 
 
 if __name__ == "__main__":

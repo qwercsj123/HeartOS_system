@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import csv
+import hashlib
 import io
 import json
 import logging
@@ -43,6 +44,11 @@ from .auth import (
 )
 from .chest_pain import predict_image_and_report
 from .config import settings
+from . import db as dbstore
+from .db import (
+    MAX_PERSISTED_NOTEBOOK_MSG_HTML,
+    MAX_PERSISTED_NOTEBOOK_MSG_HTML_NO_IMAGE,
+)
 
 from .llm import build_default_gateway
 from .providers import AGENT_SYSTEM_PROMPTS
@@ -78,10 +84,7 @@ from .schemas import (
 APP_VERSION = "1.4.1"
 PLATFORM_NAME = "HeartOS"
 LEGACY_PLACEHOLDER_NOTEBOOK_IDS = {"boot"}
-MAX_PERSISTED_NOTEBOOK_MSG_HTML = 20_000
-# 不含内嵌 base64 图片的富消息（如信号补全 SVG 对比卡片）没有 previewMeta 兜底，
-# 丢掉 _html 就无法恢复，所以放宽到更大的上限。
-MAX_PERSISTED_NOTEBOOK_MSG_HTML_NO_IMAGE = 300_000
+# 消息 _html 持久化上限常量定义在 db.py（含说明），此处从 db 导入。
 NOTEBOOK_DEBUG_ENABLED = str(os.getenv("HEARTOS_NOTEBOOK_DEBUG", "0")).strip().lower() in {"1", "true", "yes", "on"}
 LOGGER = logging.getLogger("heartos.notebook")
 NOTEBOOK_DEBUG_MAX_STRING = 240
@@ -270,53 +273,18 @@ app.add_middleware(
 UPLOAD_DIR = Path(settings.upload_dir).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_BYTES = max(1, settings.max_upload_mb) * 1024 * 1024
-FILE_META_PATH = (UPLOAD_DIR / ".meta.json").resolve()
 LLM_GATEWAY = build_default_gateway()
 
 NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
-AI_CONFIG_PATH = (Path(settings.users_file).resolve().parent / "ai_configs.json").resolve()
-NOTEBOOKS_PATH = (Path(settings.users_file).resolve().parent / "notebooks.json").resolve()
-NOTEBOOK_SOURCES_PATH = (Path(settings.users_file).resolve().parent / "notebook_sources.json").resolve()
-NOTEBOOK_TOMBSTONES_PATH = (Path(settings.users_file).resolve().parent / "notebook_tombstones.json").resolve()
-NOTEBOOK_RESULT_FILES_PATH = (Path(settings.users_file).resolve().parent / "notebook_result_files.json").resolve()
-FEEDBACK_PATH = (Path(settings.users_file).resolve().parent / "feedback.json").resolve()
 FEEDBACK_MAX_IMAGES = 4
 FEEDBACK_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}
 FEEDBACK_STATUS_VALUES = {"new", "processing", "resolved"}
+# 进程内串行化“读-改-写”序列；跨进程一致性由 SQLite 事务保证
 NOTEBOOKS_DB_LOCK = threading.RLock()
-NOTEBOOK_SOURCES_DB_LOCK = threading.RLock()
-NOTEBOOK_RESULT_FILES_DB_LOCK = threading.RLock()
-NOTEBOOK_TOMBSTONES_DB_LOCK = threading.RLock()
 
 
 def _load_file_meta() -> dict[str, Any]:
-    if not FILE_META_PATH.exists():
-        return {}
-    try:
-        return json.loads(FILE_META_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _save_file_meta(meta: dict[str, Any]) -> None:
-    FILE_META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _load_json_file(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    try:
-        out = json.loads(path.read_text(encoding="utf-8"))
-        return out if isinstance(out, dict) else {}
-    except Exception:
-        return {}
-
-
-def _save_json_file(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    temp_path.replace(path)
+    return dbstore.file_meta_all()
 
 
 def _sanitize_notebook_debug_value(value: Any, depth: int = 0) -> Any:
@@ -583,21 +551,9 @@ def _normalize_result_file_bucket_entry(entry: Any) -> dict[str, Any]:
     return {"items": [], "updatedAt": 0}
 
 
-def _load_notebook_result_files_db() -> dict[str, Any]:
-    with NOTEBOOK_RESULT_FILES_DB_LOCK:
-        return _load_json_file(NOTEBOOK_RESULT_FILES_PATH)
-
-
-def _save_notebook_result_files_db(payload: dict[str, Any]) -> None:
-    with NOTEBOOK_RESULT_FILES_DB_LOCK:
-        _save_json_file(NOTEBOOK_RESULT_FILES_PATH, payload)
-
-
 def _get_user_notebook_result_files(uid: str) -> dict[str, Any]:
     _purge_legacy_placeholder_notebooks(uid)
-    db = _load_notebook_result_files_db()
-    bucket = db.get(uid, {})
-    return bucket if isinstance(bucket, dict) else {}
+    return dbstore.bucket_all("notebook_result_files", uid)
 
 
 def _get_notebook_result_files(uid: str, notebook_id: str) -> list[dict[str, Any]]:
@@ -617,44 +573,16 @@ def _get_notebook_result_files_updated_at(uid: str, notebook_id: str) -> int:
 
 
 def _set_notebook_result_files(uid: str, notebook_id: str, items: list[dict[str, Any]], *, updated_at: int = 0) -> bool:
-    with NOTEBOOK_RESULT_FILES_DB_LOCK:
-        db = _load_json_file(NOTEBOOK_RESULT_FILES_PATH)
-        bucket = db.get(uid, {})
-        if not isinstance(bucket, dict):
-            bucket = {}
-        safe_updated_at = int(updated_at or 0)
-        existing_entry = _normalize_result_file_bucket_entry(bucket.get(str(notebook_id)))
-        existing_updated_at = int(existing_entry.get("updatedAt") or 0)
-        normalized_items = [item for item in (_normalize_result_file_item(raw) for raw in (items or [])) if item]
-        if safe_updated_at and existing_updated_at and existing_updated_at > safe_updated_at:
-            return False
-        bucket[str(notebook_id)] = {
-            "items": normalized_items,
-            "updatedAt": safe_updated_at,
-        }
-        db[uid] = bucket
-        _save_json_file(NOTEBOOK_RESULT_FILES_PATH, db)
-        return True
+    normalized_items = [item for item in (_normalize_result_file_item(raw) for raw in (items or [])) if item]
+    for item in normalized_items:
+        _externalize_result_file_item(uid, item)
+    return dbstore.bucket_entry_set(
+        "notebook_result_files", uid, str(notebook_id), normalized_items, int(updated_at or 0)
+    )
 
 
 def _delete_notebook_result_files(uid: str, notebook_id: str) -> None:
-    with NOTEBOOK_RESULT_FILES_DB_LOCK:
-        db = _load_json_file(NOTEBOOK_RESULT_FILES_PATH)
-        bucket = db.get(uid, {})
-        if isinstance(bucket, dict) and str(notebook_id) in bucket:
-            del bucket[str(notebook_id)]
-            db[uid] = bucket
-            _save_json_file(NOTEBOOK_RESULT_FILES_PATH, db)
-
-
-def _load_notebook_sources_db() -> dict[str, Any]:
-    with NOTEBOOK_SOURCES_DB_LOCK:
-        return _load_json_file(NOTEBOOK_SOURCES_PATH)
-
-
-def _save_notebook_sources_db(payload: dict[str, Any]) -> None:
-    with NOTEBOOK_SOURCES_DB_LOCK:
-        _save_json_file(NOTEBOOK_SOURCES_PATH, payload)
+    dbstore.bucket_entry_delete("notebook_result_files", uid, str(notebook_id))
 
 
 def _is_placeholder_notebook_id(notebook_id: Any) -> bool:
@@ -665,54 +593,11 @@ def _purge_legacy_placeholder_notebooks(uid: str) -> None:
     safe_uid = str(uid or "")
     if not safe_uid:
         return
-
-    with NOTEBOOKS_DB_LOCK:
-        notebooks_db = _load_json_file(NOTEBOOKS_PATH)
-        notebook_items = notebooks_db.get(safe_uid, [])
-        if isinstance(notebook_items, list):
-            cleaned_items = [
-                item for item in notebook_items
-                if not (isinstance(item, dict) and _is_placeholder_notebook_id(item.get("id")))
-            ]
-            if len(cleaned_items) != len(notebook_items):
-                notebooks_db[safe_uid] = cleaned_items
-                _save_json_file(NOTEBOOKS_PATH, notebooks_db)
-
-    sources_db = _load_notebook_sources_db()
-    source_bucket = sources_db.get(safe_uid, {})
-    if isinstance(source_bucket, dict):
-        removed = False
-        for notebook_id in list(source_bucket.keys()):
-            if _is_placeholder_notebook_id(notebook_id):
-                del source_bucket[notebook_id]
-                removed = True
-        if removed:
-            sources_db[safe_uid] = source_bucket
-            _save_notebook_sources_db(sources_db)
-
-    result_files_db = _load_notebook_result_files_db()
-    result_file_bucket = result_files_db.get(safe_uid, {})
-    if isinstance(result_file_bucket, dict):
-        removed = False
-        for notebook_id in list(result_file_bucket.keys()):
-            if _is_placeholder_notebook_id(notebook_id):
-                del result_file_bucket[notebook_id]
-                removed = True
-        if removed:
-            result_files_db[safe_uid] = result_file_bucket
-            _save_notebook_result_files_db(result_files_db)
-
-    tombstones_db = _load_notebook_tombstones_db()
-    tombstone_bucket = tombstones_db.get(safe_uid, {})
-    if isinstance(tombstone_bucket, dict):
-        removed = False
-        for notebook_id in list(tombstone_bucket.keys()):
-            if _is_placeholder_notebook_id(notebook_id):
-                del tombstone_bucket[notebook_id]
-                removed = True
-        if removed:
-            tombstones_db[safe_uid] = tombstone_bucket
-            _save_notebook_tombstones_db(tombstones_db)
+    placeholder_ids = sorted(LEGACY_PLACEHOLDER_NOTEBOOK_IDS)
+    dbstore.notebook_delete_many(safe_uid, placeholder_ids)
+    dbstore.bucket_delete_many("notebook_sources", safe_uid, placeholder_ids)
+    dbstore.bucket_delete_many("notebook_result_files", safe_uid, placeholder_ids)
+    dbstore.tombstone_delete_many(safe_uid, placeholder_ids)
 
 
 def _normalize_source_bucket_entry(entry: Any) -> dict[str, Any]:
@@ -736,9 +621,7 @@ def _normalize_source_bucket_entry(entry: Any) -> dict[str, Any]:
 
 def _get_user_notebook_sources(uid: str) -> dict[str, Any]:
     _purge_legacy_placeholder_notebooks(uid)
-    db = _load_notebook_sources_db()
-    bucket = db.get(uid, {})
-    return bucket if isinstance(bucket, dict) else {}
+    return dbstore.bucket_all("notebook_sources", uid)
 
 
 def _get_conversation_sources(uid: str, notebook_id: str) -> list[dict[str, Any]]:
@@ -758,33 +641,21 @@ def _get_conversation_sources_updated_at(uid: str, notebook_id: str) -> int:
 
 
 def _set_conversation_sources(uid: str, notebook_id: str, sources: list[dict[str, Any]], *, updated_at: int = 0) -> bool:
-    with NOTEBOOK_SOURCES_DB_LOCK:
-        db = _load_json_file(NOTEBOOK_SOURCES_PATH)
-        bucket = db.get(uid, {})
-        if not isinstance(bucket, dict):
-            bucket = {}
-        safe_updated_at = int(updated_at or 0)
-        existing_entry = _normalize_source_bucket_entry(bucket.get(str(notebook_id)))
-        existing_updated_at = int(existing_entry.get("updatedAt") or 0)
-        if safe_updated_at and existing_updated_at and existing_updated_at > safe_updated_at:
-            return False
-        bucket[str(notebook_id)] = {
-            "items": sources if isinstance(sources, list) else [],
-            "updatedAt": safe_updated_at,
-        }
-        db[uid] = bucket
-        _save_json_file(NOTEBOOK_SOURCES_PATH, db)
-        return True
+    safe_sources = sources if isinstance(sources, list) else []
+    for src in safe_sources:
+        if isinstance(src, dict):
+            _externalize_source_item(uid, src)
+    return dbstore.bucket_entry_set(
+        "notebook_sources",
+        uid,
+        str(notebook_id),
+        safe_sources,
+        int(updated_at or 0),
+    )
 
 
 def _delete_conversation_sources(uid: str, notebook_id: str) -> None:
-    with NOTEBOOK_SOURCES_DB_LOCK:
-        db = _load_json_file(NOTEBOOK_SOURCES_PATH)
-        bucket = db.get(uid, {})
-        if isinstance(bucket, dict) and str(notebook_id) in bucket:
-            del bucket[str(notebook_id)]
-            db[uid] = bucket
-            _save_json_file(NOTEBOOK_SOURCES_PATH, db)
+    dbstore.bucket_entry_delete("notebook_sources", uid, str(notebook_id))
 
 
 def _source_file_ids(items: list[dict[str, Any]] | None) -> list[str]:
@@ -847,8 +718,7 @@ def _delete_uploaded_file_record(file_id: str, *, expected_user_id: str = "") ->
     path = (UPLOAD_DIR / safe_id).resolve()
     if not str(path).startswith(str(UPLOAD_DIR)):
         return False
-    meta = _load_file_meta()
-    record = meta.get(safe_id)
+    record = dbstore.file_meta_get(safe_id)
     if expected_user_id and record and str(record.get("user_id") or "") != str(expected_user_id):
         return False
     try:
@@ -856,9 +726,7 @@ def _delete_uploaded_file_record(file_id: str, *, expected_user_id: str = "") ->
             path.unlink()
     except Exception:
         return False
-    if safe_id in meta:
-        del meta[safe_id]
-        _save_file_meta(meta)
+    dbstore.file_meta_delete(safe_id)
     return True
 
 
@@ -879,14 +747,9 @@ def _sweep_orphan_chat_image_files() -> int:
     ]
     if not candidates:
         return 0
-    with NOTEBOOKS_DB_LOCK:
-        db = _load_json_file(NOTEBOOKS_PATH)
     referenced: set[str] = set()
-    for items in db.values():
-        if not isinstance(items, list):
-            continue
-        for item in items:
-            referenced.update(_notebook_chat_image_file_ids(item))
+    for item in dbstore.notebook_iter_all_payloads():
+        referenced.update(_notebook_chat_image_file_ids(item))
     now = time.time()
     deleted = 0
     for file_id in candidates:
@@ -918,49 +781,21 @@ async def _startup_sweep_orphan_chat_images() -> None:
     threading.Thread(target=run, name="chat-image-orphan-sweep", daemon=True).start()
 
 
-def _load_notebook_tombstones_db() -> dict[str, Any]:
-    with NOTEBOOK_TOMBSTONES_DB_LOCK:
-        return _load_json_file(NOTEBOOK_TOMBSTONES_PATH)
-
-
-def _save_notebook_tombstones_db(payload: dict[str, Any]) -> None:
-    with NOTEBOOK_TOMBSTONES_DB_LOCK:
-        _save_json_file(NOTEBOOK_TOMBSTONES_PATH, payload)
-
-
 def _get_user_notebook_tombstones(uid: str) -> dict[str, int]:
     _purge_legacy_placeholder_notebooks(uid)
-    db = _load_notebook_tombstones_db()
-    bucket = db.get(uid, {})
-    return bucket if isinstance(bucket, dict) else {}
+    return dbstore.tombstones_all(uid)
 
 
 def _get_notebook_tombstone(uid: str, notebook_id: str) -> int:
-    bucket = _get_user_notebook_tombstones(uid)
-    value = bucket.get(str(notebook_id), 0)
-    try:
-        return int(value or 0)
-    except Exception:
-        return 0
+    return dbstore.tombstone_get(uid, str(notebook_id))
 
 
 def _set_notebook_tombstone(uid: str, notebook_id: str, deleted_at: int) -> None:
-    db = _load_notebook_tombstones_db()
-    bucket = db.get(uid, {})
-    if not isinstance(bucket, dict):
-        bucket = {}
-    bucket[str(notebook_id)] = int(deleted_at or 0)
-    db[uid] = bucket
-    _save_notebook_tombstones_db(db)
+    dbstore.tombstone_set(uid, str(notebook_id), int(deleted_at or 0))
 
 
 def _clear_notebook_tombstone(uid: str, notebook_id: str) -> None:
-    db = _load_notebook_tombstones_db()
-    bucket = db.get(uid, {})
-    if isinstance(bucket, dict) and str(notebook_id) in bucket:
-        del bucket[str(notebook_id)]
-        db[uid] = bucket
-        _save_notebook_tombstones_db(db)
+    dbstore.tombstone_clear(uid, str(notebook_id))
 
 
 def _coerce_feedback_context(raw: Any) -> dict[str, Any]:
@@ -998,15 +833,16 @@ def _store_upload_bytes(
     safe_name = f"{fid}{suffix}"
     out_path = UPLOAD_DIR / safe_name
     out_path.write_bytes(content)
-    meta = _load_file_meta()
-    meta[safe_name] = {
-        "user_id": user.get("id"),
-        "username": user.get("username"),
-        "source": source,
-        "content_type": content_type,
-        "original_name": filename,
-    }
-    _save_file_meta(meta)
+    dbstore.file_meta_set(
+        safe_name,
+        {
+            "user_id": user.get("id"),
+            "username": user.get("username"),
+            "source": source,
+            "content_type": content_type,
+            "original_name": filename,
+        },
+    )
     url = _build_file_api_path(safe_name)
     return {
         "id": safe_name,
@@ -1019,6 +855,223 @@ def _store_upload_bytes(
         "user_id": user.get("id"),
         "username": user.get("username"),
     }
+
+
+# ---------------------------------------------------------------------------
+# 内联资产外部化：保存时把 base64 图片 / 大文本剥离成 uploads 文件 + fileId 引用。
+# 前端已有按 fileId 取回并缓存的 hydrate 链路（hydrateSourceFromLocalFileCache /
+# readAnalysisFileText / hydrateChatPreviewMetaLocally），UI 展示不受影响。
+# 各类型的剥离条件必须与前端 hydrate 能恢复的范围一致，否则会丢展示数据。
+# ---------------------------------------------------------------------------
+
+# 与 index.html hydrateSourceFromLocalFileCache 的恢复类型列表保持一致
+SOURCE_IMAGE_HYDRATE_TYPES = {"png", "jpg", "jpeg", "bmp", "tiff", "webp"}
+SOURCE_TEXT_HYDRATE_TYPES = {"csv", "txt", "xml", "json", "hl7"}
+# 小文本保留内联（建文件得不偿失）；imageDataUrl 不设阈值，图片必然大
+INLINE_SOURCE_CONTENT_MAX = 32_000
+DATA_URL_RE = re.compile(r"^data:([a-zA-Z0-9.+/-]+);base64,(.*)$", re.DOTALL)
+INLINE_ASSETS_MARKER = "inline_assets_externalized_at"
+
+
+def _decode_data_url(value: Any) -> tuple[str, bytes]:
+    match = DATA_URL_RE.match(str(value or ""))
+    if not match:
+        return "", b""
+    try:
+        data = base64.b64decode(match.group(2), validate=False)
+    except Exception:
+        return "", b""
+    return match.group(1), data
+
+
+def _store_inline_asset(
+    uid: str, data: bytes, *, name: str, mime: str, source_tag: str, dedupe: bool = True
+) -> tuple[str, str]:
+    """把内联数据落盘为 uploads 文件，返回 (file_id, file_url)。
+
+    dedupe=True 时文件名取「用户 + 内容」hash：同一用户重复出现的相同内容只存一份。
+    聊天图片必须 dedupe=False（uuid 命名）：删除对话时会按 fileId 直接删文件，
+    不能让多条消息共享同一文件。
+    """
+    suffix = _guess_upload_suffix(name, mime)
+    if dedupe:
+        digest = hashlib.sha256(f"{uid}|".encode("utf-8") + data).hexdigest()[:28]
+        safe_name = f"inl_{digest}{suffix}"
+    else:
+        safe_name = f"{uuid.uuid4().hex}{suffix}"
+    path = UPLOAD_DIR / safe_name
+    if not path.exists():
+        path.write_bytes(data)
+    if not dbstore.file_meta_get(safe_name):
+        dbstore.file_meta_set(
+            safe_name,
+            {
+                "user_id": uid,
+                "username": "",
+                "source": source_tag,
+                "content_type": mime,
+                "original_name": name,
+            },
+        )
+    return safe_name, _build_file_api_path(safe_name)
+
+
+def _externalize_source_item(uid: str, src: dict[str, Any]) -> bool:
+    changed = False
+    source_type = str(src.get("type") or "").lower()
+    has_file = bool(src.get("fileId") or src.get("serverFileId"))
+
+    image_data_url = src.get("imageDataUrl")
+    if isinstance(image_data_url, str) and image_data_url.startswith("data:") and source_type in SOURCE_IMAGE_HYDRATE_TYPES:
+        if not has_file:
+            mime, data = _decode_data_url(image_data_url)
+            if data:
+                file_id, file_url = _store_inline_asset(
+                    uid, data,
+                    name=str(src.get("name") or "source.png"),
+                    mime=mime or "image/png",
+                    source_tag="heartos_source_inline",
+                )
+                src["fileId"] = file_id
+                src["serverFileId"] = file_id
+                src["fileUrl"] = file_url
+                if not src.get("mime"):
+                    src["mime"] = mime or "image/png"
+                has_file = True
+        if has_file:
+            src.pop("imageDataUrl", None)
+            changed = True
+
+    content = src.get("content")
+    if (
+        isinstance(content, str)
+        and len(content) > INLINE_SOURCE_CONTENT_MAX
+        and source_type in SOURCE_TEXT_HYDRATE_TYPES
+    ):
+        if not has_file:
+            file_id, file_url = _store_inline_asset(
+                uid, content.encode("utf-8"),
+                name=str(src.get("name") or "source.txt"),
+                mime=str(src.get("mime") or "text/plain;charset=utf-8"),
+                source_tag="heartos_source_inline",
+            )
+            src["fileId"] = file_id
+            src["serverFileId"] = file_id
+            src["fileUrl"] = file_url
+            has_file = True
+        if has_file:
+            src["content"] = ""
+            changed = True
+    return changed
+
+
+def _externalize_result_file_item(uid: str, item: dict[str, Any]) -> bool:
+    content = item.get("content")
+    if not isinstance(content, str) or not content:
+        return False
+    # 与前端 normalizeAnalysisFileForPersistence 一致：有远端文件就不再内联 content
+    if not (item.get("fileId") or item.get("serverFileId")):
+        file_id, file_url = _store_inline_asset(
+            uid, content.encode("utf-8"),
+            name=str(item.get("name") or "analysis.txt"),
+            mime=str(item.get("mime") or "text/plain;charset=utf-8"),
+            source_tag="heartos_analysis",
+        )
+        item["fileId"] = file_id
+        item["serverFileId"] = file_id
+        item["fileUrl"] = file_url
+    item["content"] = ""
+    return True
+
+
+def _externalize_msg_preview_images(uid: str, msg: dict[str, Any]) -> bool:
+    meta = msg.get("previewMeta")
+    if not isinstance(meta, dict):
+        return False
+    images = meta.get("images")
+    if not isinstance(images, list):
+        return False
+    changed = False
+    for image in images:
+        if not isinstance(image, dict):
+            continue
+        data_url = image.get("dataUrl")
+        if not (isinstance(data_url, str) and data_url.startswith("data:")):
+            continue
+        if not image.get("fileId"):
+            mime, data = _decode_data_url(data_url)
+            if not data:
+                continue
+            file_id, file_url = _store_inline_asset(
+                uid, data,
+                name=f"chat_{msg.get('id') or 'msg'}_{image.get('id') or 'img'}.png",
+                mime=mime or "image/png",
+                source_tag=CHAT_IMAGE_FILE_SOURCE,
+                dedupe=False,
+            )
+            image["fileId"] = file_id
+            image["fileUrl"] = file_url
+        image.pop("dataUrl", None)
+        changed = True
+    return changed
+
+
+def _externalize_notebook_inline_assets(uid: str, item: dict[str, Any]) -> bool:
+    changed = False
+    for src in item.get("sources") or []:
+        if isinstance(src, dict) and _externalize_source_item(uid, src):
+            changed = True
+    for result_file in item.get("analysisFiles") or []:
+        if isinstance(result_file, dict) and _externalize_result_file_item(uid, result_file):
+            changed = True
+    for msg in item.get("msgs") or []:
+        if isinstance(msg, dict) and _externalize_msg_preview_images(uid, msg):
+            changed = True
+    return changed
+
+
+def _externalize_all_legacy_inline_assets() -> int:
+    """一次性清理旧数据里的内联资产（meta 表打标记，幂等）。"""
+    if dbstore.meta_get(INLINE_ASSETS_MARKER):
+        return 0
+    changed_rows = 0
+    for uid, item in list(dbstore.notebook_iter_all()):
+        if _externalize_notebook_inline_assets(uid, item):
+            dbstore.notebook_upsert(uid, item)
+            changed_rows += 1
+    for table, externalize in (
+        ("notebook_sources", _externalize_source_item),
+        ("notebook_result_files", _externalize_result_file_item),
+    ):
+        for uid, notebook_id, entry in list(dbstore.bucket_iter_all(table)):
+            items = entry.get("items") or []
+            entry_changed = False
+            for item in items:
+                if isinstance(item, dict) and externalize(uid, item):
+                    entry_changed = True
+            if entry_changed:
+                dbstore.bucket_entry_set(table, uid, notebook_id, items, int(entry.get("updatedAt") or 0))
+                changed_rows += 1
+    dbstore.meta_set(INLINE_ASSETS_MARKER, str(int(time.time())))
+    if changed_rows:
+        try:
+            dbstore.vacuum()
+        except Exception:
+            LOGGER.exception("vacuum after inline asset externalization failed")
+    return changed_rows
+
+
+@app.on_event("startup")
+async def _startup_externalize_legacy_inline_assets() -> None:
+    def run() -> None:
+        try:
+            changed = _externalize_all_legacy_inline_assets()
+            if changed:
+                LOGGER.info("externalized inline assets in %d rows", changed)
+        except Exception:
+            LOGGER.exception("legacy inline asset externalization failed")
+
+    threading.Thread(target=run, name="inline-asset-externalize", daemon=True).start()
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -2816,11 +2869,7 @@ async def admin_users(user: dict[str, Any] = Depends(get_current_user)) -> UserA
 async def admin_feedback_list(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     if not bool(user.get("is_admin")):
         raise HTTPException(status_code=403, detail="仅管理员可查看反馈")
-    db = _load_json_file(FEEDBACK_PATH)
-    items = db.get("items", [])
-    if not isinstance(items, list):
-        items = []
-    normalized = [item for item in (_feedback_item(raw) for raw in items) if item]
+    normalized = [item for item in (_feedback_item(raw) for raw in dbstore.feedback_all()) if item]
     return {"items": normalized}
 
 
@@ -2833,26 +2882,19 @@ async def admin_feedback_status_update(
     if not bool(user.get("is_admin")):
         raise HTTPException(status_code=403, detail="仅管理员可更新反馈状态")
     status = _normalize_feedback_status((payload or {}).get("status"))
-    db = _load_json_file(FEEDBACK_PATH)
-    items = db.get("items", [])
-    if not isinstance(items, list):
-        items = []
-    item = _find_feedback_record(items, feedback_id)
+    item = dbstore.feedback_get(str(feedback_id))
     if not item:
         raise HTTPException(status_code=404, detail="feedback not found")
     item["status"] = status
     item["updatedAt"] = int(time.time() * 1000)
-    _save_json_file(FEEDBACK_PATH, db)
+    dbstore.feedback_save(item)
     return {"ok": True, "id": str(feedback_id), "status": status}
 
 
 @app.get("/api/user/ai-config")
 async def get_ai_config(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
-    db = _load_json_file(AI_CONFIG_PATH)
-    user_items = db.get(uid, {})
-    if not isinstance(user_items, dict):
-        user_items = {}
+    user_items = dbstore.ai_config_all(uid)
 
     items = []
     for provider, cfg in user_items.items():
@@ -2877,30 +2919,14 @@ async def save_ai_config(payload: dict[str, Any], user: dict[str, Any] = Depends
         raise HTTPException(status_code=422, detail="api_key is required")
 
     uid = str(user.get("id") or "")
-    db = _load_json_file(AI_CONFIG_PATH)
-    if not isinstance(db.get(uid), dict):
-        db[uid] = {}
-    db[uid][provider] = {"api_key": api_key}
-    _save_json_file(AI_CONFIG_PATH, db)
+    dbstore.ai_config_set(uid, provider, {"api_key": api_key})
     return {"ok": True, "provider": provider, "has_key": True}
 
 
 @app.get("/api/feedback")
 async def list_my_feedback(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
-    db = _load_json_file(FEEDBACK_PATH)
-    items = db.get("items", [])
-    if not isinstance(items, list):
-        items = []
-    normalized = []
-    for raw in items:
-        item = _feedback_item(raw)
-        if not item:
-            continue
-        owner = raw.get("user") if isinstance(raw, dict) and isinstance(raw.get("user"), dict) else {}
-        if str(owner.get("id") or "") != uid:
-            continue
-        normalized.append(item)
+    normalized = [item for item in (_feedback_item(raw) for raw in dbstore.feedback_for_user(uid)) if item]
     return {"items": normalized}
 
 
@@ -2954,10 +2980,6 @@ async def submit_feedback(
 
     if len(message) < 5 and not attachments:
         raise HTTPException(status_code=422, detail="请至少填写 5 个字符的反馈内容，或上传反馈图片")
-    db = _load_json_file(FEEDBACK_PATH)
-    items = db.get("items", [])
-    if not isinstance(items, list):
-        items = []
 
     record = {
         "id": uuid.uuid4().hex,
@@ -2975,9 +2997,8 @@ async def submit_feedback(
         },
         "messages": [],
     }
-    items.insert(0, record)
-    db["items"] = items[:1000]
-    _save_json_file(FEEDBACK_PATH, db)
+    dbstore.feedback_save(record)
+    dbstore.feedback_trim(1000)
     return {"ok": True, "id": record["id"], "attachments": attachments}
 
 
@@ -3026,11 +3047,7 @@ async def append_feedback_message(
     if not message and not attachments:
         raise HTTPException(status_code=422, detail="请填写留言内容，或上传图片附件")
 
-    db = _load_json_file(FEEDBACK_PATH)
-    items = db.get("items", [])
-    if not isinstance(items, list):
-        items = []
-    record = _find_feedback_record(items, feedback_id)
+    record = dbstore.feedback_get(str(feedback_id))
     if not record:
         raise HTTPException(status_code=404, detail="feedback not found")
     owner = record.get("user") if isinstance(record.get("user"), dict) else {}
@@ -3060,7 +3077,7 @@ async def append_feedback_message(
     record["updatedAt"] = int(time.time() * 1000)
     if is_admin and str(record.get("status") or "new") == "new":
         record["status"] = "processing"
-    _save_json_file(FEEDBACK_PATH, db)
+    dbstore.feedback_save(record)
     return {"ok": True, "item": _feedback_item(record)}
 
 
@@ -3292,21 +3309,9 @@ def _persist_notebook_legacy_mirrors(uid: str, item: dict[str, Any]) -> None:
 
 def _save_notebook_item(uid: str, item: dict[str, Any]) -> None:
     normalized = _normalize_notebook_item(item)
+    _externalize_notebook_inline_assets(uid, normalized)
     with NOTEBOOKS_DB_LOCK:
-        db = _load_json_file(NOTEBOOKS_PATH)
-        items = db.get(uid, [])
-        if not isinstance(items, list):
-            items = []
-        replaced = False
-        for index, existing in enumerate(items):
-            if isinstance(existing, dict) and str(existing.get("id") or "") == normalized["id"]:
-                items[index] = normalized
-                replaced = True
-                break
-        if not replaced:
-            items.insert(0, normalized)
-        db[uid] = items
-        _save_json_file(NOTEBOOKS_PATH, db)
+        dbstore.notebook_upsert(uid, normalized)
     _notebook_debug(
         "save_notebook_item",
         uid=uid,
@@ -3322,16 +3327,7 @@ def _load_merged_notebook_item(uid: str, notebook_id: str, *, persist: bool = Fa
     safe_id = str(notebook_id or "")
     if not safe_id:
         return None
-    with NOTEBOOKS_DB_LOCK:
-        db = _load_json_file(NOTEBOOKS_PATH)
-        items = db.get(uid, [])
-        if not isinstance(items, list):
-            items = []
-    raw_item = None
-    for item in items:
-        if isinstance(item, dict) and str(item.get("id") or "") == safe_id:
-            raw_item = item
-            break
+    raw_item = dbstore.notebook_get(uid, safe_id)
     if raw_item is None:
         return None
     merged = _merge_notebook_aggregate(
@@ -3365,11 +3361,7 @@ def _load_merged_notebook_item(uid: str, notebook_id: str, *, persist: bool = Fa
 async def list_notebooks(summary_only: bool = False, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     uid = str(user.get("id") or "")
     _purge_legacy_placeholder_notebooks(uid)
-    with NOTEBOOKS_DB_LOCK:
-        db = _load_json_file(NOTEBOOKS_PATH)
-        items = db.get(uid, [])
-        if not isinstance(items, list):
-            items = []
+    items = dbstore.notebook_list(uid)
     merged_items = [
         _load_merged_notebook_item(uid, str(item.get("id") or ""), persist=True)
         for item in items
@@ -3431,72 +3423,61 @@ async def upsert_notebook(payload: dict[str, Any], user: dict[str, Any] = Depend
 
     existing_merged = _load_merged_notebook_item(uid, item["id"], persist=True)
     with NOTEBOOKS_DB_LOCK:
-        db = _load_json_file(NOTEBOOKS_PATH)
-        items = db.get(uid, [])
-        if not isinstance(items, list):
-            items = []
         tombstone_ts = _get_notebook_tombstone(uid, item["id"])
         if tombstone_ts and int(item.get("updatedAt") or 0) <= tombstone_ts:
             _notebook_debug("upsert_notebook_deleted_stale", uid=uid, notebookId=item["id"], tombstoneTs=tombstone_ts, incomingUpdatedAt=int(item.get("updatedAt") or 0))
             return {"ok": True, "id": item["id"], "stale": True, "deleted": True}
 
-        replaced = False
-        for i, existing in enumerate(items):
-            if isinstance(existing, dict) and str(existing.get("id")) == item["id"]:
-                existing_aggregate = existing_merged if existing_merged and str(existing_merged.get("id") or "") == item["id"] else _merge_notebook_aggregate(existing)
-                if item["updatedAt"] and int(existing_aggregate.get("updatedAt") or 0) > item["updatedAt"]:
-                    _notebook_debug(
-                        "upsert_notebook_stale",
-                        uid=uid,
-                        notebookId=item["id"],
-                        incomingUpdatedAt=int(item.get("updatedAt") or 0),
-                        existingUpdatedAt=int(existing_aggregate.get("updatedAt") or 0),
-                        existingAnalysisUpdatedAt=int(existing_aggregate.get("analysisFilesUpdatedAt") or 0),
-                        existingAnalysisCount=len(existing_aggregate.get("analysisFiles") or []) if isinstance(existing_aggregate.get("analysisFiles"), list) else 0,
-                    )
-                    return {"ok": True, "id": item["id"], "stale": True}
-                existing_analysis_updated_at = int(existing_aggregate.get("analysisFilesUpdatedAt") or existing_aggregate.get("updatedAt") or 0)
-                incoming_analysis_updated_at = int(item.get("analysisFilesUpdatedAt") or item.get("updatedAt") or 0)
-                existing_analysis_files = existing_aggregate.get("analysisFiles") if isinstance(existing_aggregate.get("analysisFiles"), list) else []
-                incoming_analysis_files = item.get("analysisFiles") if isinstance(item.get("analysisFiles"), list) else []
-                if (
-                    existing_analysis_updated_at
-                    and incoming_analysis_updated_at
-                    and (
-                        incoming_analysis_updated_at < existing_analysis_updated_at
-                        or (
-                            incoming_analysis_updated_at == existing_analysis_updated_at
-                            and len(incoming_analysis_files) < len(existing_analysis_files)
-                        )
-                    )
-                ):
-                    item["analysisFiles"] = existing_analysis_files
-                    item["analysisFilesUpdatedAt"] = existing_analysis_updated_at
-                existing_sources = existing_aggregate.get("sources") if isinstance(existing_aggregate.get("sources"), list) else []
-                if not has_analysis_files_field:
-                    item["analysisFiles"] = existing_analysis_files
-                    item["analysisFilesUpdatedAt"] = existing_analysis_updated_at
-                if not has_sources_field:
-                    item["sources"] = existing_sources
-                elif (not item.get("sources")) and existing_sources:
-                    item["sources"] = existing_sources
+        existing = dbstore.notebook_get(uid, item["id"])
+        if existing is not None:
+            existing_aggregate = existing_merged if existing_merged and str(existing_merged.get("id") or "") == item["id"] else _merge_notebook_aggregate(existing)
+            if item["updatedAt"] and int(existing_aggregate.get("updatedAt") or 0) > item["updatedAt"]:
                 _notebook_debug(
-                    "upsert_notebook_merge_existing",
+                    "upsert_notebook_stale",
                     uid=uid,
                     notebookId=item["id"],
-                    mergedSourceCount=len(item.get("sources") or []) if isinstance(item.get("sources"), list) else 0,
-                    mergedAnalysisCount=len(item.get("analysisFiles") or []) if isinstance(item.get("analysisFiles"), list) else 0,
-                    updatedAt=int(item.get("updatedAt") or 0),
-                    analysisFilesUpdatedAt=int(item.get("analysisFilesUpdatedAt") or 0),
+                    incomingUpdatedAt=int(item.get("updatedAt") or 0),
+                    existingUpdatedAt=int(existing_aggregate.get("updatedAt") or 0),
+                    existingAnalysisUpdatedAt=int(existing_aggregate.get("analysisFilesUpdatedAt") or 0),
+                    existingAnalysisCount=len(existing_aggregate.get("analysisFiles") or []) if isinstance(existing_aggregate.get("analysisFiles"), list) else 0,
                 )
-                items[i] = item
-                replaced = True
-                break
-        if not replaced:
-            items.insert(0, item)
-
-        db[uid] = items
-        _save_json_file(NOTEBOOKS_PATH, db)
+                return {"ok": True, "id": item["id"], "stale": True}
+            existing_analysis_updated_at = int(existing_aggregate.get("analysisFilesUpdatedAt") or existing_aggregate.get("updatedAt") or 0)
+            incoming_analysis_updated_at = int(item.get("analysisFilesUpdatedAt") or item.get("updatedAt") or 0)
+            existing_analysis_files = existing_aggregate.get("analysisFiles") if isinstance(existing_aggregate.get("analysisFiles"), list) else []
+            incoming_analysis_files = item.get("analysisFiles") if isinstance(item.get("analysisFiles"), list) else []
+            if (
+                existing_analysis_updated_at
+                and incoming_analysis_updated_at
+                and (
+                    incoming_analysis_updated_at < existing_analysis_updated_at
+                    or (
+                        incoming_analysis_updated_at == existing_analysis_updated_at
+                        and len(incoming_analysis_files) < len(existing_analysis_files)
+                    )
+                )
+            ):
+                item["analysisFiles"] = existing_analysis_files
+                item["analysisFilesUpdatedAt"] = existing_analysis_updated_at
+            existing_sources = existing_aggregate.get("sources") if isinstance(existing_aggregate.get("sources"), list) else []
+            if not has_analysis_files_field:
+                item["analysisFiles"] = existing_analysis_files
+                item["analysisFilesUpdatedAt"] = existing_analysis_updated_at
+            if not has_sources_field:
+                item["sources"] = existing_sources
+            elif (not item.get("sources")) and existing_sources:
+                item["sources"] = existing_sources
+            _notebook_debug(
+                "upsert_notebook_merge_existing",
+                uid=uid,
+                notebookId=item["id"],
+                mergedSourceCount=len(item.get("sources") or []) if isinstance(item.get("sources"), list) else 0,
+                mergedAnalysisCount=len(item.get("analysisFiles") or []) if isinstance(item.get("analysisFiles"), list) else 0,
+                updatedAt=int(item.get("updatedAt") or 0),
+                analysisFilesUpdatedAt=int(item.get("analysisFilesUpdatedAt") or 0),
+            )
+        _externalize_notebook_inline_assets(uid, item)
+        dbstore.notebook_upsert(uid, item)
     if tombstone_ts:
         _clear_notebook_tombstone(uid, item["id"])
     _persist_notebook_legacy_mirrors(uid, item)
@@ -3522,17 +3503,10 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
     file_ids = sorted(set(_source_file_ids(linked_sources)))
     chat_image_file_ids: list[str] = []
     with NOTEBOOKS_DB_LOCK:
-        db = _load_json_file(NOTEBOOKS_PATH)
-        items = db.get(uid, [])
-        if not isinstance(items, list):
-            items = []
-        before = len(items)
-        for it in items:
-            if isinstance(it, dict) and str(it.get("id")) == str(notebook_id):
-                chat_image_file_ids.extend(_notebook_chat_image_file_ids(it))
-        items = [it for it in items if not (isinstance(it, dict) and str(it.get("id")) == str(notebook_id))]
-        db[uid] = items
-    _save_json_file(NOTEBOOKS_PATH, db)
+        existing = dbstore.notebook_get(uid, str(notebook_id))
+        if existing is not None:
+            chat_image_file_ids.extend(_notebook_chat_image_file_ids(existing))
+        deleted_count = dbstore.notebook_delete(uid, str(notebook_id))
     _delete_conversation_sources(uid, notebook_id)
     _delete_notebook_result_files(uid, notebook_id)
     _set_notebook_tombstone(uid, notebook_id, int(time.time() * 1000))
@@ -3550,7 +3524,7 @@ async def delete_notebook(notebook_id: str, user: dict[str, Any] = Depends(get_c
     for file_id in sorted(set(chat_image_file_ids) - set(file_ids)):
         if _delete_uploaded_file_record(file_id, expected_user_id=uid):
             deleted_files += 1
-    return {"ok": True, "deleted": before - len(items), "deleted_file_count": deleted_files, "kept_file_ids": kept_files}
+    return {"ok": True, "deleted": deleted_count, "deleted_file_count": deleted_files, "kept_file_ids": kept_files}
 
 
 @app.get("/api/notebooks/{notebook_id}/sources")
@@ -4317,9 +4291,10 @@ async def upload_file(
         raise HTTPException(status_code=413, detail=f"File too large, max {settings.max_upload_mb}MB")
 
     out_path.write_bytes(content)
-    meta = _load_file_meta()
-    meta[safe_name] = {"user_id": user.get("id"), "username": user.get("username"), "source": source}
-    _save_file_meta(meta)
+    dbstore.file_meta_set(
+        safe_name,
+        {"user_id": user.get("id"), "username": user.get("username"), "source": source},
+    )
 
     url = _build_file_api_path(safe_name)
     return {
@@ -4353,7 +4328,7 @@ async def pdf_first_page_image(
             raise HTTPException(status_code=400, detail="invalid file path")
         if not p.exists() or not p.is_file():
             raise HTTPException(status_code=404, detail="file not found")
-        meta = _load_file_meta().get(file_id)
+        meta = dbstore.file_meta_get(file_id)
         if meta and meta.get("user_id") != user.get("id") and not bool(user.get("is_admin")):
             raise HTTPException(status_code=403, detail="forbidden")
         raw = p.read_bytes()
@@ -4398,7 +4373,7 @@ async def get_file(file_id: str, user: dict[str, Any] = Depends(get_current_user
     if not p.exists() or not p.is_file():
         raise HTTPException(status_code=404, detail="file not found")
 
-    meta = _load_file_meta().get(file_id)
+    meta = dbstore.file_meta_get(file_id)
     if meta and meta.get("user_id") != user.get("id") and not bool(user.get("is_admin")):
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -4413,8 +4388,7 @@ async def delete_file(file_id: str, user: dict[str, Any] = Depends(get_current_u
     if not p.exists() or not p.is_file():
         raise HTTPException(status_code=404, detail="file not found")
 
-    meta = _load_file_meta()
-    item = meta.get(file_id)
+    item = dbstore.file_meta_get(file_id)
     if item and str(item.get("user_id")) != str(user.get("id")):
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -4423,9 +4397,7 @@ async def delete_file(file_id: str, user: dict[str, Any] = Depends(get_current_u
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"delete failed: {e}") from e
 
-    if file_id in meta:
-        del meta[file_id]
-        _save_file_meta(meta)
+    dbstore.file_meta_delete(file_id)
 
     return {"ok": True, "id": file_id}
 

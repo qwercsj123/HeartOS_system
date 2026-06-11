@@ -8,16 +8,16 @@ import re
 import secrets
 import subprocess
 import time
-from pathlib import Path
 from typing import Any
 
 import httpx
 
 from .config import settings
+from . import db as store
+from .db import normalize_phone as _normalize_phone
+from .db import normalize_user_record as _normalize_user_record
 
 
-USERS_PATH = Path(settings.users_file).resolve()
-USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
 PHONE_RE = re.compile(r"^1\d{10}$")
 CODE_TTL_SECONDS = 300
 SEND_INTERVAL_SECONDS = 60
@@ -80,13 +80,6 @@ def _now_ts() -> int:
     return int(time.time())
 
 
-def _normalize_phone(phone: str) -> str:
-    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
-    if digits.startswith("86") and len(digits) == 13:
-        digits = digits[2:]
-    return digits
-
-
 def _mask_phone(phone: str) -> str:
     value = _normalize_phone(phone)
     if len(value) >= 7:
@@ -123,124 +116,50 @@ def _public_user(u: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _normalize_user_record(raw: dict[str, Any]) -> dict[str, Any]:
-    now = _now_ts()
-    phone = _normalize_phone(str(raw.get("phone") or ""))
-    username = str(raw.get("username") or phone or "").strip()
-    display_name = str(raw.get("display_name") or raw.get("name") or username).strip() or username
-    record = {
-        "id": str(raw.get("id") or f"u_{secrets.token_hex(6)}"),
-        "username": username,
-        "phone": phone,
-        "phone_verified": bool(raw.get("phone_verified", bool(phone))),
-        "phone_verified_at": int(raw.get("phone_verified_at") or (now if phone else 0)),
-        "display_name": display_name,
-        "name": str(raw.get("name") or display_name),
-        "organization": str(raw.get("organization") or ""),
-        "department": str(raw.get("department") or ""),
-        "title": str(raw.get("title") or ""),
-        "user_type": str(raw.get("user_type") or ""),
-        "use_case": str(raw.get("use_case") or ""),
-        "email": str(raw.get("email") or ""),
-        "salt": str(raw.get("salt") or ""),
-        "password_hash": str(raw.get("password_hash") or ""),
-        "active": bool(raw.get("active", True)),
-        "is_admin": bool(raw.get("is_admin", str(raw.get("id") or "") == "u_admin")),
-        "created_at": int(raw.get("created_at") or now),
-        "last_login_at": int(raw.get("last_login_at") or 0),
-    }
-    return record
-
-
-def _load_users() -> dict[str, Any]:
-    if not USERS_PATH.exists():
-        _init_default_user()
-    try:
-        raw = json.loads(USERS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        _init_default_user()
-        raw = json.loads(USERS_PATH.read_text(encoding="utf-8"))
-
-    if not isinstance(raw, dict):
-        raw = {}
-    users = raw.get("users")
-    codes = raw.get("verification_codes")
-    if not isinstance(users, list):
-        users = []
-    if not isinstance(codes, list):
-        codes = []
-
-    normalized_users = [_normalize_user_record(item) for item in users if isinstance(item, dict)]
-    normalized_codes = [item for item in codes if isinstance(item, dict)]
-    data = {"users": normalized_users, "verification_codes": normalized_codes}
-    if data != raw:
-        _save_users(data)
-    return data
-
-
-def _save_users(data: dict[str, Any]) -> None:
-    USERS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _init_default_user() -> None:
+def _ensure_default_admin() -> None:
+    """users 表为空时初始化默认管理员（与旧版 users.json 不存在时的行为一致）。"""
+    if store.user_count() > 0:
+        return
     salt = secrets.token_hex(8)
-    data = {
-        "users": [
-            {
-                "id": "u_admin",
-                "username": settings.default_username,
-                "phone": _normalize_phone(str(getattr(settings, "default_admin_phone", "") or "")),
-                "phone_verified": bool(_normalize_phone(str(getattr(settings, "default_admin_phone", "") or ""))),
-                "phone_verified_at": _now_ts() if _normalize_phone(str(getattr(settings, "default_admin_phone", "") or "")) else 0,
-                "display_name": "Administrator",
-                "name": "Administrator",
-                "organization": "HeartOS",
-                "user_type": "admin",
-                "use_case": "system",
-                "salt": salt,
-                "password_hash": _hash_password(settings.default_password, salt),
-                "active": True,
-                "is_admin": True,
-                "created_at": _now_ts(),
-                "last_login_at": 0,
-            }
-        ],
-        "verification_codes": [],
-    }
-    _save_users(data)
-
-
-def _find_user(db: dict[str, Any], *, username: str = "", phone: str = "", user_id: str = "") -> dict[str, Any] | None:
-    username_lc = str(username or "").strip().lower()
-    phone_norm = _normalize_phone(phone)
-    target_id = str(user_id or "").strip()
-    for u in db.get("users", []):
-        if not isinstance(u, dict):
-            continue
-        if target_id and str(u.get("id") or "") == target_id:
-            return u
-        if phone_norm and _normalize_phone(str(u.get("phone") or "")) == phone_norm:
-            return u
-        if username_lc and str(u.get("username") or "").strip().lower() == username_lc:
-            return u
-    return None
+    admin_phone = _normalize_phone(str(getattr(settings, "default_admin_phone", "") or ""))
+    now = _now_ts()
+    record = _normalize_user_record(
+        {
+            "id": "u_admin",
+            "username": settings.default_username,
+            "phone": admin_phone,
+            "phone_verified": bool(admin_phone),
+            "phone_verified_at": now if admin_phone else 0,
+            "display_name": "Administrator",
+            "name": "Administrator",
+            "organization": "HeartOS",
+            "user_type": "admin",
+            "use_case": "system",
+            "salt": salt,
+            "password_hash": _hash_password(settings.default_password, salt),
+            "active": True,
+            "is_admin": True,
+            "created_at": now,
+            "last_login_at": 0,
+        }
+    )
+    store.user_upsert(record)
 
 
 def get_user_by_id(user_id: str) -> dict[str, Any] | None:
-    db = _load_users()
-    user = _find_user(db, user_id=user_id)
+    _ensure_default_admin()
+    user = store.user_get(user_id=user_id)
     if not user or not user.get("active", True):
         return None
     return _public_user(user)
 
 
 def _touch_last_login(user: dict[str, Any]) -> None:
-    db = _load_users()
-    target = _find_user(db, user_id=str(user.get("id") or ""))
+    target = store.user_get(user_id=str(user.get("id") or ""))
     if not target:
         return
     target["last_login_at"] = _now_ts()
-    _save_users(db)
+    store.user_upsert(target)
 
 
 def _verify_plain_password(user: dict[str, Any], password: str) -> bool:
@@ -267,14 +186,14 @@ def _verify_plain_password(user: dict[str, Any], password: str) -> bool:
 
 
 def verify_user(username: str, password: str, *, phone: str = "") -> dict[str, Any] | None:
-    db = _load_users()
-    user = _find_user(db, username=username, phone=phone)
+    _ensure_default_admin()
+    user = store.user_get(username=username, phone=phone)
     if not user or not user.get("active", True):
         return None
     if not _verify_plain_password(user, password):
         return None
     user["last_login_at"] = _now_ts()
-    _save_users(db)
+    store.user_upsert(user)
     return _public_user(user)
 
 
@@ -316,10 +235,10 @@ def sync_local_user(user: dict[str, Any], password: str | None = None, profile: 
         raise ValueError("缺少用户名")
 
     upstream_id = str(raw.get("id") or "").strip()
-    db = _load_users()
-    target = _find_user(db, user_id=upstream_id) if upstream_id else None
+    _ensure_default_admin()
+    target = store.user_get(user_id=upstream_id) if upstream_id else None
     if not target:
-        target = _find_user(db, phone=phone, username=username)
+        target = store.user_get(phone=phone, username=username)
 
     now = _now_ts()
     if not target:
@@ -343,9 +262,10 @@ def sync_local_user(user: dict[str, Any], password: str | None = None, profile: 
                 "last_login_at": now,
             }
         )
-        db.setdefault("users", []).append(target)
     else:
-        if upstream_id:
+        if upstream_id and str(target.get("id") or "") != upstream_id:
+            # 主键变更：删掉旧行，避免残留两条同一用户
+            store.user_delete(str(target.get("id") or ""))
             target["id"] = upstream_id
         target["username"] = username
         if phone:
@@ -372,7 +292,7 @@ def sync_local_user(user: dict[str, Any], password: str | None = None, profile: 
         salt = str(target.get("salt") or secrets.token_hex(8))
         target["salt"] = salt
         target["password_hash"] = _hash_password(password, salt)
-    _save_users(db)
+    store.user_upsert(target)
     return _public_user(target)
 
 
@@ -386,37 +306,15 @@ def _validate_password(password: str, username: str = "") -> None:
             raise ValueError("密码需同时包含字母和数字")
 
 
-def _cleanup_codes(codes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    now = _now_ts()
-    cleaned: list[dict[str, Any]] = []
-    for item in codes:
-        if not isinstance(item, dict):
-            continue
-        created_at = int(item.get("created_at") or 0)
-        expires_at = int(item.get("expires_at") or 0)
-        if expires_at and expires_at < now - 3600:
-            continue
-        if created_at and created_at < now - 86400:
-            continue
-        cleaned.append(item)
-    return cleaned
-
-
 def _issue_verification_code(phone: str, purpose: str) -> dict[str, Any]:
     phone_norm = _validate_phone(phone)
     purpose_key = str(purpose or "").strip() or "register"
-    db = _load_users()
     now = _now_ts()
-    db["verification_codes"] = _cleanup_codes(list(db.get("verification_codes") or []))
-    same_scope = [
-        item for item in db["verification_codes"]
-        if _normalize_phone(str(item.get("phone") or "")) == phone_norm and str(item.get("purpose") or "") == purpose_key
-    ]
-    latest = max(same_scope, key=lambda item: int(item.get("created_at") or 0), default=None)
+    store.codes_cleanup()
+    latest = store.code_latest(phone_norm, purpose_key)
     if latest and now - int(latest.get("created_at") or 0) < SEND_INTERVAL_SECONDS:
         raise ValueError(f"验证码发送过于频繁，请在 {SEND_INTERVAL_SECONDS} 秒后再试")
-    recent_hour = [item for item in same_scope if now - int(item.get("created_at") or 0) < 3600]
-    if len(recent_hour) >= SEND_LIMIT_PER_HOUR:
+    if store.code_count_since(phone_norm, purpose_key, now - 3600) >= SEND_LIMIT_PER_HOUR:
         raise ValueError("该手机号验证码发送次数过多，请稍后再试")
 
     code = f"{secrets.randbelow(1000000):06d}"
@@ -430,8 +328,7 @@ def _issue_verification_code(phone: str, purpose: str) -> dict[str, Any]:
         "used": False,
         "attempts": 0,
     }
-    db["verification_codes"].append(entry)
-    _save_users(db)
+    store.code_insert(entry)
     return {
         "ok": True,
         "expires_in": CODE_TTL_SECONDS,
@@ -444,8 +341,8 @@ def _issue_verification_code(phone: str, purpose: str) -> dict[str, Any]:
 def send_verification_code(phone: str, purpose: str) -> dict[str, Any]:
     phone_norm = _validate_phone(phone)
     purpose_key = str(purpose or "").strip() or "register"
-    db = _load_users()
-    existing_user = _find_user(db, phone=phone_norm)
+    _ensure_default_admin()
+    existing_user = store.user_get(phone=phone_norm)
     if purpose_key == "register" and existing_user and existing_user.get("active", True):
         raise ValueError("该手机号已注册，请直接登录或找回密码")
     if purpose_key == "reset_password" and (not existing_user or not existing_user.get("active", True)) and not _is_upstream_auth_mode():
@@ -470,14 +367,8 @@ def _check_verification_code(phone: str, purpose: str, code: str, *, consume: bo
             message = _finalize_upstream_error_message(data, text, "验证码错误或已失效，请重新获取")
             raise ValueError(message)
         return
-    db = _load_users()
-    db["verification_codes"] = _cleanup_codes(list(db.get("verification_codes") or []))
-    candidates = [
-        item for item in db["verification_codes"]
-        if _normalize_phone(str(item.get("phone") or "")) == phone_norm and str(item.get("purpose") or "") == str(purpose or "")
-    ]
-    candidates.sort(key=lambda item: int(item.get("created_at") or 0), reverse=True)
-    target = candidates[0] if candidates else None
+    store.codes_cleanup()
+    target = store.code_latest(phone_norm, str(purpose or ""))
     if not target or bool(target.get("used")):
         raise ValueError("验证码不存在或已失效")
     now = _now_ts()
@@ -486,14 +377,14 @@ def _check_verification_code(phone: str, purpose: str, code: str, *, consume: bo
     target["attempts"] = int(target.get("attempts") or 0) + 1
     if target["attempts"] > VERIFY_ATTEMPT_LIMIT:
         target["used"] = True
-        _save_users(db)
+        store.code_update(target)
         raise ValueError("验证码输入次数过多，请重新获取")
     if _sha256_hex(code_text) != str(target.get("code_hash") or ""):
-        _save_users(db)
+        store.code_update(target)
         raise ValueError("验证码错误")
     if consume:
         target["used"] = True
-    _save_users(db)
+    store.code_update(target)
 
 
 def _consume_verification_code(phone: str, purpose: str, code: str) -> None:
@@ -522,8 +413,8 @@ def register_user(
     phone_norm = _validate_phone(phone)
     _validate_password(password, phone_norm)
 
-    db = _load_users()
-    if _find_user(db, phone=phone_norm):
+    _ensure_default_admin()
+    if store.user_get(phone=phone_norm):
         raise ValueError("该手机号已注册")
     if not verify_verification_ticket(str(verification_token or ""), phone_norm, "register"):
         _consume_verification_code(phone_norm, "register", code)
@@ -553,15 +444,14 @@ def register_user(
             "last_login_at": now,
         }
     )
-    db.setdefault("users", []).append(user)
-    _save_users(db)
+    store.user_upsert(user)
     return _public_user(user)
 
 
 def send_password_reset_code(phone: str) -> dict[str, Any]:
     phone_norm = _validate_phone(phone)
-    db = _load_users()
-    user = _find_user(db, phone=phone_norm)
+    _ensure_default_admin()
+    user = store.user_get(phone=phone_norm)
     if (not user or not user.get("active", True)) and not _is_upstream_auth_mode():
         raise ValueError("该手机号尚未注册")
     if (settings.phone_send_code_url or "").strip():
@@ -576,8 +466,8 @@ def send_password_reset_code(phone: str) -> dict[str, Any]:
 def reset_password(phone: str, code: str, new_password: str, verification_token: str | None = None) -> dict[str, Any]:
     phone_norm = _validate_phone(phone)
     _validate_password(new_password, phone_norm)
-    db = _load_users()
-    user = _find_user(db, phone=phone_norm)
+    _ensure_default_admin()
+    user = store.user_get(phone=phone_norm)
     if not verify_verification_ticket(str(verification_token or ""), phone_norm, "reset_password"):
         _consume_verification_code(phone_norm, "reset_password", code)
     if _is_upstream_auth_mode():
@@ -589,14 +479,14 @@ def reset_password(phone: str, code: str, new_password: str, verification_token:
     salt = str(user.get("salt") or secrets.token_hex(8))
     user["salt"] = salt
     user["password_hash"] = _hash_password(new_password, salt)
-    _save_users(db)
+    store.user_upsert(user)
     return _public_user(user)
 
 
 def verify_password_reset_code(phone: str, code: str) -> dict[str, Any]:
     phone_norm = _validate_phone(phone)
-    db = _load_users()
-    user = _find_user(db, phone=phone_norm)
+    _ensure_default_admin()
+    user = store.user_get(phone=phone_norm)
     if not user or not user.get("active", True):
         if not _is_upstream_auth_mode():
             raise ValueError("账号不存在")
@@ -608,8 +498,8 @@ def verify_password_reset_code(phone: str, code: str) -> dict[str, Any]:
 
 def verify_registration_code(phone: str, code: str) -> None:
     phone_norm = _validate_phone(phone)
-    db = _load_users()
-    if _find_user(db, phone=phone_norm):
+    _ensure_default_admin()
+    if store.user_get(phone=phone_norm):
         raise ValueError("该手机号已注册，请直接登录或找回密码")
     verify_verification_code(phone_norm, "register", code)
 
@@ -655,8 +545,7 @@ def change_password(user_id: str, old_password: str, new_password: str, *, usern
     _validate_password(new_password, login_name)
     if _is_upstream_auth_mode():
         if not login_name:
-            db = _load_users()
-            local_user = _find_user(db, user_id=user_id)
+            local_user = store.user_get(user_id=user_id)
             login_name = _normalize_phone(str(local_user.get("phone") or "")) if local_user else ""
             if not login_name and local_user:
                 login_name = str(local_user.get("username") or "").strip()
@@ -666,21 +555,20 @@ def change_password(user_id: str, old_password: str, new_password: str, *, usern
         seed = get_user_by_id(user_id) or _minimal_public_user(login_name, user_id=user_id, phone=phone or login_name, display_name=username or login_name)
         return sync_local_user(seed, new_password)
 
-    db = _load_users()
-    user = _find_user(db, user_id=user_id)
+    _ensure_default_admin()
+    user = store.user_get(user_id=user_id)
     if not user or not user.get("active", True):
         raise ValueError("账号不存在")
     if not _verify_plain_password(user, old_password):
         raise ValueError("原密码错误")
     _validate_password(new_password, str(user.get("username") or user.get("phone") or ""))
     user["password_hash"] = _hash_password(new_password, str(user.get("salt") or ""))
-    _save_users(db)
+    store.user_upsert(user)
     return _public_user(user)
 
 
 def update_profile(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    db = _load_users()
-    user = _find_user(db, user_id=user_id)
+    user = store.user_get(user_id=user_id)
     if not user or not user.get("active", True):
         raise ValueError("账号不存在")
     editable_keys = ("display_name", "name", "organization", "department", "title", "user_type", "use_case", "email")
@@ -692,16 +580,14 @@ def update_profile(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         user["display_name"] = str(user.get("phone") or user.get("username") or "用户")
     if not str(user.get("name") or "").strip():
         user["name"] = user["display_name"]
-    _save_users(db)
+    store.user_upsert(user)
     return _public_user(user)
 
 
 def list_users_for_admin() -> list[dict[str, Any]]:
-    db = _load_users()
+    _ensure_default_admin()
     items = []
-    for item in db.get("users", []):
-        if not isinstance(item, dict):
-            continue
+    for item in store.user_all():
         pub = _public_user(item)
         pub["user_id"] = pub.get("id") or ""
         items.append(pub)
