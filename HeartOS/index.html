@@ -520,6 +520,8 @@ body{font-family:'Inter','Noto Sans SC',system-ui,sans-serif;background:var(--bg
 .src-preview-table th{position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--text);font-weight:600;}
 .src-preview-table th:last-child,.src-preview-table td:last-child{border-right:none;}
 .src-preview-table tr:last-child td{border-bottom:none;}
+.src-preview-table-transposed td.src-preview-field{position:sticky;left:0;z-index:1;background:#f8fafc;color:var(--text);font-weight:600;}
+.src-preview-table-transposed th:first-child{position:sticky;left:0;z-index:2;}
 .src-preview-kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff;font-size:13px;}
 .src-preview-kv div{padding:9px 11px;border-bottom:1px solid var(--border);}
 .src-preview-kv div:nth-child(odd){background:#f8fafc;color:var(--text3);font-weight:600;}
@@ -5984,11 +5986,11 @@ function renderSignalTablePreviewFromModal(){
     ? '<button class="src-preview-wave-btn" type="button" onclick="openSignalWavePreviewFromModal()">绘制波形图</button>'
     : '';
   if(ctx.format === 'csv'){
-    body.innerHTML = renderDelimitedPreview(ctx.text || '', ',', ctx.label || 'CSV 表格', action);
+    body.innerHTML = renderDelimitedPreview(ctx.text || '', ',', ctx.label || 'CSV 表格', action, ctx.transpose);
     return;
   }
   if(ctx.format === 'tsv'){
-    body.innerHTML = renderDelimitedPreview(ctx.text || '', '\t', ctx.label || 'TSV 表格', action);
+    body.innerHTML = renderDelimitedPreview(ctx.text || '', '\t', ctx.label || 'TSV 表格', action, ctx.transpose);
     return;
   }
   if(ctx.format === 'json'){
@@ -6001,19 +6003,45 @@ function renderSignalTablePreviewFromModal(){
   }
 }
 
-function renderDelimitedPreview(text, delimiter, label, actionHtml){
+function toggleSignalTablePreviewLayout(transposed){
+  const ctx = window.__heartosSignalPreviewContext || null;
+  if(!ctx) return;
+  ctx.transpose = !!transposed;
+  renderSignalTablePreviewFromModal();
+}
+
+function renderDelimitedPreview(text, delimiter, label, actionHtml, transposeOverride){
   const rows = parseDelimitedRows(text, delimiter, 0).filter(r => r.some(c => String(c).trim() !== ''));
   if(!rows.length) return '<p style="color:var(--text3);">这个表格暂无可预览内容。</p>';
   const colCount = rows.reduce((m, r) => Math.max(m, r.length), 0);
   const normalized = rows.map(r => Array.from({length: colCount}, (_, i) => r[i] == null ? '' : r[i]));
   const header = normalized[0] || [];
   const bodyRows = normalized.slice(1);
+  const totalLines = String(text || '').split(/\r?\n/).length;
+  const detail = bodyRows.length + ' 条记录 / ' + Math.max(totalLines - 1, 0) + ' 条记录，' + colCount + ' 列';
+  const autoTranspose = bodyRows.length > 0 && bodyRows.length <= 3 && colCount >= 16;
+  const transposed = transposeOverride == null ? autoTranspose : !!transposeOverride;
+  const canToggle = bodyRows.length > 0 && bodyRows.length <= 30;
+  const toggleBtn = canToggle
+    ? '<button class="src-preview-wave-btn" type="button" onclick="toggleSignalTablePreviewLayout(' + (!transposed) + ')">' + (transposed ? '切回横向表格' : '转为纵向表格') + '</button>'
+    : '';
+  const actions = toggleBtn + (actionHtml || '');
+  if(transposed){
+    const valueTh = bodyRows.map((_, i) => '<th>' + (bodyRows.length === 1 ? '值' : '记录 ' + (i + 1)) + '</th>').join('');
+    const trs = header.map((name, ci) => {
+      const field = name || ('列 ' + (ci + 1));
+      return '<tr><td class="src-preview-field" title="' + escAttr(field) + '">' + esc(field) + '</td>' +
+        bodyRows.map(r => '<td title="' + escAttr(r[ci]) + '">' + esc(r[ci]) + '</td>').join('') + '</tr>';
+    }).join('');
+    return renderPreviewNote(label, detail + ' · 纵向展示', actions) +
+      '<div class="src-preview-table-wrap"><table class="src-preview-table src-preview-table-transposed"><thead><tr><th>字段</th>' + valueTh +
+      '</tr></thead><tbody>' + trs + '</tbody></table></div>';
+  }
   const th = header.map((c, i) => '<th title="' + escAttr(c || ('列 ' + (i+1))) + '">' + esc(c || ('列 ' + (i+1))) + '</th>').join('');
   const trs = bodyRows.length
     ? bodyRows.map(r => '<tr>' + r.map(c => '<td title="' + escAttr(c) + '">' + esc(c) + '</td>').join('') + '</tr>').join('')
     : '<tr><td colspan="' + colCount + '" style="color:var(--text3);">未检测到数据行，仅识别到表头。</td></tr>';
-  const totalLines = String(text || '').split(/\r?\n/).length;
-  return renderPreviewNote(label, bodyRows.length + ' 条记录 / ' + Math.max(totalLines - 1, 0) + ' 条记录，' + colCount + ' 列', actionHtml) +
+  return renderPreviewNote(label, detail, actions) +
     '<div class="src-preview-table-wrap"><table class="src-preview-table"><thead><tr>' + th +
     '</tr></thead><tbody>' + trs + '</tbody></table></div>';
 }
