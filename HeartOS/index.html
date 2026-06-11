@@ -6444,6 +6444,10 @@ function renderChat(){
   const ce = document.getElementById('chatEmpty');
   const ml = document.getElementById('msgsList');
   if(!ce || !ml) return;
+  // 在临时标志位被各分支消费/清空之前，先捕获"本次是否真正新增或导入了来源"。
+  // 用于判断要不要重新调用 AI 生成摘要——仅内容变化时才生成，纯导航进入复用历史摘要。
+  const __sourceJustChanged = !!window.__heartosJustAddedSourceId
+    || (Array.isArray(window.__heartosJustImportedSourceIds) && window.__heartosJustImportedSourceIds.length > 0);
 
   if(curNb && __nbDetailLoadingId === String(curNb.id) && !sources.length && !msgs.length){
     ce.innerHTML=`<div class="chat-empty">
@@ -6508,19 +6512,14 @@ function renderChat(){
     if((Array.isArray(msgs) && msgs.length) || (Array.isArray(chatEvents) && chatEvents.length)){
       replayConversationTimeline();
     }
-    // 切换回来优先恢复缓存；旧的异常/未完成缓存会自动重新分析。
-    if(window.__heartosJustSwitchedNotebook){
-      window.__heartosJustSwitchedNotebook = false;
-      window.__heartosJustImportedSourceIds = null;
-      const sb2 = document.getElementById('sumBody');
-      const sq2 = document.getElementById('suggQs');
-      if(curNb.sumHtml && sb2){ sb2.innerHTML = curNb.sumHtml; }
-      if(curNb.suggHtml && sq2){ sq2.innerHTML = curNb.suggHtml; }
-      setTimeout(()=>{ const a=document.getElementById('chatArea'); if(a) a.scrollTop=a.scrollHeight; },100);
-      const cachedSummary = String(curNb.sumHtml || '');
-      const needsRefresh = !cachedSummary || /\[object Object\]|class="spin"|正在(?:分析|生成|重新)/.test(cachedSummary);
-      if(!needsRefresh) return;
-    }
+    // 重进对话：先把已保存的历史摘要回填到骨架里，避免出现空白/转圈闪烁。
+    // 是否需要重新调用 AI 由下方统一判断（仅内容变化或缓存损坏时）。
+    window.__heartosJustSwitchedNotebook = false;
+    const sb2 = document.getElementById('sumBody');
+    const sq2 = document.getElementById('suggQs');
+    if(curNb.sumHtml && sb2){ sb2.innerHTML = curNb.sumHtml; }
+    if(curNb.suggHtml && sq2){ sq2.innerHTML = curNb.suggHtml; }
+    setTimeout(()=>{ const a=document.getElementById('chatArea'); if(a) a.scrollTop=a.scrollHeight; },100);
   } else {
     // Additional source added: update count, add a new-source notification bubble, then re-summarize
     const countEl = document.getElementById('sumSrcCount');
@@ -6542,8 +6541,18 @@ function renderChat(){
   // Scroll chat to bottom
   setTimeout(()=>{ const a=document.getElementById('chatArea'); if(a) a.scrollTop=a.scrollHeight; },100);
 
-  // Call Claude to summarize
+  // 仅在内容真正变化（新增/导入来源）或历史摘要缺失/损坏时才调用 AI 重新生成；
+  // 否则直接复用已保存的 sumHtml/suggHtml，避免每次进入工作区重复调用模型。
+  const cachedSummaryHtml = String((curNb && curNb.sumHtml) || '');
+  const summaryCacheUsable = !!cachedSummaryHtml && !/\[object Object\]|class="spin"|正在(?:分析|生成|重新)/.test(cachedSummaryHtml);
   window.__heartosJustImportedSourceIds = null;
+  if(summaryCacheUsable && !__sourceJustChanged){
+    const sbReuse = document.getElementById('sumBody');
+    const sqReuse = document.getElementById('suggQs');
+    if(sbReuse) sbReuse.innerHTML = cachedSummaryHtml;
+    if(sqReuse && curNb.suggHtml) sqReuse.innerHTML = curNb.suggHtml;
+    return;
+  }
   callClaudeForSummary(latestSrc, isImg, importedBatch);
 }
 
