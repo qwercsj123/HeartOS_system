@@ -1486,6 +1486,19 @@ let __nbOpeningId = '';
 let __nbHydratingDetails = false;
 let __nbDetailLoadingId = '';
 let __notebookListReady = false;
+// notebooks 数组当前归属的用户 key（notebookCacheUserKey()），换账号时用于判断内存列表是否还可信
+let __notebookListOwnerKey = '';
+
+function markNotebookListOwner(){
+  __notebookListOwnerKey = notebookCacheUserKey();
+}
+
+function resetNotebookListState(){
+  notebooks = [];
+  __nbLoaded = false;
+  __notebookListReady = false;
+  __notebookListOwnerKey = '';
+}
 const HEARTOS_SESSION_STATE_VERSION = 1;
 let heartosSessionState = {
   version: HEARTOS_SESSION_STATE_VERSION,
@@ -1542,7 +1555,18 @@ const FEEDBACK_MAX_IMAGES = 4;
 const FEEDBACK_PREVIEW_CONCURRENCY = 4;
 const FEEDBACK_CACHE_VERSION = 1;
 const FEEDBACK_CACHE_TTL_MS = 10 * 60 * 1000;
-const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v1';
+// v2：v1 缓存可能被同浏览器换账号场景污染（混入其他账号的历史），整体作废重建
+const HEARTOS_NOTEBOOK_CACHE_VERSION = 'v2';
+(function purgeLegacyNotebookCaches(){
+  try{
+    for(let i = localStorage.length - 1; i >= 0; i -= 1){
+      const key = localStorage.key(i);
+      if(key && key.indexOf('heartos_nb_') === 0 && /:v\d+:/.test(key) && key.indexOf(':' + HEARTOS_NOTEBOOK_CACHE_VERSION + ':') < 0){
+        localStorage.removeItem(key);
+      }
+    }
+  }catch(_){ }
+})();
 const HEARTOS_DEBUG_MAX_STRING = 240;
 const HEARTOS_DEBUG_MAX_ARRAY = 8;
 const HEARTOS_DEBUG_MAX_KEYS = 20;
@@ -2800,7 +2824,9 @@ function collectLocalNotebookCandidates(){
     const current = map.get(safeId) || null;
     map.set(safeId, pickRicherNotebookVersion(current, nb));
   }
-  (Array.isArray(notebooks) ? notebooks : []).forEach(addCandidate);
+  // 内存列表可能残留上一个账号的数据（同浏览器切换账号），归属不一致时不能并入
+  const inMemoryTrusted = !!__notebookListOwnerKey && __notebookListOwnerKey === notebookCacheUserKey();
+  (inMemoryTrusted && Array.isArray(notebooks) ? notebooks : []).forEach(addCandidate);
   loadNotebookSummariesFromLocal().forEach(addCandidate);
   return map;
 }
@@ -2833,6 +2859,7 @@ async function loadNotebooksFromServer(){
   const out = await resp.json().catch(function(){ return {items:[]}; });
   const items = Array.isArray(out.items) ? out.items.map(function(item){ return normalizeNotebookItem(item, false); }) : [];
   notebooks = mergeNotebookListWithLocalCache(items);
+  markNotebookListOwner();
   __nbLoaded = true;
   __notebookListReady = true;
   renderHome();
@@ -4554,6 +4581,8 @@ function notebookSummarySnapshot(nb){
 }
 
 function persistNotebookSummaryCache(){
+  // 列表归属与当前用户不一致时不落盘，防止把旧账号的历史写进当前用户的缓存
+  if(!__notebookListOwnerKey || __notebookListOwnerKey !== notebookCacheUserKey()) return;
   const items = (Array.isArray(notebooks) ? notebooks : [])
     .map(notebookSummarySnapshot)
     .filter(Boolean);
@@ -4713,8 +4742,9 @@ function loadActiveNotebookSnapshot(id){
     const snapMeta = raw._snapshot && typeof raw._snapshot === 'object' ? raw._snapshot : {};
     const snapUserId = String(snapMeta.userId || '').trim();
     const snapUsername = String(snapMeta.username || '').trim();
+    // 当前身份为空时只接受同样无身份的快照，避免登出/启动竞态下读到别的账号的数据
     const identityMatches = !identity.userId && !identity.username
-      ? true
+      ? (!snapUserId && !snapUsername)
       : (!!identity.userId && identity.userId === snapUserId) || (!!identity.username && identity.username === snapUsername);
     if(!identityMatches) continue;
     const item = normalizeNotebookItem(raw, true);
@@ -4767,6 +4797,7 @@ function hydrateNotebookRouteFromLocalCache(){
   }
   __nbLoaded = true;
   __notebookListReady = true;
+  markNotebookListOwner();
   upsertNotebookIntoList(cached);
   applyNotebookToWorkspace(cached);
   openNotebookShell();
@@ -4812,6 +4843,7 @@ function hydrateNotebookSummariesFromLocal(){
     return false;
   }
   notebooks = cachedItems;
+  markNotebookListOwner();
   __nbLoaded = true;
   __notebookListReady = true;
   const home = document.getElementById('homePage');
@@ -12368,16 +12400,19 @@ function setAuthSession(token, user){
 
 function clearAuthSession(){
   clearLastOpenedNotebookId();
-  localStorage.removeItem('heartos_auth_token');
-  localStorage.removeItem('heartos_auth_user');
-  __authMeCheckedAt = 0;
   heartosSessionState.route = { page:'home', notebookId:'', feedbackId:'' };
   heartosSessionState.workspace = Object.assign({}, heartosSessionState.workspace, {
     activeNotebookId: '',
     activeNotebookTitle: '',
     selectedStudioCard: ''
   });
+  // 必须在清除身份之前持久化，否则 sessionStateKey() 会退化成 guest 桶
   persistSessionState();
+  localStorage.removeItem('heartos_auth_token');
+  localStorage.removeItem('heartos_auth_user');
+  __authMeCheckedAt = 0;
+  // 清掉内存中的历史列表，避免下一个登录账号把它当作“本地数据”合并进去
+  resetNotebookListState();
   try{ document.documentElement.classList.remove('heartos-has-session'); }catch(_){}
   updateUserAvatarUI();
 }
@@ -13655,6 +13690,8 @@ async function submitAuthLogin(){
     updateUserAvatarUI();
     setAppAuthed(true);
     clearNotebookWorkspace();
+    // 换账号登录时丢弃上一个账号残留的内存列表；本地缓存未命中就保持空列表等服务端数据
+    resetNotebookListState();
     showHomeShellWithoutHistorySync();
     resetRouteToHomeState(true);
     setAuthMsg('');
