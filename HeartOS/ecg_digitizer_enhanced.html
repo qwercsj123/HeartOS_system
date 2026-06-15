@@ -6054,8 +6054,9 @@ async function saveCSV() {
   }
 
   const fs = parseFloat(document.getElementById('paramFS').value)||500;
-  const presentLeads = LEADS_ORDER.filter(l=>state.extractedMV && state.extractedMV[l]);
-  const maxN = Math.max(...presentLeads.map(l=>state.extractedMV[l].length));
+  const mv = getExportMV();
+  const presentLeads = LEADS_ORDER.filter(l=>mv[l]);
+  const maxN = Math.max(...presentLeads.map(l=>mv[l].length));
 
   let fileName = (document.getElementById('saveFileName')?.value || state.saveConfig.fileName || makeDefaultCSVFileName()).trim();
   if (!fileName) fileName = makeDefaultCSVFileName();
@@ -6234,12 +6235,13 @@ function buildHeartOSPreviewImageDataUrl(presentLeads, fs) {
 }
 
 function emitExtractionToHeartOS(presentLeads, fs) {
+  const mv = getExportMV();
   const leads = Array.isArray(presentLeads) ? presentLeads.slice() : [];
   const waveforms = {};
   const boxes = {};
   leads.forEach(lead => {
-    if (state.extractedMV && state.extractedMV[lead]) {
-      waveforms[lead] = downsampleSignal(state.extractedMV[lead], 240);
+    if (mv[lead]) {
+      waveforms[lead] = downsampleSignal(mv[lead], 240);
     }
     if (state.boxes && state.boxes[lead]) {
       boxes[lead] = { ...state.boxes[lead] };
@@ -6250,7 +6252,7 @@ function emitExtractionToHeartOS(presentLeads, fs) {
     tool: 'handecg',
     leads: leads,
     fs: fs,
-    pointsPerLead: leads.length ? ((state.extractedMV && state.extractedMV[leads[0]]) ? state.extractedMV[leads[0]].length : 0) : 0,
+    pointsPerLead: leads.length ? (mv[leads[0]] ? mv[leads[0]].length : 0) : 0,
     imageW: Number(state.imageW) || 0,
     imageH: Number(state.imageH) || 0,
     boxes: boxes,
@@ -7166,10 +7168,24 @@ function batchNext() {
   batchJumpTo(next);
 }
 
+// 导出用信号映射：若存在 II 长程律条(II_R)，用其整条波形覆盖网格里的短 II 段。
+// 律条本身就是全程 II，信息严格优于截断的短 II；律条不再单独作为一列导出。
+function getExportMV() {
+  const src = state.extractedMV || {};
+  const out = {};
+  for (const k in src) {
+    if (k === 'II_R') continue;          // 律条不单独导出
+    out[k] = src[k];
+  }
+  if (src['II_R']) out['II'] = src['II_R'];  // 用长程律条覆盖 II
+  return out;
+}
+
 function buildCSVString() {
   if (!state.extractedMV || Object.keys(state.extractedMV).length === 0) return null;
+  const mv = getExportMV();
   const fs = parseFloat(document.getElementById('paramFS').value) || ECG_CFG.FS_DEFAULT;
-  const presentLeads = LEADS_ORDER.filter(l => state.extractedMV && state.extractedMV[l]);
+  const presentLeads = LEADS_ORDER.filter(l => mv[l]);
   if (presentLeads.length === 0) return null;
 
   // 从布局定义获取每个导联的时间偏移
@@ -7192,12 +7208,12 @@ function buildCSVString() {
   // 每个导联独立写出，time_ms 加上偏移
   // 统一对齐：找所有导联覆盖的时间点并集，缺失处留空
   const dt = 1000 / fs;
-  const maxN = Math.max(...presentLeads.map(l => state.extractedMV[l].length));
+  const maxN = Math.max(...presentLeads.map(l => mv[l].length));
 
   // 收集所有时间点（各导联可能不同长度、不同偏移）
   const timeSet = new Set();
   presentLeads.forEach(lead => {
-    const n = state.extractedMV[lead].length;
+    const n = mv[lead].length;
     const offset = leadOffsetMs[lead] || 0;
     for (let i = 0; i < n; i++) {
       timeSet.add(Math.round((offset + i * dt) * 1000) / 1000);
@@ -7208,7 +7224,7 @@ function buildCSVString() {
   // 构建每个导联的时间→值映射（快速查找）
   const leadMaps = {};
   presentLeads.forEach(lead => {
-    const s = state.extractedMV[lead];
+    const s = mv[lead];
     const offset = leadOffsetMs[lead] || 0;
     const m = new Map();
     for (let i = 0; i < s.length; i++) {
