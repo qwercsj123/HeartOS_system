@@ -3955,6 +3955,55 @@ async def handecg_save(
     return data
 
 
+@app.post("/api/ecg-segment-proxy")
+async def ecg_segment_proxy(
+    file: UploadFile = File(...),
+    threshold: float = 0.5,
+    include_images: bool = False,
+) -> dict[str, Any]:
+    upstream_url = os.getenv("APP_ECG_SEGMENT_URL", "http://219.147.100.43:18018/api/ecg-segment").strip()
+    if not upstream_url:
+        raise HTTPException(status_code=500, detail="未配置 ECG 分割模型地址 APP_ECG_SEGMENT_URL")
+
+    filename = str(file.filename or "lead_crop.png")
+    content_type = str(file.content_type or "image/png")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="uploaded file is empty")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large, max {settings.max_upload_mb}MB")
+
+    timeout = httpx.Timeout(settings.http_timeout)
+    limits = httpx.Limits(max_keepalive_connections=10, max_connections=30)
+    params = {
+        "threshold": max(0.0, min(1.0, float(threshold))),
+        "include_images": bool(include_images),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+            resp = await client.post(
+                upstream_url,
+                params=params,
+                files={"file": (filename, content, content_type or "application/octet-stream")},
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"ECG 分割模型请求失败: {e}") from e
+
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:800])
+
+    try:
+        out: Any = resp.json()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail="ECG 分割模型返回非 JSON") from e
+
+    if isinstance(out, dict):
+        out.setdefault("_meta", {})
+        out["_meta"]["proxy"] = True
+        out["_meta"]["upstream_url"] = upstream_url
+    return out if isinstance(out, dict) else {"result": out}
+
+
 @app.post("/api/ecg-reconstruct")
 @app.post("/api/reconstruct")
 async def ecg_reconstruct(

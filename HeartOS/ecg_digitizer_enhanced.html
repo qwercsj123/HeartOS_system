@@ -703,9 +703,8 @@ details summary{user-select:none}
           <div class="ep-item">
             <label>提取方法</label>
             <select id="epMethod2" style="min-width:110px" onchange="document.getElementById('epMethod').value=this.value">
-              <option value="track" selected>连续追踪（推荐）</option>
-              <option value="centroid">重心法</option>
-              <option value="darkest">最暗点</option>
+              <option value="ai_unet" selected>AI模型分割</option>
+              <option value="track">连续追踪</option>
             </select>
           </div>
         </div>
@@ -1131,10 +1130,19 @@ details summary{user-select:none}
                 <div class="param-item">
                   <label>提取方法</label>
                   <select id="epMethod" style="min-width:110px">
-                    <option value="track" selected>连续追踪（推荐）</option>
-                    <option value="centroid">重心法</option>
-                    <option value="darkest">最暗点</option>
+                    <option value="ai_unet" selected>AI模型分割</option>
+                    <option value="track">连续追踪</option>
                   </select>
+                </div>
+              </div>
+              <div class="param-row">
+                <div class="param-item">
+                  <label>模型阈值</label>
+                  <input type="number" id="epAiThreshold" value="0.5" min="0.05" max="0.95" step="0.05">
+                </div>
+                <div class="param-item">
+                  <label>模型接口</label>
+                  <input type="text" id="epAiEndpoint" value="http://127.0.0.1:9010/api/ecg-segment-proxy" style="display:block!important;width:100%">
                 </div>
               </div>
               <div class="param-item">
@@ -5001,6 +5009,66 @@ function invalidateLeadCanvas(lead) {
   state.repairedLeads.delete(lead);
 }
 
+function getAiSegmentEndpoint() {
+  const el = document.getElementById('epAiEndpoint');
+  const configured = (el && el.value ? el.value : '').trim();
+  return configured || window.ECG_SEGMENT_API_URL || 'http://127.0.0.1:9010/api/ecg-segment-proxy';
+}
+
+function getAiSegmentThreshold() {
+  const v = parseFloat(document.getElementById('epAiThreshold')?.value);
+  return Number.isFinite(v) ? Math.min(0.95, Math.max(0.05, v)) : 0.5;
+}
+
+function canvasToBlobAsync(canvas, type = 'image/png', quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob);
+      else reject(new Error('无法生成导联裁剪图像'));
+    }, type, quality);
+  });
+}
+
+function normalizeAiYByX(data, targetW, targetH) {
+  const src = Array.isArray(data?.y_by_x) ? data.y_by_x : [];
+  if (!src.length) throw new Error('模型结果缺少 y_by_x');
+  const srcW = Number(data.width) || src.length;
+  const srcH = Number(data.height) || targetH;
+  const out = new Float32Array(targetW);
+  for (let x = 0; x < targetW; x++) {
+    const sx = targetW > 1 ? x / (targetW - 1) * (src.length - 1) : 0;
+    const lo = Math.max(0, Math.min(src.length - 1, Math.floor(sx)));
+    const hi = Math.max(0, Math.min(src.length - 1, Math.ceil(sx)));
+    const t = sx - lo;
+    const y0 = Number(src[lo]);
+    const y1 = Number(src[hi]);
+    const y = (Number.isFinite(y0) ? y0 : srcH / 2) * (1 - t) +
+              (Number.isFinite(y1) ? y1 : srcH / 2) * t;
+    out[x] = y * targetH / srcH;
+  }
+  return out;
+}
+
+async function extractSignalWithAiModel(leadCanvas, leadName) {
+  const endpoint = getAiSegmentEndpoint();
+  const threshold = getAiSegmentThreshold();
+  const url = new URL(endpoint, window.location.href);
+  url.searchParams.set('threshold', String(threshold));
+  url.searchParams.set('include_images', 'false');
+
+  const blob = await canvasToBlobAsync(leadCanvas, 'image/png');
+  const form = new FormData();
+  form.append('file', blob, `${leadName || 'lead'}_crop.png`);
+
+  const resp = await fetch(url.toString(), { method: 'POST', body: form });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`模型接口失败 ${resp.status}${text ? ': ' + text.slice(0, 180) : ''}`);
+  }
+  const data = await resp.json();
+  return normalizeAiYByX(data, leadCanvas.width, leadCanvas.height);
+}
+
 /**
  * Extract signal y-coordinate per column from a region.
  * Uses adaptive background removal that works on both coloured and grey paper.
@@ -5597,7 +5665,7 @@ async function runExtraction() {
   const thresh  = parseFloat(document.getElementById('epThreshold').value)||150;
   const blWin   = parseFloat(document.getElementById('epBaseline').value)||10;
   const smooth  = parseFloat(document.getElementById('epSmooth').value)||0;
-  const method  = document.getElementById('epMethod').value||'track';
+  const method  = document.getElementById('epMethod').value||'ai_unet';
   const { pxPerMmX, pxPerMmY } = getScaleMetrics();
   const scalePxMV = pxPerMmY * gain;
 
@@ -5628,7 +5696,18 @@ async function runExtraction() {
     const bW = Math.round(b.x2-b.x1), bH = Math.round(b.y2-b.y1);
     const bLocal = { x1:0, y1:0, x2:bW, y2:bH };
 
-    const rawY = extractSignalFromRegion(lcCtx, bLocal, params);
+    let rawY = null;
+    if (method === 'ai_unet') {
+      try {
+        rawY = await extractSignalWithAiModel(lc, lead);
+      } catch (err) {
+        console.error('AI ECG segment failed for', lead, err);
+        toast(`${lead} AI模型提取失败：${err.message || err}`, 'error');
+        continue;
+      }
+    } else {
+      rawY = extractSignalFromRegion(lcCtx, bLocal, params);
+    }
     if (!rawY) continue;
 
     state.extractedSignals[lead] = rawY;
@@ -6759,7 +6838,7 @@ async function applyRepairAndReextract() {
   const thresh = parseFloat(document.getElementById('epThreshold').value)|| 150;
   const blWin  = parseFloat(document.getElementById('epBaseline').value) || 10;
   const smooth = parseFloat(document.getElementById('epSmooth').value)   || 0;
-  const method = document.getElementById('epMethod').value               || 'track';
+  const method = document.getElementById('epMethod').value               || 'ai_unet';
   const { pxPerMmX, pxPerMmY } = getScaleMetrics();
   const scalePxMV = pxPerMmY * gain;
 
@@ -6768,7 +6847,18 @@ async function applyRepairAndReextract() {
   const bLocal = { x1:0, y1:0, x2:bW, y2:bH };
   const lctx = lc.getContext('2d');
 
-  let rawY = extractSignalFromRegion(lctx, bLocal, { threshold: thresh, smooth, method });
+  let rawY = null;
+  if (method === 'ai_unet') {
+    try {
+      rawY = await extractSignalWithAiModel(lc, lead);
+    } catch (err) {
+      console.error('AI ECG segment failed for repaired lead', lead, err);
+      toast(`${lead} AI模型提取失败：${err.message || err}`, 'error');
+      return;
+    }
+  } else {
+    rawY = extractSignalFromRegion(lctx, bLocal, { threshold: thresh, smooth, method });
+  }
   if (!rawY) { toast('提取失败', 'error'); return; }
 
   // 5. Cosine-blend anchor constraints into extracted signal
@@ -7298,7 +7388,7 @@ async function downloadAllCSV() {
 
 // ════════════════════════════════════════════════════════
 //  Init
-document.getElementById('epMethod').value = 'track';
+document.getElementById('epMethod').value = 'ai_unet';
 selectLead('I');
 
 </script>
@@ -8034,7 +8124,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Init params
-  document.getElementById('epMethod').value = 'track';
+  document.getElementById('epMethod').value = 'ai_unet';
 
   // Select lead I
   selectLead('I');
