@@ -330,6 +330,10 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
 .preview-card-status{font-size:10px;font-weight:600} .preview-card-status.ok{color:var(--green2)} .preview-card-status.warn{color:var(--amber2)}
 .preview-card-edit{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--ui);transition:border-color .12s,color .12s;font-weight:500}
 .preview-card-edit:hover{border-color:var(--amber);color:var(--amber2)} .preview-card-edit.edited{border-color:var(--accent);color:var(--accent2)}
+.preview-card-quality{font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.preview-card-quality.good{background:var(--green-bg);border-color:rgba(5,150,105,.22);color:var(--green2)}
+.preview-card-quality.warn{background:var(--amber-bg);border-color:rgba(217,119,6,.28);color:var(--amber2)}
+.preview-card-quality.bad{background:#fef2f2;border-color:rgba(220,38,38,.25);color:var(--red)}
 .preview-canvas-wrap{position:relative;background:#f9f5ef} .preview-canvas-wrap canvas{display:block;width:100%}
 .extract-params-bar{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;flex-shrink:0}
 .epb-title{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
@@ -1322,6 +1326,7 @@ function goToStep(n) {
     } else {
       // 未提取过，或标注有变化，重新提取
       state.extractedMV = {};  // 清除旧结果，强制重新提取
+      state.extractionQuality = {};
       const canExtract = state.image && Object.keys(state.boxes || {}).length > 0;
       if (canExtract && !window._extractionRunning) {
         window._lastExtractedBoxSig = currentBoxSig;  // 记录本次签名
@@ -2505,6 +2510,7 @@ let state = {
   // Extraction results
   extractedSignals: null,  // lead -> Float32Array (raw y-px per column)
   extractedMV: null,       // lead -> Float32Array (mV, resampled)
+  extractionQuality: {},   // lead -> quality assessment for extracted rawY
   offCanvas: null,         // READ-ONLY master canvas — never modified after creation
   leadCanvases: {},        // lead -> HTMLCanvasElement  每导联独立图像，修复只改这里
   repairedLeads: new Set(),// 已手动修复的导联集合
@@ -3242,6 +3248,7 @@ function clearAllBoxes() {
   state.boxes = {};
   state.extractedMV = null;
   state.extractedSignals = null;
+  state.extractionQuality = {};
   state.leadCanvases = {};
   state.repairedLeads = new Set();
   buildLeadList();
@@ -3268,7 +3275,7 @@ function loadImage(file) {
       state.originalImageW = img.naturalWidth;
       state.originalImageH = img.naturalHeight;
       state.boxes = {}; state.selectedLead = null;
-      state.extractedMV = null; state.extractedSignals = null;
+      state.extractedMV = null; state.extractedSignals = null; state.extractionQuality = {};
       state.rotation = 0;
       state.perspectiveMode = false;
       state.perspectiveModeSource = null;
@@ -3390,6 +3397,7 @@ function resetDerivedState() {
   state.selectedLead = null;
   state.extractedMV = null;
   state.extractedSignals = null;
+  state.extractionQuality = {};
   state.offCanvas = null;
   state.leadCanvases = {};
   state.repairedLeads = new Set();
@@ -5069,6 +5077,135 @@ async function extractSignalWithAiModel(leadCanvas, leadName) {
   return normalizeAiYByX(data, leadCanvas.width, leadCanvas.height);
 }
 
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
+function percentile(sorted, p) {
+  if (!sorted.length) return 0;
+  const idx = clamp01(p) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  const t = idx - lo;
+  return sorted[lo] * (1 - t) + sorted[hi] * t;
+}
+
+function sampleGrayAt(gray, w, h, x, y, radius = 1) {
+  const cx = Math.round(x), cy = Math.round(y);
+  let sum = 0, n = 0;
+  for (let yy = Math.max(0, cy - radius); yy <= Math.min(h - 1, cy + radius); yy++) {
+    for (let xx = Math.max(0, cx - radius); xx <= Math.min(w - 1, cx + radius); xx++) {
+      sum += gray[yy * w + xx];
+      n++;
+    }
+  }
+  return n ? sum / n : 255;
+}
+
+function assessLeadExtractionQuality(lead, rawY) {
+  const lc = getLeadCanvas(lead);
+  if (!lc || !rawY || rawY.length < 4) {
+    return { score: 0, level: 'bad', label: '需修复 0', reasons: ['无有效曲线'], metrics: {} };
+  }
+
+  const w = lc.width, h = lc.height;
+  const ctx = lc.getContext('2d');
+  const pix = ctx.getImageData(0, 0, w, h).data;
+  const gray = new Float32Array(w * h);
+  for (let i = 0, j = 0; i < pix.length; i += 4, j++) {
+    gray[j] = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+  }
+
+  const ys = Array.from(rawY).filter(Number.isFinite).map(v => Math.max(0, Math.min(h - 1, v))).sort((a, b) => a - b);
+  const coverage = ys.length / rawY.length;
+  const amp = ys.length ? (percentile(ys, 0.95) - percentile(ys, 0.05)) / Math.max(1, h) : 0;
+
+  let jumps = 0, validPairs = 0, edge = 0, roughSum = 0, roughN = 0;
+  const jumpThresh = Math.max(8, h * 0.14);
+  for (let i = 0; i < rawY.length; i++) {
+    const y = rawY[i];
+    if (!Number.isFinite(y)) continue;
+    if (y < h * 0.04 || y > h * 0.96) edge++;
+    if (i > 0 && Number.isFinite(rawY[i - 1])) {
+      validPairs++;
+      if (Math.abs(y - rawY[i - 1]) > jumpThresh) jumps++;
+    }
+    if (i > 1 && Number.isFinite(rawY[i - 1]) && Number.isFinite(rawY[i - 2])) {
+      roughSum += Math.abs(y - 2 * rawY[i - 1] + rawY[i - 2]);
+      roughN++;
+    }
+  }
+  const jumpRate = validPairs ? jumps / validPairs : 1;
+  const edgeRate = ys.length ? edge / ys.length : 1;
+  const roughness = roughN ? roughSum / roughN / Math.max(1, h) : 1;
+
+  let contrastSum = 0, contrastN = 0, lowContrast = 0;
+  const bgOffset = Math.max(8, Math.round(h * 0.12));
+  const step = Math.max(1, Math.floor(rawY.length / 240));
+  for (let x = 0; x < rawY.length; x += step) {
+    const y = rawY[x];
+    if (!Number.isFinite(y)) continue;
+    const xi = x / Math.max(1, rawY.length - 1) * (w - 1);
+    const line = sampleGrayAt(gray, w, h, xi, y, 1);
+    const top = sampleGrayAt(gray, w, h, xi, Math.max(0, y - bgOffset), 1);
+    const bot = sampleGrayAt(gray, w, h, xi, Math.min(h - 1, y + bgOffset), 1);
+    const contrast = Math.max(0, ((top + bot) / 2) - line);
+    contrastSum += contrast;
+    contrastN++;
+    if (contrast < 8) lowContrast++;
+  }
+  const contrast = contrastN ? contrastSum / contrastN : 0;
+  const lowContrastRate = contrastN ? lowContrast / contrastN : 1;
+
+  const coverageScore = clamp01((coverage - 0.82) / 0.16);
+  const jumpScore = clamp01(1 - jumpRate / 0.06);
+  const edgeScore = clamp01(1 - edgeRate / 0.08);
+  const contrastScore = clamp01((contrast - 6) / 22) * clamp01(1 - lowContrastRate / 0.55);
+  const roughScore = clamp01(1 - roughness / 0.055);
+  const ampScore = clamp01((amp - 0.025) / 0.05);
+
+  const score = Math.round(
+    24 * coverageScore +
+    18 * jumpScore +
+    18 * contrastScore +
+    14 * roughScore +
+    12 * edgeScore +
+    8 * ampScore +
+    6
+  );
+
+  const reasons = [];
+  if (coverage < 0.90) reasons.push('曲线覆盖不足');
+  if (jumpRate > 0.06) reasons.push('局部跳变偏多');
+  if (contrast < 10 || lowContrastRate > 0.55) reasons.push('与原图贴合度偏低');
+  if (edgeRate > 0.08) reasons.push('曲线靠近边界');
+  if (roughness > 0.055) reasons.push('曲线抖动偏多');
+  if (amp < 0.025) reasons.push('幅度过低');
+
+  let level = 'good';
+  if (score < 70 || reasons.length >= 2) level = 'bad';
+  else if (score < 84 || reasons.length === 1) level = 'warn';
+
+  return {
+    score,
+    level,
+    label: level === 'good' ? `良好 ${score}` : level === 'warn' ? `复核 ${score}` : `需修复 ${score}`,
+    reasons,
+    needRepair: level === 'bad',
+    metrics: { coverage, jumpRate, contrast, lowContrastRate, roughness, edgeRate, amp },
+  };
+}
+
+function qualityTitle(q) {
+  if (!q) return '';
+  const m = q.metrics || {};
+  const bits = [
+    `评分 ${q.score}`,
+    `覆盖 ${(100 * (m.coverage || 0)).toFixed(0)}%`,
+    `跳变 ${(100 * (m.jumpRate || 0)).toFixed(1)}%`,
+    `贴合 ${Number(m.contrast || 0).toFixed(1)}`,
+  ];
+  if (q.reasons && q.reasons.length) bits.push(q.reasons.join('、'));
+  return bits.join(' · ').replace(/"/g, '&quot;');
+}
+
 /**
  * Extract signal y-coordinate per column from a region.
  * Uses adaptive background removal that works on both coloured and grey paper.
@@ -5680,6 +5817,7 @@ async function runExtraction() {
 
   state.extractedSignals = {};
   state.extractedMV = {};
+  state.extractionQuality = {};
   const params = { threshold: thresh, smooth, method };
 
   // Process each lead using its own isolated canvas
@@ -5711,6 +5849,7 @@ async function runExtraction() {
     if (!rawY) continue;
 
     state.extractedSignals[lead] = rawY;
+    state.extractionQuality[lead] = assessLeadExtractionQuality(lead, rawY);
 
     const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
     const dur_s = getLeadDurS(lead); // 布局比例 × 10s，与框像素宽度无关
@@ -5806,6 +5945,8 @@ function buildPreviewPanel(leads, dpi, speed, gain, fs) {
     totalSnr += snr; count++;
 
     const isRepaired = state.repairedLeads.has(lead);
+    const q = state.extractionQuality?.[lead] || assessLeadExtractionQuality(lead, rawY);
+    state.extractionQuality[lead] = q;
     const card = document.createElement('div');
     card.className = 'preview-card';
 
@@ -5817,6 +5958,7 @@ function buildPreviewPanel(leads, dpi, speed, gain, fs) {
       <div class="preview-card-header">
         <span class="preview-card-lead" style="color:${COLORS[lead]||'#64748b'}">${lead}</span>
         <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s</span>
+        <span class="preview-card-quality ${q.level}" title="${qualityTitle(q)}">${q.label}</span>
         ${isRepaired ? '<span style="font-size:10px;color:var(--accent);margin-left:2px;display:inline-flex;align-items:center;gap:2px"><svg class="icon icon-sm"><use href="#i-tool"/></svg>已修复</span>' : ''}
         <button class="preview-card-edit${isRepaired?' edited':''}" id="editBtn-${lead}"
           onclick="event.stopPropagation();openRepairModal('${lead}')"
@@ -5836,6 +5978,8 @@ function buildPreviewPanel(leads, dpi, speed, gain, fs) {
     if (rawY && mvSig && b) {
       const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
       const isRepaired = state.repairedLeads.has('II_R');
+      const q = state.extractionQuality?.['II_R'] || assessLeadExtractionQuality('II_R', rawY);
+      state.extractionQuality['II_R'] = q;
       const editLabel = isRepaired
         ? '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-check"/></svg>重新修复'
         : '<svg class="icon icon-sm" style="margin-right:3px"><use href="#i-tool"/></svg>修复';
@@ -5846,6 +5990,7 @@ function buildPreviewPanel(leads, dpi, speed, gain, fs) {
         <div class="preview-card-header">
           <span class="preview-card-lead" style="color:${COLORS['II']||'#34d399'}">II 节律</span>
           <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s · 全程节律条</span>
+          <span class="preview-card-quality ${q.level}" title="${qualityTitle(q)}">${q.label}</span>
           ${isRepaired ? '<span style="font-size:10px;color:var(--accent);display:inline-flex;align-items:center;gap:2px"><svg class="icon icon-sm"><use href="#i-tool"/></svg>已修复</span>' : ''}
           <button class="preview-card-edit${isRepaired?' edited':''}" id="editBtn-II_R"
             onclick="event.stopPropagation();openRepairModal('II_R')"
@@ -5863,12 +6008,15 @@ function buildPreviewPanel(leads, dpi, speed, gain, fs) {
     const b = state.boxes['II_R'];
     if (rawY && mvSig && b) {
       const bW = Math.round(b.x2 - b.x1), bH = Math.round(b.y2 - b.y1);
+      const q = state.extractionQuality?.['II_R'] || assessLeadExtractionQuality('II_R', rawY);
+      state.extractionQuality['II_R'] = q;
       const rhythmCard = document.createElement('div');
       rhythmCard.className = 'preview-card span-full';
       rhythmCard.innerHTML = `
         <div class="preview-card-header">
           <span class="preview-card-lead" style="color:${COLORS['II']||'#34d399'}">II 节律</span>
           <span class="preview-card-info">${bW}×${bH}px · ${mvSig.length}pts · ${(mvSig.length/fs).toFixed(2)}s</span>
+          <span class="preview-card-quality ${q.level}" title="${qualityTitle(q)}">${q.label}</span>
           <button class="preview-card-edit" id="editBtn-II_R"
             onclick="event.stopPropagation();openRepairModal('II_R')"
             style="display:inline-flex;align-items:center">
@@ -6878,6 +7026,7 @@ async function applyRepairAndReextract() {
 
   // 6. Convert to mV and resample
   state.extractedSignals[lead] = rawY;
+  state.extractionQuality[lead] = assessLeadExtractionQuality(lead, rawY);
   const mv = yPixToMV(rawY, bH, scalePxMV, blWin);
   const dur_s = getLeadDurS(lead);
   state.extractedMV[lead] = resampleLinear(mv, Math.round(dur_s * fs));
@@ -7993,6 +8142,7 @@ function clearCurrentFile() {
   state.boxes = {};
   state.extractedMV = null;
   state.extractedSignals = null;
+  state.extractionQuality = {};
   state.calibration = { pxPerMmX: null, pxPerMmY: null, mode: null, pendingPoints: [], manual: { x: null, y: null }, auto: null, source: 'dpi' };
   state.perspectivePoints = [];
   state.perspectiveMode = false;
@@ -8504,6 +8654,7 @@ function handleLayoutSelect(val) {
     state.boxes = {};
     state.extractedMV = null;
     state.extractedSignals = null;
+    state.extractionQuality = {};
     window._lastExtractedBoxSig = null;
     renderOverlay();
     // 重置 result3
@@ -8570,6 +8721,7 @@ function recomputeMVFromExtracted() {
   const scalePxMV = pxPerMmY * gain;
   const sigs = state.extractedSignals || {};
   state.extractedMV = {};
+  state.extractionQuality = {};
   for (const lead of Object.keys(sigs)) {
     const rawY = sigs[lead];
     const b = state.boxes[lead];
