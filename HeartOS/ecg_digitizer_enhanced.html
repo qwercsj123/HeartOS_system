@@ -5038,7 +5038,11 @@ function canvasToBlobAsync(canvas, type = 'image/png', quality) {
 }
 
 function normalizeAiYByX(data, targetW, targetH) {
-  const src = Array.isArray(data?.y_by_x) ? data.y_by_x : [];
+  // New proxy responses expose the guarded mask/skeleton/QRS result as
+  // final_y_by_x. Keep y_by_x fallback for direct/older model endpoints.
+  const src = Array.isArray(data?.final_y_by_x) && data.final_y_by_x.length
+    ? data.final_y_by_x
+    : (Array.isArray(data?.y_by_x) ? data.y_by_x : []);
   if (!src.length) throw new Error('模型结果缺少 y_by_x');
   const srcW = Number(data.width) || src.length;
   const srcH = Number(data.height) || targetH;

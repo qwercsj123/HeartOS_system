@@ -45,6 +45,7 @@ from .auth import (
 )
 from .chest_pain import predict_image_and_report
 from .config import settings
+from .ecg_segment_postprocess import postprocess_segment_response
 from . import db as dbstore
 from .db import (
     MAX_PERSISTED_NOTEBOOK_MSG_HTML,
@@ -3975,9 +3976,11 @@ async def ecg_segment_proxy(
 
     timeout = httpx.Timeout(settings.http_timeout)
     limits = httpx.Limits(max_keepalive_connections=10, max_connections=30)
+    # The production postprocessor needs the probability/mask image even when
+    # the browser does not want image artifacts in the final response.
     params = {
         "threshold": max(0.0, min(1.0, float(threshold))),
-        "include_images": bool(include_images),
+        "include_images": True,
     }
     try:
         async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
@@ -3998,9 +4001,29 @@ async def ecg_segment_proxy(
         raise HTTPException(status_code=502, detail="ECG 分割模型返回非 JSON") from e
 
     if isinstance(out, dict):
+        try:
+            out = postprocess_segment_response(out, content, threshold=params["threshold"])
+        except Exception as e:  # noqa: BLE001
+            LOGGER.exception("ECG segment postprocess failed for %s", filename)
+            out.setdefault("_postprocess", {})
+            out["_postprocess"].update({"applied": False, "method": "upstream_fallback", "error": str(e)[:300]})
+
+        # The mask is requested internally. Keep the browser response compact
+        # unless the caller explicitly asks for diagnostic images.
+        if not include_images:
+            image_keys = [
+                key
+                for key, value in out.items()
+                if isinstance(value, str)
+                and ("base64" in key.lower() or key.lower().endswith(("_png", "_image")))
+            ]
+            for key in image_keys:
+                out.pop(key, None)
+
         out.setdefault("_meta", {})
         out["_meta"]["proxy"] = True
         out["_meta"]["upstream_url"] = upstream_url
+        out["_meta"]["postprocess"] = True
     return out if isinstance(out, dict) else {"result": out}
 
 
