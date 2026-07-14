@@ -193,11 +193,11 @@ curl.exe -X POST http://127.0.0.1:9000/api/ecg-reconstruct `
 ## 准心胸痛模型接入
 
 后端已内置准心胸痛模型代理，默认上游地址：
-`http://110.157.241.3:18008/predict_text`
+`http://219.147.100.43:18020/predict_text`
 
 如需修改地址，设置环境变量：
 ```env
-APP_CHEST_PAIN_PREDICT_URL=http://110.157.241.3:18008/predict_text
+APP_CHEST_PAIN_PREDICT_URL=http://219.147.100.43:18020/predict_text
 ```
 
 调用方式：
