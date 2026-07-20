@@ -696,7 +696,7 @@ details summary{user-select:none}
             <label>暗度阈值</label>
             <input type="number" id="epThreshold2" oninput="document.getElementById('epThreshold').value=this.value" value="150" min="50" max="255">
           </div>
-          <div class="ep-item">
+          <div class="ep-item" style="display:none">
             <label>兜底基线窗口(%)</label>
             <input type="number" id="epBaseline2" oninput="document.getElementById('epBaseline').value=this.value" value="10" min="2" max="50">
           </div>
@@ -1129,7 +1129,7 @@ details summary{user-select:none}
             <div style="display:flex;flex-direction:column;gap:8px">
               <div class="param-row">
                 <div class="param-item"><label>暗度阈值</label><input type="number" id="epThreshold" value="150" min="50" max="255"></div>
-                <div class="param-item"><label>兜底基线窗口(%)</label><input type="number" id="epBaseline" value="10" min="2" max="50"></div>
+                <div class="param-item" style="display:none"><label>兼容基线窗口(%)</label><input type="number" id="epBaseline" value="10" min="2" max="50"></div>
               </div>
               <div class="param-row">
                 <div class="param-item"><label>平滑核(px)</label><input type="number" id="epSmooth" value="0" min="0" max="15"></div>
@@ -2515,7 +2515,7 @@ let state = {
   extractedSignals: null,  // lead -> Float32Array (raw y-px per column)
   extractedMV: null,       // lead -> Float32Array (mV, resampled)
   baselineSignals: null,   // lead -> Float32Array (local y-px ECG isoelectric baseline)
-  baselineMeta: {},        // lead -> hierarchical baseline diagnostics
+  baselineMeta: {},        // lead -> fixed-zero estimation diagnostics
   extractionQuality: {},   // lead -> quality assessment for extracted rawY
   offCanvas: null,         // READ-ONLY master canvas — never modified after creation
   leadCanvases: {},        // lead -> HTMLCanvasElement  每导联独立图像，修复只改这里
@@ -5926,64 +5926,84 @@ function movingAverageSignal(signal, windowSize) {
   return out;
 }
 
-function medianFilterSignal(signal, windowSize) {
-  const n = signal.length;
-  const win = Math.max(3, Math.round(windowSize) | 1);
-  const half = Math.floor(win / 2);
-  const out = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const slice = [];
-    for (let j = Math.max(0, i - half); j <= Math.min(n - 1, i + half); j++) slice.push(signal[j]);
-    out[i] = medianFinite(slice, signal[i]);
+function estimateDominantFlatLevel(rawY, durationS) {
+  const n = rawY?.length || 0;
+  if (!n) return 0;
+  const pxPerS = n / Math.max(0.25, durationS || 1);
+  const smooth = movingAverageSignal(rawY, Math.max(1, pxPerS * 0.015));
+  const window = Math.max(5, Math.round(pxPerS * 0.05));
+  const half = Math.floor(window / 2);
+  const samples = [];
+  const flatnessValues = [];
+  for (let i = half; i < n - half; i += Math.max(1, Math.floor(window / 3))) {
+    let minY = Infinity, maxY = -Infinity;
+    for (let j = i - half; j <= i + half; j++) {
+      minY = Math.min(minY, smooth[j]);
+      maxY = Math.max(maxY, smooth[j]);
+    }
+    const flatness = (maxY - minY) + Math.abs(smooth[i + half] - smooth[i - half]);
+    samples.push({ x: i, y: smooth[i], flatness });
+    flatnessValues.push(flatness);
   }
-  return out;
-}
+  const flatCutoff = percentile(flatnessValues.sort((a, b) => a - b), 0.40);
+  const flatSamples = samples.filter(s => s.flatness <= flatCutoff);
+  if (!flatSamples.length) return medianFinite(rawY);
 
-function estimateDualMedianBaseline(rawY, durationS) {
-  const pxPerS = rawY.length / Math.max(0.25, durationS || 1);
-  const removeQrsP = medianFilterSignal(rawY, Math.max(3, pxPerS * 0.20));
-  return medianFilterSignal(removeQrsP, Math.max(3, pxPerS * 0.60));
+  const ys = flatSamples.map(s => s.y).sort((a, b) => a - b);
+  const span = Math.max(4, percentile(ys, 0.95) - percentile(ys, 0.05));
+  const binWidth = Math.max(1, span / 40);
+  const bins = new Map();
+  flatSamples.forEach(sample => {
+    const key = Math.round(sample.y / binWidth);
+    const bucket = bins.get(key) || [];
+    bucket.push(sample.y);
+    bins.set(key, bucket);
+  });
+  let bestBucket = [];
+  bins.forEach(bucket => { if (bucket.length > bestBucket.length) bestBucket = bucket; });
+  return medianFinite(bestBucket, medianFinite(ys));
 }
 
 /**
- * Locate likely TP/PR isoelectric segments. R candidates are used only to define
- * safe inter-beat search regions; the baseline itself is measured from the
- * flattest short window late in each RR interval, never from QRS/ST amplitudes.
+ * Locate fixed-zero candidates from PR and TP segments. QRS locations are
+ * detected from short-window derivative energy so broad T/ST plateaus are not
+ * mistaken for the isoelectric reference.
  */
 function detectEcgIsoelectricAnchors(rawY, durationS) {
   const n = rawY?.length || 0;
   if (n < 20 || !(durationS > 0)) return [];
   const pxPerS = n / durationS;
   const smooth = movingAverageSignal(rawY, Math.max(1, pxPerS * 0.012));
-  const trend = movingAverageSignal(smooth, Math.max(5, pxPerS * 0.60));
-  const score = new Float32Array(n);
+  const derivativeEnergy = new Float32Array(n);
   for (let i = 1; i < n; i++) {
-    const detrended = Math.abs(smooth[i] - trend[i]);
-    const edge = Math.abs(smooth[i] - smooth[i - 1]);
-    score[i] = detrended + edge * 4;
+    const d = smooth[i] - smooth[i - 1];
+    derivativeEnergy[i] = d * d;
   }
-  const sortedScore = Array.from(score).sort((a, b) => a - b);
-  const peakThreshold = percentile(sortedScore, 0.82);
+  const qrsEnergy = movingAverageSignal(derivativeEnergy, Math.max(3, pxPerS * 0.055));
+  const sortedEnergy = Array.from(qrsEnergy).sort((a, b) => a - b);
+  const threshold = percentile(sortedEnergy, 0.88);
   const candidates = [];
-  for (let i = 2; i < n - 2; i++) {
-    if (score[i] >= peakThreshold && score[i] >= score[i - 1] && score[i] >= score[i + 1]) {
-      candidates.push({ x: i, score: score[i] });
+  const edgeGuard = Math.round(pxPerS * 0.16);
+  for (let i = Math.max(2, edgeGuard); i < n - Math.max(2, edgeGuard); i++) {
+    if (qrsEnergy[i] >= threshold && qrsEnergy[i] >= qrsEnergy[i - 1] && qrsEnergy[i] >= qrsEnergy[i + 1]) {
+      candidates.push({ x: i, score: qrsEnergy[i] });
     }
   }
   candidates.sort((a, b) => b.score - a.score);
-  const minPeakGap = Math.max(3, Math.round(pxPerS * 0.28));
-  const peaks = [];
+  const qrsCenters = [];
+  const refractory = Math.max(5, Math.round(pxPerS * 0.32));
   for (const candidate of candidates) {
-    if (peaks.every(p => Math.abs(p - candidate.x) >= minPeakGap)) peaks.push(candidate.x);
-    if (peaks.length >= Math.ceil(durationS * 4)) break;
+    if (qrsCenters.every(x => Math.abs(x - candidate.x) >= refractory)) qrsCenters.push(candidate.x);
+    if (qrsCenters.length >= Math.max(2, Math.ceil(durationS * 3))) break;
   }
-  peaks.sort((a, b) => a - b);
+  qrsCenters.sort((a, b) => a - b);
 
   const flatWindow = Math.max(5, Math.round(pxPerS * 0.045));
-  const rawMedian = medianFinite(rawY);
-  const rawMad = Math.max(0.5, medianFinite(Array.from(rawY, y => Math.abs(y - rawMedian)), 1));
+  const amplitudeSorted = Array.from(smooth).sort((a, b) => a - b);
+  const amplitudeSpan = Math.max(4, percentile(amplitudeSorted, 0.95) - percentile(amplitudeSorted, 0.05));
+  const maxFlatness = Math.max(2.5, amplitudeSpan * 0.10);
   const anchors = [];
-  const chooseFlattest = (lo, hi) => {
+  const chooseFlattest = (lo, hi, source) => {
     lo = Math.max(0, Math.round(lo)); hi = Math.min(n - 1, Math.round(hi));
     if (hi - lo + 1 < flatWindow) return null;
     let best = null;
@@ -5993,42 +6013,40 @@ function detectEcgIsoelectricAnchors(rawY, durationS) {
       const slice = [];
       let minY = Infinity, maxY = -Infinity;
       for (let j = start; j <= end; j++) {
-        const y = rawY[j]; slice.push(y); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+        const y = smooth[j]; slice.push(y); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
       }
-      const flatness = (maxY - minY) + Math.abs(rawY[end] - rawY[start]) * 0.7;
+      const flatness = (maxY - minY) + Math.abs(smooth[end] - smooth[start]);
       if (!best || flatness < best.flatness) {
-        best = { x: Math.round((start + end) / 2), y: medianFinite(slice), flatness };
+        best = { x: Math.round((start + end) / 2), y: medianFinite(slice), flatness, source };
       }
     }
-    if (best) best.confidence = 1 / (1 + best.flatness / (rawMad + 0.5));
-    return best;
+    if (best && best.flatness <= maxFlatness) {
+      best.confidence = 1 / (1 + best.flatness / (maxFlatness + 0.5));
+      return best;
+    }
+    return null;
   };
 
-  for (let i = 0; i + 1 < peaks.length; i++) {
-    const rr = peaks[i + 1] - peaks[i];
-    if (rr < pxPerS * 0.30 || rr > pxPerS * 2.5) continue;
-    const anchor = chooseFlattest(peaks[i] + rr * 0.55, peaks[i + 1] - rr * 0.12);
+  // PR segment: approximately 55–115 ms before the QRS energy centre.
+  qrsCenters.forEach(qrs => {
+    const anchor = chooseFlattest(qrs - pxPerS * 0.115, qrs - pxPerS * 0.055, 'PR');
+    if (anchor) anchors.push(anchor);
+  });
+
+  // TP segment: search late in each RR interval, away from both QRS complexes.
+  for (let i = 0; i + 1 < qrsCenters.length; i++) {
+    const rr = qrsCenters[i + 1] - qrsCenters[i];
+    if (rr < pxPerS * 0.32 || rr > pxPerS * 2.5) continue;
+    const anchor = chooseFlattest(qrsCenters[i] + rr * 0.52, qrsCenters[i + 1] - rr * 0.16, 'TP');
     if (anchor) anchors.push(anchor);
   }
 
-  // Short or irregular records may not yield two reliable R candidates. In
-  // that case use a few widely separated, globally flattest windows.
-  if (!anchors.length) {
-    const fallback = [];
-    const step = Math.max(1, Math.floor(flatWindow / 2));
-    for (let start = 0; start + flatWindow < n; start += step) {
-      const center = start + Math.floor(flatWindow / 2);
-      if (peaks.some(p => Math.abs(p - center) < pxPerS * 0.18)) continue;
-      const anchor = chooseFlattest(start, start + flatWindow - 1);
-      if (anchor) fallback.push(anchor);
-    }
-    fallback.sort((a, b) => a.flatness - b.flatness);
-    for (const anchor of fallback) {
-      if (anchors.every(a => Math.abs(a.x - anchor.x) > pxPerS * 0.30)) anchors.push(anchor);
-      if (anchors.length >= 3) break;
-    }
-  }
-  return anchors.sort((a, b) => a.x - b.x);
+  const ordered = anchors.sort((a, b) => a.x - b.x);
+  if (ordered.length < 2) return ordered;
+  const center = medianFinite(ordered.map(a => a.y));
+  const mad = medianFinite(ordered.map(a => Math.abs(a.y - center)), 0);
+  const tolerance = Math.max(2.5, mad * 3, amplitudeSpan * 0.08);
+  return ordered.filter(anchor => Math.abs(anchor.y - center) <= tolerance);
 }
 
 function groupExtractedLeadsByRow(leads) {
@@ -6047,88 +6065,175 @@ function groupExtractedLeadsByRow(leads) {
   return rows.map(row => row.items.map(item => item.lead));
 }
 
-function interpolateAnchorResiduals(n, anchors) {
-  const out = new Float32Array(n);
-  if (!anchors.length) return out;
-  const clean = anchors.map((a, i) => {
-    const neighbors = anchors.slice(Math.max(0, i - 1), Math.min(anchors.length, i + 2)).map(v => v.residual);
-    return { x: a.x, residual: medianFinite(neighbors, a.residual) };
-  });
-  let k = 0;
-  for (let i = 0; i < n; i++) {
-    while (k + 1 < clean.length && clean[k + 1].x < i) k++;
-    if (i <= clean[0].x) out[i] = clean[0].residual;
-    else if (i >= clean[clean.length - 1].x) out[i] = clean[clean.length - 1].residual;
-    else {
-      const a = clean[k], b = clean[Math.min(k + 1, clean.length - 1)];
-      const t = (i - a.x) / Math.max(1, b.x - a.x);
-      out[i] = a.residual + (b.residual - a.residual) * t;
+/**
+ * Detect the standard rectangular calibration pulse in raw RGBA pixels.
+ * The grid is normally red/orange, so only dark, nearly achromatic ink is
+ * considered. A valid pulse needs two long vertical sides plus the connecting
+ * top edge. Its lower return endpoint defines 0 mV (the rectangle is often
+ * open at the bottom and then continues directly into the ECG trace).
+ */
+function detectCalibrationPulseZeroFromPixels(pixels, width, height) {
+  if (!pixels || width < 16 || height < 16) return null;
+  const scanWidth = Math.max(16, Math.min(width, Math.round(width * 0.34)));
+  const minHeight = Math.max(10, Math.round(height * 0.12));
+  const columns = [];
+  const isDarkInk = (x, y) => {
+    const i = (y * width + x) * 4;
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3];
+    if (a < 80) return false;
+    const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+    const luminance = r * 0.299 + g * 0.587 + b * 0.114;
+    return luminance < 145 && (maxC - minC) < 48;
+  };
+
+  for (let x = 0; x < scanWidth; x++) {
+    let top = height, bottom = -1, count = 0;
+    for (let y = 0; y < height; y++) {
+      if (!isDarkInk(x, y)) continue;
+      top = Math.min(top, y); bottom = Math.max(bottom, y); count++;
+    }
+    const span = bottom >= top ? bottom - top + 1 : 0;
+    if (span >= minHeight && count / span >= 0.38) columns.push({ x, top, bottom, count, span });
+  }
+  if (columns.length < 2) return null;
+
+  // Merge anti-aliased neighbouring columns into one vertical-stroke candidate.
+  const strokes = [];
+  for (const column of columns) {
+    let stroke = strokes[strokes.length - 1];
+    if (!stroke || column.x - stroke.lastX > 2) {
+      stroke = { columns: [], lastX: column.x };
+      strokes.push(stroke);
+    }
+    stroke.columns.push(column); stroke.lastX = column.x;
+  }
+  const candidates = strokes.map(stroke => {
+    const best = stroke.columns.slice().sort((a, b) => b.count - a.count || b.span - a.span)[0];
+    return {
+      x: medianFinite(stroke.columns.map(c => c.x)),
+      top: medianFinite(stroke.columns.map(c => c.top), best.top),
+      bottom: medianFinite(stroke.columns.map(c => c.bottom), best.bottom),
+      span: best.span,
+      thickness: stroke.columns.length,
+    };
+  }).filter(s => s.span >= minHeight);
+
+  let bestPair = null;
+  const minSeparation = Math.max(6, Math.round(width * 0.012));
+  const maxSeparation = Math.max(minSeparation + 1, Math.min(scanWidth * 0.78, width * 0.24));
+  // Printed grids and anti-aliasing can hide the lower part of the rising edge,
+  // while the falling edge that returns to the trace remains clear.
+  const endpointTolerance = Math.max(8, height * 0.12);
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const left = candidates[i], right = candidates[j];
+      const separation = right.x - left.x;
+      if (separation < minSeparation || separation > maxSeparation) continue;
+      if (Math.abs(left.top - right.top) > endpointTolerance) continue;
+      if (Math.abs(left.bottom - right.bottom) > endpointTolerance) continue;
+
+      const topY = Math.round((left.top + right.top) / 2);
+      let supported = 0, tested = 0;
+      for (let x = Math.ceil(left.x); x <= Math.floor(right.x); x++) {
+        tested++;
+        let hit = false;
+        for (let y = Math.max(0, topY - 3); y <= Math.min(height - 1, topY + 3); y++) {
+          if (isDarkInk(x, y)) { hit = true; break; }
+        }
+        if (hit) supported++;
+      }
+      const topSupport = tested ? supported / tested : 0;
+      if (topSupport < 0.48) continue;
+
+      const heightSimilarity = 1 - Math.min(1, Math.abs(left.span - right.span) / Math.max(left.span, right.span));
+      const score = topSupport * 0.60 + heightSimilarity * 0.25 + (1 - right.x / scanWidth) * 0.15;
+      if (!bestPair || score > bestPair.score) {
+        bestPair = {
+          zeroY: Math.max(left.bottom, right.bottom),
+          topY: (left.top + right.top) / 2,
+          leftX: left.x,
+          rightX: right.x,
+          confidence: Math.max(0, Math.min(1, score)),
+          score,
+        };
+      }
     }
   }
-  return movingAverageSignal(out, Math.max(3, Math.round(n * 0.015)));
+  return bestPair;
+}
+
+function detectLeadCalibrationPulse(lead) {
+  try {
+    const canvas = getLeadCanvas(lead);
+    if (!canvas?.width || !canvas?.height) return null;
+    const pixels = canvas.getContext('2d', { willReadFrequently: true })
+      .getImageData(0, 0, canvas.width, canvas.height).data;
+    return detectCalibrationPulseZeroFromPixels(pixels, canvas.width, canvas.height);
+  } catch (err) {
+    console.warn('Calibration pulse detection skipped for lead', lead, err);
+    return null;
+  }
 }
 
 /**
- * Hierarchical ECG baseline:
- *   shared row slope + independent lead offset + optional rhythm-strip drift.
- * Short diagnostic leads deliberately receive no flexible local detrending so
- * ST/T morphology is not flattened.
+ * Fixed ECG zero line. After rotation/perspective correction, every baseline
+ * is horizontal and therefore parallel to the ECG grid. Leads printed on the
+ * same row share one global zero level; no signal-following curve is applied.
+ * A rectangular calibration pulse has absolute priority over signal estimates.
  */
 function buildEcgBaselineModels(leads) {
   const present = leads.filter(lead => state.extractedSignals?.[lead] && state.boxes?.[lead]);
-  const anchorsByLead = {};
+  const estimates = {};
   present.forEach(lead => {
-    anchorsByLead[lead] = detectEcgIsoelectricAnchors(state.extractedSignals[lead], getLeadDurS(lead));
+    const rawY = state.extractedSignals[lead];
+    const durationS = getLeadDurS(lead);
+    const anchors = detectEcgIsoelectricAnchors(rawY, durationS);
+    const dominantLevel = estimateDominantFlatLevel(rawY, durationS);
+    const anchorLevel = anchors.length ? medianFinite(anchors.map(a => a.y)) : null;
+    estimates[lead] = {
+      level: Number.isFinite(anchorLevel) ? anchorLevel : dominantLevel,
+      method: Number.isFinite(anchorLevel) ? 'fixed-pr-tp-zero' : 'fixed-dominant-flat-zero',
+      anchors,
+      dominantLevel,
+      confidence: anchors.length ? medianFinite(anchors.map(a => a.confidence), 0) : 0.35,
+      calibration: detectLeadCalibrationPulse(lead),
+    };
   });
   const baselineSignals = {};
   const baselineMeta = {};
   const rows = groupExtractedLeadsByRow(present);
 
   rows.forEach((rowLeads, rowIndex) => {
-    const leadSlopes = [];
-    rowLeads.forEach(lead => {
-      const b = state.boxes[lead], anchors = anchorsByLead[lead];
-      for (let i = 0; i < anchors.length; i++) {
-        for (let j = i + 1; j < anchors.length; j++) {
-          const x1 = b.x1 + anchors[i].x / Math.max(1, state.extractedSignals[lead].length - 1) * (b.x2 - b.x1);
-          const x2 = b.x1 + anchors[j].x / Math.max(1, state.extractedSignals[lead].length - 1) * (b.x2 - b.x1);
-          if (Math.abs(x2 - x1) > 2) leadSlopes.push((anchors[j].y - anchors[i].y) / (x2 - x1));
-        }
-      }
-    });
-    const rowSlope = Math.max(-0.12, Math.min(0.12, medianFinite(leadSlopes, 0)));
+    const calibrationLeads = rowLeads.filter(lead => estimates[lead].calibration);
+    const globalLevels = calibrationLeads.length
+      ? calibrationLeads.map(lead => state.boxes[lead].y1 + estimates[lead].calibration.zeroY)
+      : rowLeads.map(lead => state.boxes[lead].y1 + estimates[lead].level);
+    const sharedGlobalZero = medianFinite(globalLevels);
+    const rowMethod = calibrationLeads.length ? 'row-shared-calibration-pulse-zero' : 'row-shared-signal-zero';
 
     rowLeads.forEach(lead => {
       const rawY = state.extractedSignals[lead], b = state.boxes[lead];
-      const anchors = anchorsByLead[lead];
-      const globalX = x => b.x1 + x / Math.max(1, rawY.length - 1) * (b.x2 - b.x1);
-      const interceptSamples = anchors.map(a => a.y - rowSlope * globalX(a.x));
-      const fallbackSamples = Array.from(rawY, (y, i) => y - rowSlope * globalX(i));
-      const intercept = medianFinite(interceptSamples, medianFinite(fallbackSamples, b.y2 - b.y1));
+      // Do not fall back per lead: one printed row must have exactly one global
+      // electrical zero, even if an individual crop does not contain that line.
+      const zeroY = sharedGlobalZero - b.y1;
       const baseline = new Float32Array(rawY.length);
-      for (let i = 0; i < rawY.length; i++) baseline[i] = intercept + rowSlope * globalX(i);
-
-      const durationS = getLeadDurS(lead);
-      let method = anchors.length ? 'row+lead-offset' : 'row+robust-offset';
-      if (durationS >= 6 && anchors.length >= 3) {
-        const residuals = anchors.map(a => ({ x: a.x, residual: a.y - baseline[a.x] }));
-        const drift = interpolateAnchorResiduals(rawY.length, residuals);
-        for (let i = 0; i < baseline.length; i++) baseline[i] += drift[i];
-        method = 'row+lead-offset+rhythm-drift';
-      } else if (durationS >= 6 && !anchors.length) {
-        const fallback = estimateDualMedianBaseline(rawY, durationS);
-        baseline.set(fallback);
-        method = 'dual-median-fallback';
-      }
+      baseline.fill(zeroY);
 
       baselineSignals[lead] = baseline;
       baselineMeta[lead] = {
-        method,
+        method: rowMethod,
         row: rowIndex + 1,
-        rowSlope,
-        anchorCount: anchors.length,
-        confidence: anchors.length ? medianFinite(anchors.map(a => a.confidence), 0) : 0,
-        anchors,
+        zeroY,
+        sharedGlobalZero,
+        leadEstimatedZero: estimates[lead].level,
+        signalEstimateMethod: estimates[lead].method,
+        calibrationDetected: calibrationLeads.length > 0,
+        calibrationLeads: calibrationLeads.slice(),
+        calibration: estimates[lead].calibration,
+        outsideLeadCrop: zeroY < 0 || zeroY > Math.max(1, b.y2 - b.y1),
+        anchorCount: estimates[lead].anchors.length,
+        confidence: estimates[lead].confidence,
+        anchors: estimates[lead].anchors,
       };
     });
   });
@@ -6141,19 +6246,11 @@ function buildEcgBaselineModels(leads) {
 /** Convert raw y-pixels to mV using a supplied ECG-aware baseline + scale. */
 function yPixToMV(rawY, boxH, scalePxMV, baselineWindowPct, suppliedBaseline = null) {
   const n = rawY.length;
-  const winSize = Math.max(10, Math.round(n * baselineWindowPct / 100));
-
-  // Legacy running median is retained only as a defensive fallback.
+  // A missing model still falls back to one fixed zero. Never silently create
+  // a signal-following running baseline, which would alter ST/T morphology.
   const baseline = suppliedBaseline && suppliedBaseline.length === n ? suppliedBaseline : new Float32Array(n);
   if (!(suppliedBaseline && suppliedBaseline.length === n)) {
-    for (let i=0; i<n; i++) {
-      const lo=Math.max(0,i-Math.floor(winSize/2));
-      const hi=Math.min(n-1,i+Math.floor(winSize/2));
-      const slice=[];
-      for(let j=lo;j<=hi;j++) slice.push(rawY[j]);
-      slice.sort((a,b)=>a-b);
-      baseline[i]=slice[Math.floor(slice.length/2)];
-    }
+    baseline.fill(medianFinite(rawY));
   }
   const mv = new Float32Array(n);
   for (let i=0; i<n; i++) {
@@ -6434,9 +6531,10 @@ function buildPreviewPanel(leads, dpi, speed, gain, fs) {
   const badge = document.getElementById('qualityBadge');
   const title = document.getElementById('previewHeaderTitle');
   const rhythmNote = (hasRhythmStrip && state.extractedSignals?.['II_R']) ? ' + II节律' : '';
-  const baselineMethods = Object.values(state.baselineMeta || {}).map(meta => meta.method);
-  const fallbackCount = baselineMethods.filter(method => method === 'dual-median-fallback').length;
-  title.textContent = `${orderedLeads.length} 导联${rhythmNote} · ${fs}Hz · ECG分层基线（青色虚线）${fallbackCount ? ` · ${fallbackCount}导联兜底` : ''}`;
+  const baselineRows = Object.values(state.baselineMeta || {});
+  const calibrationRows = new Set(baselineRows.filter(meta => meta.calibrationDetected).map(meta => meta.row)).size;
+  const fallbackCount = baselineRows.filter(meta => String(meta.signalEstimateMethod || '').includes('dominant-flat')).length;
+  title.textContent = `${orderedLeads.length} 导联${rhythmNote} · ${fs}Hz · 同行固定零电位线（青色虚线）${calibrationRows ? ` · ${calibrationRows}行采用矩形标定` : ''}${fallbackCount ? ` · ${fallbackCount}导联统计兜底` : ''}`;
   if (badge) badge.textContent = '';
 }
 
@@ -6962,6 +7060,7 @@ const rp = {
   workCanvas: null,
   undoStack: [],
   anchors: [],
+  baselineY: null,
   dragging: false,
   lastPos: null,
   panStart: null,
@@ -6979,6 +7078,8 @@ function openRepairModal(lead) {
   rp.lead = lead;
   rp.box = state.boxes[lead];
   rp.anchors = [];
+  rp.baselineY = Number.isFinite(Number(state.baselineMeta?.[lead]?.zeroY))
+    ? Number(state.baselineMeta[lead].zeroY) : null;
   rp.undoStack = [];
   rp.scale = 1.0;
   rp.vcropTop = 0;
@@ -7102,6 +7203,20 @@ function renderRepairCanvas() {
     ctx.globalAlpha = 1;
   }
 
+  if (Number.isFinite(rp.baselineY)) {
+    const zeroCanvasY = rp.baselineY * rp.scale;
+    ctx.save();
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 4]);
+    ctx.beginPath(); ctx.moveTo(0, zeroCanvasY); ctx.lineTo(dw, zeroCanvasY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#0891b2';
+    ctx.font = 'bold 11px system-ui,sans-serif';
+    ctx.fillText('0 mV', 7, Math.max(12, zeroCanvasY - 5));
+    ctx.restore();
+  }
+
   // Draw anchors
   rp.anchors.forEach((a, idx) => {
     const ax = a.ix * rp.scale, ay = a.iy * rp.scale;
@@ -7160,6 +7275,7 @@ function renderRepairCanvas() {
 
   document.getElementById('repairFooterInfo').textContent =
     `锚点: ${rp.anchors.length} · 画布: ${wc.width}×${wc.height}px · 缩放: ${Math.round(rp.scale*100)}%` +
+    (Number.isFinite(rp.baselineY) ? ` · 零线: ${Math.round(rp.baselineY)}px` : '') +
     (trackYHint >= 0 ? ` · 目标线已标记` : '');
 
   // Draw y-hint line if set
@@ -7441,8 +7557,8 @@ async function applyRepairAndReextract() {
     rawY = blended;
   }
 
-  // 6. Rebuild the row-aware baseline and re-scale all extracted leads. A
-  // repaired lead can slightly improve its row's common geometric estimate.
+  // 6. Rebuild the automatic fixed row zero and re-scale all extracted leads.
+  // Calibration-pulse lower edges take priority over PR/TP signal estimates.
   state.extractedSignals[lead] = rawY;
   state.extractionQuality[lead] = assessLeadExtractionQuality(lead, rawY);
   recomputeMVFromExtracted();
@@ -7450,24 +7566,13 @@ async function applyRepairAndReextract() {
   // 7. Mark as repaired
   state.repairedLeads.add(lead);
 
-  // 8. Refresh the preview card for this lead only
-  const pcw = document.getElementById(`pcw-${lead}`);
-  if (pcw) {
-    const card = pcw.closest('.preview-card');
-    if (card) drawPreviewCard(lead, card, rawY, bW, bH);
-  }
-
-  // Update edit button
-  const btn = document.getElementById(`editBtn-${lead}`);
-  if (btn) { btn.textContent = '✓ 重新修复'; btn.classList.add('edited'); }
-
-  // Update repair badge on card header
-  const headerSpan = document.querySelector(`#editBtn-${lead}`)?.parentElement?.querySelector('.repair-badge');
+  // 8. A row zero applies to every sibling lead, so rebuild every preview card.
+  buildPreviewPanel(Object.keys(state.extractedSignals || {}), dpi, speed, gain, fs);
   // Re-render the overlay on the main canvas too
   renderOverlay();
 
   updateLeadItem(lead);
-  toast(`✓ ${lead} 修复完成 · 其他导联不受影响`);
+  toast(`✓ ${lead} 修复完成 · 固定零电位线已重算`);
   closeRepairModal();
 }
 
